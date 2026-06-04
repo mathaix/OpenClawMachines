@@ -9,6 +9,7 @@ JWT_SECRET = "test-jwt-secret-for-unit-tests-only"
 CF_SERVICE_TOKEN_ID = "test-cf-token-id"
 CF_SERVICE_TOKEN_SECRET = "test-cf-token-secret"
 RESOLVE_ORIGIN = "http://127.0.0.1:54321"
+ALLOW_INSECURE_LOCAL_AGENT_ORIGIN = "1"
 
 [[kv_namespaces]]
 binding = "OCM_ROUTES"

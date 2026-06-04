@@ -189,7 +189,7 @@ function extractMachinePath(pathname) {
  * Cloudflare Workers require explicit message piping for WebSocket proxying.
  */
 async function proxyWebSocket(request, url, route, machineSlug, subPath, env) {
-  const targetUrl = new URL(`https://${route.host_hostname}/proxy/${route.machine_id}${subPath}`);
+  const targetUrl = new URL(`/proxy/${route.machine_id}${subPath}`, agentOriginForHostHostname(route.host_hostname, env));
   targetUrl.search = url.search;
 
   const headers = new Headers(request.headers);
@@ -433,12 +433,35 @@ function frameAncestorsDirective(baseDomain = DEFAULT_BASE_DOMAIN) {
   return `frame-ancestors 'self' ${domain} *.${domain}`;
 }
 
+function isLocalAgentHostname(hostname) {
+  const h = (hostname || "").toLowerCase();
+  return h === "localhost" || h === "127.0.0.1" || h === "::1";
+}
+
+function agentOriginForHostHostname(hostHostname, env = {}) {
+  const raw = (hostHostname || "").trim();
+  if (!raw) {
+    throw new Error("host hostname is required");
+  }
+
+  const origin = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`);
+  if (env.ALLOW_INSECURE_LOCAL_AGENT_ORIGIN === "1" && isLocalAgentHostname(origin.hostname)) {
+    origin.protocol = "http:";
+  } else {
+    origin.protocol = "https:";
+  }
+  origin.pathname = "/";
+  origin.search = "";
+  origin.hash = "";
+  return origin;
+}
+
 /**
  * Forward request to host agent proxy via Cloudflare Tunnel.
  */
 async function forwardToAgent(request, url, hostHostname, machineID, proxyToken, machineSlug, subPath, env) {
   const baseDomain = getBaseDomain(env);
-  const agentUrl = new URL(`https://${hostHostname}/proxy/${machineID}${subPath}`);
+  const agentUrl = new URL(`/proxy/${machineID}${subPath}`, agentOriginForHostHostname(hostHostname, env));
   agentUrl.search = url.search;
 
   const headers = new Headers(request.headers);
@@ -791,6 +814,7 @@ export {
   getSignedKV,
   getBaseDomain,
   frameAncestorsDirective,
+  agentOriginForHostHostname,
   hermesDashboardBasePath,
   hermesDashboardPathShim,
   injectHermesDashboardPathShim,

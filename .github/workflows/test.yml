@@ -46,8 +46,14 @@ jobs:
           cache-dependency-path: |
             frontend/package-lock.json
             worker/package-lock.json
-      - run: cd frontend && npm ci
-      - run: cd worker && npm ci
+      - run: cd frontend && npm ci --no-audit
+      - run: cd worker && npm ci --no-audit
+      - name: Run npm audit gates
+        run: |
+          cd frontend
+          npm audit --audit-level=high
+          cd ../worker
+          npm audit --audit-level=high
       - name: Run unit tests
         run: make test
       - name: Run frontend typecheck

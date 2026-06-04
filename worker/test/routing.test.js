@@ -6,6 +6,7 @@ import { signJWT, validClaims } from "./helpers/jwt.js";
 import { setResolveHandler, resetHandlers } from "./helpers/mock-server.js";
 import {
   frameAncestorsDirective,
+  agentOriginForHostHostname,
   hermesDashboardBasePath,
   injectHermesDashboardPathShim,
   prefixHermesDashboardAssetPaths,
@@ -134,6 +135,13 @@ describe("subdomain without machine path", () => {
 });
 
 describe("Hermes dashboard routing", () => {
+  it("uses HTTPS for agent origins except explicit localhost test mode", () => {
+    expect(agentOriginForHostHostname("ocm-host-1.example.com").toString()).toBe("https://ocm-host-1.example.com/");
+    expect(agentOriginForHostHostname("127.0.0.1:54321", {
+      ALLOW_INSECURE_LOCAL_AGENT_ORIGIN: "1",
+    }).toString()).toBe("http://127.0.0.1:54321/");
+  });
+
   it("derives the Hermes dashboard prefix from the routed machine path", () => {
     expect(hermesDashboardBasePath("my-machine", "/dashboard")).toBe("/my-machine/dashboard");
     expect(hermesDashboardBasePath("my-machine", "/dashboard/chat")).toBe("/my-machine/dashboard");
