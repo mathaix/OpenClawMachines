@@ -53,6 +53,23 @@ Create a local env file or export values in your shell:
 cp .env.example .env
 ```
 
+For the trusted local control-plane/UI path, the repository includes a helper
+that creates ignored local env files and starts the pieces in separate
+terminals:
+
+```bash
+make local-env
+make local-postgres
+make local-backend
+make local-frontend
+```
+
+Then open `http://localhost:5173/dashboard`. The helper uses
+`AUTH_MODE=dev`, `DEV_USER_EMAIL=dev@localhost`, a Docker Postgres container,
+and the Vite `/api` proxy. Set `OCM_LOCAL_DEV_SKIP_POSTGRES=1` before
+`make local-backend` if you want to use your own `DATABASE_URL` instead of the
+Docker Postgres helper.
+
 Minimum local hints:
 
 ```bash

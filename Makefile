@@ -1,6 +1,6 @@
 # OpenClaw Machines public-core Makefile
 
-.PHONY: help dev preflight backend frontend status check check-go check-scripts test test-go test-unit test-frontend typecheck test-worker test-integration test-integration-e2e test-integration-run integration-kvm build build-server build-agent build-authproxy build-ocm-secrets build-rootfs test-rootfs build-openclaw setup-local-openclaw clean
+.PHONY: help dev local-env local-postgres local-migrate local-backend local-frontend local-status local-stop preflight backend frontend status check check-go check-scripts test test-go test-unit test-frontend typecheck test-worker test-integration test-integration-e2e test-integration-run integration-kvm build build-server build-agent build-authproxy build-ocm-secrets build-rootfs test-rootfs build-openclaw setup-local-openclaw clean
 
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 GIT_COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
@@ -11,6 +11,10 @@ help:
 	@echo ""
 	@echo "Development:"
 	@echo "  make preflight      - Check local/BYO-host prerequisites"
+	@echo "  make local-env      - Create local dev env files"
+	@echo "  make local-postgres - Start local Docker Postgres"
+	@echo "  make local-backend  - Run migrations and start local backend"
+	@echo "  make local-frontend - Start local frontend"
 	@echo "  make backend        - Start backend server on port 8080"
 	@echo "  make frontend       - Start frontend dev server on port 5173"
 	@echo "  make dev            - Print local dev startup commands"
@@ -35,8 +39,30 @@ help:
 
 dev:
 	@echo "Start backend and frontend in separate terminals:"
-	@echo "  make backend"
-	@echo "  make frontend"
+	@echo "  make local-postgres"
+	@echo "  make local-backend"
+	@echo "  make local-frontend"
+
+local-env:
+	@bash scripts/local-dev.sh env
+
+local-postgres:
+	@bash scripts/local-dev.sh postgres
+
+local-migrate:
+	@bash scripts/local-dev.sh migrate
+
+local-backend:
+	@bash scripts/local-dev.sh backend
+
+local-frontend:
+	@bash scripts/local-dev.sh frontend
+
+local-status:
+	@bash scripts/local-dev.sh status
+
+local-stop:
+	@bash scripts/local-dev.sh stop
 
 preflight:
 	@bash scripts/preflight.sh
