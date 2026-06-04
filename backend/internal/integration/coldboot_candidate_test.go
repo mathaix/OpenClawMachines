@@ -54,7 +54,7 @@ func TestColdBootCandidate(t *testing.T) {
 
 	cfg := skipIfNoPrereqs(t)
 	setupTestDirs(t, cfg)
-	cfg.OpenClawManifestURI = "gs://example-ocm-artifacts/openclaw/manifest-stable.json"
+	cfg.OpenClawManifestURI = getEnvOrDefault("TEST_OPENCLAW_MANIFEST_URI", defaultOpenClawManifestURI)
 
 	version := discoverStableOpenClawVersion(t)
 	t.Logf("Candidate openclaw version: %s", version)

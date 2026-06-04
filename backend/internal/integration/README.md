@@ -10,12 +10,13 @@ This package contains integration tests that require a Linux host with KVM suppo
 4. **Kernel image**: At `/var/lib/ocm/vmlinux` (auto-downloaded from GCS if missing)
 5. **Rootfs image**: At `/var/lib/ocm/images/rootfs.ext4` (auto-downloaded from GCS if missing)
 6. **gsutil**: Required for auto-download (from google-cloud-sdk)
+7. **Disk space**: Keep at least 40GB free for focused runs and more for the full suite. Without reflink storage, every VM can create multi-GB rootfs, data, and runtime images under `/tmp/ocm-test`.
 
 For Cloudflare tunnel tests, additionally:
-7. **cloudflared binary**: Must be in PATH
-8. **CF_API_TOKEN**: Cloudflare API token with tunnel + DNS permissions
-9. **CF_ACCOUNT_ID**: Cloudflare account ID
-10. **CF_ZONE_ID**: Cloudflare zone ID for the domain
+8. **cloudflared binary**: Must be in PATH
+9. **CF_API_TOKEN**: Cloudflare API token with tunnel + DNS permissions
+10. **CF_ACCOUNT_ID**: Cloudflare account ID
+11. **CF_ZONE_ID**: Cloudflare zone ID for the domain
 
 ## Running Tests
 
@@ -35,8 +36,18 @@ make test-integration-e2e
 make test-integration-run TEST=TestGateway_Health
 
 # Or run directly with go test
-cd backend && sudo -E go test -v -tags integration -timeout 15m ./internal/integration/...
+cd backend && sudo -E env PATH="/usr/sbin:/sbin:/usr/local/sbin:$PATH" go test -v -tags integration -timeout 15m ./internal/integration/...
 ```
+
+For full local runs, use the cleanup and XFS prestaging helpers before starting:
+
+```bash
+sudo bash scripts/test-cleanup.sh
+source scripts/test-xfs-setup.sh
+make integration-kvm
+```
+
+`scripts/test-xfs-setup.sh` mounts a sparse XFS test state directory at `/tmp/ocm-test` and prestages images under `/tmp/ocm-test/images` so the integration helpers can use reflink clones instead of repeated full rootfs copies. If a run is interrupted or the host runs low on disk, run `sudo bash scripts/test-cleanup.sh` before retrying.
 
 ## Test Files
 
@@ -84,6 +95,9 @@ Tests can be configured via environment variables:
 | `TEST_SOCKET_DIR` | `{state_dir}/sockets` | Socket directory for Firecracker |
 | `TEST_BRIDGE_NAME` | `ocm-test-{random}` | Bridge name (auto-suffixed for isolation) |
 | `TEST_AGENT_TOKEN` | `test-token-{random}` | Agent API token |
+| `TEST_OPENCLAW_MANIFEST_URI` | `gs://openclawmachines/openclaw/manifest-stable.json` | OpenClaw channel manifest (`gs://`, `file://`, or local path) |
+| `TEST_HERMES_MANIFEST_URI` | `gs://openclawmachines/hermes/manifest-stable.json` | Hermes channel manifest (`gs://`, `file://`, or local path) |
+| `TEST_HERMES_ROOTFS_MANIFEST_URI` | `gs://openclawmachines/hermes-rootfs/manifest.json` | Hermes rootfs manifest (`gs://`, `file://`, or local path) |
 | `CF_API_TOKEN` | (none) | Cloudflare API token (tunnel tests only) |
 | `CF_ACCOUNT_ID` | (none) | Cloudflare account ID (tunnel tests only) |
 | `CF_ZONE_ID` | (none) | Cloudflare zone ID (tunnel tests only) |
@@ -91,8 +105,8 @@ Tests can be configured via environment variables:
 ## Auto-Download
 
 If kernel or rootfs images are missing, tests will automatically download them from GCS:
-- `gs://example-ocm-artifacts/vmlinux`
-- `gs://example-ocm-artifacts/rootfs.ext4`
+- `gs://openclawmachines/vmlinux`
+- `gs://openclawmachines/rootfs.ext4`
 
 This requires `gsutil` to be installed and authenticated.
 
@@ -128,6 +142,16 @@ Set Cloudflare credentials to run tunnel tests. These tests create real tunnels 
 
 ### "gsutil cp failed"
 Ensure you're authenticated with GCP: `gcloud auth application-default login`
+
+### "No space left on device"
+Stop the run, then clean stale test resources:
+
+```bash
+sudo bash scripts/test-cleanup.sh
+df -h /
+```
+
+The full suite can leave several VMs alive while later tests run. Use `source scripts/test-xfs-setup.sh` before `make integration-kvm`, keep enough free disk for the sparse test image and runtime artifacts, or run focused tests with `make test-integration-run TEST=TestName`.
 
 ### VM creation timeout
 Check that the kernel and rootfs are compatible. View Firecracker logs in the state directory.

@@ -520,12 +520,18 @@ func latestModTime(dir string) time.Time {
 func downloadFromGCS(t *testing.T, filename, destPath string) error {
 	t.Helper()
 
+	return downloadFromGCSURI(t, fmt.Sprintf("gs://%s/%s", gcsBucket, filename), destPath)
+}
+
+// downloadFromGCSURI downloads a file from a concrete GCS URI.
+func downloadFromGCSURI(t *testing.T, gcsPath, destPath string) error {
+	t.Helper()
+
 	// Ensure parent directory exists
 	if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
 		return fmt.Errorf("create parent dir: %w", err)
 	}
 
-	gcsPath := fmt.Sprintf("gs://%s/%s", gcsBucket, filename)
 	t.Logf("Downloading %s to %s...", gcsPath, destPath)
 
 	cmd := exec.Command("gsutil", "cp", gcsPath, destPath)
@@ -534,8 +540,39 @@ func downloadFromGCS(t *testing.T, filename, destPath string) error {
 		return fmt.Errorf("gsutil cp failed: %s: %w", string(output), err)
 	}
 
-	t.Logf("Downloaded %s successfully", filename)
+	t.Logf("Downloaded %s successfully", gcsPath)
 	return nil
+}
+
+func readIntegrationManifest(t *testing.T, envKey, defaultGCSObject string) []byte {
+	t.Helper()
+	tmpFile := filepath.Join(t.TempDir(), "manifest.json")
+
+	if override := strings.TrimSpace(os.Getenv(envKey)); override != "" {
+		if strings.HasPrefix(override, "gs://") {
+			if err := downloadFromGCSURI(t, override, tmpFile); err != nil {
+				t.Fatalf("download manifest %s: %v", override, err)
+			}
+			return readFileOrFatal(t, tmpFile, "downloaded manifest")
+		}
+
+		localPath := strings.TrimPrefix(override, "file://")
+		return readFileOrFatal(t, localPath, "local manifest")
+	}
+
+	if err := downloadFromGCS(t, defaultGCSObject, tmpFile); err != nil {
+		t.Fatalf("download manifest %s: %v", defaultGCSObject, err)
+	}
+	return readFileOrFatal(t, tmpFile, "downloaded manifest")
+}
+
+func readFileOrFatal(t *testing.T, path, label string) []byte {
+	t.Helper()
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s %s: %v", label, path, err)
+	}
+	return b
 }
 
 // skipIfNoPrereqs checks all prerequisites and skips if any are missing.
@@ -815,9 +852,9 @@ func generateTestSigningKey() string {
 }
 
 // defaultOpenClawManifestURI is the GCS manifest used for all integration tests.
-const defaultOpenClawManifestURI = "gs://example-ocm-artifacts/openclaw/manifest-stable.json"
-const defaultHermesManifestURI = "gs://example-ocm-artifacts/hermes/manifest-stable.json"
-const defaultHermesRootfsManifestURI = "gs://example-ocm-artifacts/hermes-rootfs/manifest.json"
+const defaultOpenClawManifestURI = "gs://openclawmachines/openclaw/manifest-stable.json"
+const defaultHermesManifestURI = "gs://openclawmachines/hermes/manifest-stable.json"
+const defaultHermesRootfsManifestURI = "gs://openclawmachines/hermes-rootfs/manifest.json"
 
 // cachedStableVersion caches the stable OpenClaw version across tests.
 var (

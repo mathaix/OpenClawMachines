@@ -537,7 +537,7 @@ func TestRecovery_BrowserVMSurvivesDoubleAgentRestart(t *testing.T) {
 
 	manifestURI := os.Getenv("TEST_BROWSER_ROOTFS_GCS_MANIFEST")
 	if manifestURI == "" {
-		manifestURI = "gs://example-ocm-artifacts/kernel-browser-rootfs/manifest.json"
+		manifestURI = "gs://openclawmachines/kernel-browser-rootfs/manifest.json"
 	}
 
 	newBrowserOrchestrator := func() orchestrator.Orchestrator {
@@ -662,7 +662,7 @@ func TestRecovery_BrowserVMQuarantineReservesWebRTCSlotUntilPIDDies(t *testing.T
 
 	manifestURI := os.Getenv("TEST_BROWSER_ROOTFS_GCS_MANIFEST")
 	if manifestURI == "" {
-		manifestURI = "gs://example-ocm-artifacts/kernel-browser-rootfs/manifest.json"
+		manifestURI = "gs://openclawmachines/kernel-browser-rootfs/manifest.json"
 	}
 
 	newBrowserOrchestrator := func() orchestrator.Orchestrator {
@@ -916,7 +916,7 @@ func TestRecovery_BrowserVMSurvivesDoubleAgentRestart_SystemdOwner(t *testing.T)
 
 	manifestURI := os.Getenv("TEST_BROWSER_ROOTFS_GCS_MANIFEST")
 	if manifestURI == "" {
-		manifestURI = "gs://example-ocm-artifacts/kernel-browser-rootfs/manifest.json"
+		manifestURI = "gs://openclawmachines/kernel-browser-rootfs/manifest.json"
 	}
 
 	newBrowserOrchestrator := func() orchestrator.Orchestrator {

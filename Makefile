@@ -4,6 +4,8 @@
 
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 GIT_COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
+INTEGRATION_PATH ?= /usr/sbin:/sbin:/usr/local/sbin:$(PATH)
+INTEGRATION_SUDO ?= sudo -E env PATH="$(INTEGRATION_PATH)"
 
 help:
 	@echo "OpenClaw Machines Public-Core Commands"
@@ -109,14 +111,14 @@ test-worker:
 	cd worker && npm run test
 
 test-integration:
-	cd backend && sudo -E go test -v -tags integration -timeout 15m ./internal/integration/...
+	cd backend && $(INTEGRATION_SUDO) go test -v -tags integration -timeout 15m ./internal/integration/...
 
 test-integration-e2e:
-	cd backend && sudo -E go test -v -tags integration -timeout 20m ./internal/integration/... -run 'TestTunnel_|Test.*E2E'
+	cd backend && $(INTEGRATION_SUDO) go test -v -tags integration -timeout 20m ./internal/integration/... -run 'TestTunnel_|Test.*E2E'
 
 test-integration-run:
 	@test -n "$(TEST)" || (echo "Usage: make test-integration-run TEST=TestName"; exit 1)
-	cd backend && sudo -E go test -v -tags integration -timeout 15m ./internal/integration/... -run "$(TEST)"
+	cd backend && $(INTEGRATION_SUDO) go test -v -tags integration -timeout 15m ./internal/integration/... -run "$(TEST)"
 
 integration-kvm: test-integration
 
