@@ -201,7 +201,7 @@ echo "Copying entrypoint..."
 $DOCKER exec "${CONTAINER_ID}" cat /tmp/oc/bin/openclaw > "${OC_PKG}/openclaw.mjs"
 
 # --- Bundle platform plugins into dist/extensions ---
-# Platform plugins (opik-openclaw, composio) are installed here alongside openclaw
+# Platform plugins are installed here alongside openclaw
 # so they're versioned together in the artifact. User-installed plugins live
 # separately on the data volume (~/.openclaw/extensions/) and are NOT bundled here.
 EXT_DIR="${OC_PKG}/dist/extensions"
@@ -216,15 +216,6 @@ if [ ! -f "${OPIK_TGZ}" ]; then
 fi
 mkdir -p "${EXT_DIR}/opik-openclaw"
 tar -xzf "${OPIK_TGZ}" -C "${EXT_DIR}/opik-openclaw" --strip-components=1
-
-echo "Installing composio plugin..."
-COMPOSIO_TGZ="${PROJECT_ROOT}/plugins/composio-plugin.tgz"
-if [ ! -f "${COMPOSIO_TGZ}" ]; then
-	echo "ERROR: ${COMPOSIO_TGZ} not found"
-	exit 1
-fi
-mkdir -p "${EXT_DIR}/composio"
-tar -xzf "${COMPOSIO_TGZ}" -C "${EXT_DIR}/composio" --strip-components=1
 
 # --- Scrub unused channel adapters (Phase 1 cold-boot optimization) ---
 # OpenClaw 4.26 awaits sidecar startup before signaling "ready" — every bundled
@@ -485,8 +476,7 @@ cat > "${BUNDLE_DIR}/openclaw-build-info.json" <<EOF
   "external_runtime_dependencies": ${EXTERNAL_RUNTIME_DEPS_JSON},
   "channel_scrub": ${SCRUB_REPORT_JSON},
   "bundled_plugins": {
-    "opik-openclaw": "plugins/opik-openclaw-plugin.tgz",
-    "composio": "plugins/composio-plugin.tgz"
+    "opik-openclaw": "plugins/opik-openclaw-plugin.tgz"
   }
 }
 EOF
