@@ -64,10 +64,12 @@ OCM_ALLOW_DEV_AUTH=1
 DEV_USER_EMAIL=dev@localhost
 ```
 
-`AUTH_MODE=dev` is for local development only and intentionally requires
-`OCM_ALLOW_DEV_AUTH=1`. For a BYO-host deployment, use your own auth, database,
-artifact, DNS, and tunnel configuration. Private hosted credentials are not part
-of public-core preflight.
+`AUTH_MODE=dev` is for trusted local development only and intentionally requires
+`OCM_ALLOW_DEV_AUTH=1`. Do not expose this mode publicly. For a self-hosted
+control plane that should behave like the hosted control plane, use
+`CONTROL_PLANE_PROFILE=operator` with Cloudflare Tunnel, Worker/KV, Firebase or
+Cloudflare Access, and an operator-controlled domain. See
+`docs/self-hosted-control-plane.md`.
 
 ## Runtime Images
 

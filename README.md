@@ -51,6 +51,10 @@ material, and confidential infrastructure notes are not public-core scope.
 - [Security policy](SECURITY.md)
 - [Code of conduct](CODE_OF_CONDUCT.md)
 - [`ocm` CLI project](https://github.com/mathaix/ocm-cli)
+- [Local and BYO-host setup](docs/local-setup.md)
+- [Control plane deployment profiles](docs/control-plane-profiles.md)
+- [Self-hosted control plane prerequisites](docs/self-hosted-control-plane.md)
+- [LLM operator runbook](llms/self-hosted-setup.txt)
 - [Public docs inventory](docs/public-docs-inventory.md)
 
 ## Requirements
@@ -66,8 +70,10 @@ Check your host:
 make preflight
 ```
 
-See [docs/local-setup.md](docs/local-setup.md) for local and BYO-host setup
-expectations.
+See [docs/local-setup.md](docs/local-setup.md) for local and BYO-host runtime
+setup expectations. For a production-like operator deployment that keeps the
+hosted Cloudflare/Firebase/Worker/KVM architecture, see
+[docs/self-hosted-control-plane.md](docs/self-hosted-control-plane.md).
 
 For CI and release safety boundaries, see
 [`docs/ci-release.md`](docs/ci-release.md).
