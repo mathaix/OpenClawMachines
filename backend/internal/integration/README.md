@@ -43,8 +43,7 @@ For full local runs, use the cleanup and XFS prestaging helpers before starting:
 
 ```bash
 sudo bash scripts/test-cleanup.sh
-source scripts/test-xfs-setup.sh
-make integration-kvm
+sudo -E env PATH="/usr/sbin:/sbin:/usr/local/sbin:$PATH" bash -c 'source scripts/test-xfs-setup.sh && make integration-kvm'
 ```
 
 `scripts/test-xfs-setup.sh` mounts a sparse XFS test state directory at `/tmp/ocm-test` and prestages images under `/tmp/ocm-test/images` so the integration helpers can use reflink clones instead of repeated full rootfs copies. If a run is interrupted or the host runs low on disk, run `sudo bash scripts/test-cleanup.sh` before retrying.
