@@ -1,12 +1,15 @@
 name: Codex Review
 
 on:
-  pull_request:
-    types: [opened, synchronize]
-    branches: [main]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Pull request number to review
+        required: true
+        type: number
 
 concurrency:
-  group: codex-review-${{ github.head_ref }}
+  group: codex-review-${{ inputs.pr_number }}
   cancel-in-progress: true
 
 permissions:
@@ -17,20 +20,25 @@ jobs:
   review:
     name: Codex Code Review
     runs-on: ubuntu-latest
-    if: github.event.pull_request.draft == false
     env:
-      PR_NUMBER: ${{ github.event.pull_request.number }}
+      PR_NUMBER: ${{ inputs.pr_number }}
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
 
       - name: Install Codex
         run: npm install -g @openai/codex@0.117.0
+        working-directory: /tmp
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check out reviewed PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh pr checkout "$PR_NUMBER"
 
       - name: Run Codex review
         env:

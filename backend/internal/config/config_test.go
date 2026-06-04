@@ -2,8 +2,186 @@ package config
 
 import (
 	"os"
+	"strings"
 	"testing"
 )
+
+func TestLoadDefaultsToLocalProfileWithoutHostedDefaults(t *testing.T) {
+	unsetEnv(t, "CONTROL_PLANE_PROFILE")
+	unsetEnv(t, "AUTH_MODE")
+	unsetEnv(t, "GCP_PROJECT")
+	unsetEnv(t, "GCP_ZONE")
+	unsetEnv(t, "DATA_PLANE_DOMAIN")
+	unsetEnv(t, "BACKUP_GCS_BUCKET")
+	unsetEnv(t, "BROWSER_ROOTFS_GCS_MANIFEST")
+	unsetEnv(t, "BROWSER_ROOTFS_VERSION")
+	unsetEnv(t, "HERMES_GCS_MANIFEST")
+	unsetEnv(t, "HERMES_ROOTFS_GCS_MANIFEST")
+	t.Setenv("DATABASE_URL", "postgres://test")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.ControlPlaneProfile != ProfileLocal {
+		t.Fatalf("expected default profile %q, got %q", ProfileLocal, cfg.ControlPlaneProfile)
+	}
+	if cfg.AuthMode != "dev" {
+		t.Fatalf("expected local auth mode dev, got %q", cfg.AuthMode)
+	}
+	if cfg.GCPProject != "" || cfg.GCPZone != "" || cfg.GCPRegion != "" {
+		t.Fatalf("expected no local GCP defaults, got project=%q zone=%q region=%q", cfg.GCPProject, cfg.GCPZone, cfg.GCPRegion)
+	}
+	if cfg.DataPlaneDomain != "localhost" {
+		t.Fatalf("expected local data-plane domain localhost, got %q", cfg.DataPlaneDomain)
+	}
+	if cfg.BackupGCSBucket != "" {
+		t.Fatalf("expected no local backup bucket default, got %q", cfg.BackupGCSBucket)
+	}
+	if cfg.BrowserRootfsGCSManifest != "" || cfg.BrowserRootfsVersion != "" {
+		t.Fatalf("expected local browser rootfs support to default off, got manifest=%q version=%q", cfg.BrowserRootfsGCSManifest, cfg.BrowserRootfsVersion)
+	}
+	if cfg.HermesManifestURI != "" || cfg.HermesRootfsManifestURI != "" {
+		t.Fatalf("expected no local Hermes GCS defaults, got runtime=%q rootfs=%q", cfg.HermesManifestURI, cfg.HermesRootfsManifestURI)
+	}
+	if cfg.RequiresHostedIntegrations() {
+		t.Fatalf("local profile must not require hosted integrations")
+	}
+}
+
+func TestLoadHostedProfileUsesHostedDefaults(t *testing.T) {
+	t.Setenv("CONTROL_PLANE_PROFILE", ProfileHosted)
+	unsetEnv(t, "AUTH_MODE")
+	unsetEnv(t, "GCP_PROJECT")
+	unsetEnv(t, "GCP_ZONE")
+	unsetEnv(t, "DATA_PLANE_DOMAIN")
+	unsetEnv(t, "BACKUP_GCS_BUCKET")
+	unsetEnv(t, "BROWSER_ROOTFS_GCS_MANIFEST")
+	unsetEnv(t, "BROWSER_ROOTFS_VERSION")
+	unsetEnv(t, "HERMES_GCS_MANIFEST")
+	unsetEnv(t, "HERMES_ROOTFS_GCS_MANIFEST")
+	t.Setenv("DATABASE_URL", "postgres://test")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.ControlPlaneProfile != ProfileHosted {
+		t.Fatalf("expected hosted profile, got %q", cfg.ControlPlaneProfile)
+	}
+	if cfg.AuthMode != "cfaccess" {
+		t.Fatalf("expected hosted auth mode cfaccess, got %q", cfg.AuthMode)
+	}
+	if cfg.GCPProject != "clarateach" || cfg.GCPZone != "us-central1-b" || cfg.GCPRegion != "us-central1" {
+		t.Fatalf("unexpected hosted GCP defaults: project=%q zone=%q region=%q", cfg.GCPProject, cfg.GCPZone, cfg.GCPRegion)
+	}
+	if cfg.DataPlaneDomain != "openclawmachines.com" {
+		t.Fatalf("expected hosted data-plane domain openclawmachines.com, got %q", cfg.DataPlaneDomain)
+	}
+	if cfg.BackupGCSBucket != "openclawmachines" {
+		t.Fatalf("expected hosted backup bucket openclawmachines, got %q", cfg.BackupGCSBucket)
+	}
+	if cfg.BrowserRootfsGCSManifest != ExperimentalKernelBrowserManifestURI {
+		t.Fatalf("expected hosted browser rootfs manifest %q, got %q", ExperimentalKernelBrowserManifestURI, cfg.BrowserRootfsGCSManifest)
+	}
+	if cfg.BrowserRootfsVersion != StableKernelBrowserRootfsVersion {
+		t.Fatalf("expected stable kernel browser rootfs version %q, got %q", StableKernelBrowserRootfsVersion, cfg.BrowserRootfsVersion)
+	}
+	if cfg.HermesManifestURI != defaultHermesManifestURI {
+		t.Fatalf("expected hosted Hermes manifest %q, got %q", defaultHermesManifestURI, cfg.HermesManifestURI)
+	}
+	if cfg.HermesRootfsManifestURI != defaultHermesRootfsManifestURI {
+		t.Fatalf("expected hosted Hermes rootfs manifest %q, got %q", defaultHermesRootfsManifestURI, cfg.HermesRootfsManifestURI)
+	}
+	if !cfg.RequiresHostedIntegrations() {
+		t.Fatalf("hosted profile should require hosted integrations")
+	}
+}
+
+func TestLoadOperatorProfileRequiresExplicitAuthMode(t *testing.T) {
+	t.Setenv("CONTROL_PLANE_PROFILE", ProfileOperator)
+	unsetEnv(t, "AUTH_MODE")
+	t.Setenv("DATABASE_URL", "postgres://test")
+
+	_, err := Load()
+	if err == nil {
+		t.Fatal("expected Load to reject operator profile without AUTH_MODE")
+	}
+	if !strings.Contains(err.Error(), "AUTH_MODE is required") {
+		t.Fatalf("expected AUTH_MODE error, got %v", err)
+	}
+}
+
+func TestLoadOperatorProfileUsesExplicitAuthModeAndNeutralDefaults(t *testing.T) {
+	t.Setenv("CONTROL_PLANE_PROFILE", ProfileOperator)
+	t.Setenv("AUTH_MODE", "firebase")
+	unsetEnv(t, "GCP_PROJECT")
+	unsetEnv(t, "GCP_ZONE")
+	unsetEnv(t, "DATA_PLANE_DOMAIN")
+	unsetEnv(t, "BACKUP_GCS_BUCKET")
+	unsetEnv(t, "BROWSER_ROOTFS_GCS_MANIFEST")
+	unsetEnv(t, "HERMES_GCS_MANIFEST")
+	unsetEnv(t, "HERMES_ROOTFS_GCS_MANIFEST")
+	t.Setenv("DATABASE_URL", "postgres://test")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.AuthMode != "firebase" {
+		t.Fatalf("expected explicit operator auth mode firebase, got %q", cfg.AuthMode)
+	}
+	if cfg.GCPProject != "" || cfg.GCPZone != "" || cfg.DataPlaneDomain != "" {
+		t.Fatalf("expected neutral operator defaults, got project=%q zone=%q data_plane_domain=%q", cfg.GCPProject, cfg.GCPZone, cfg.DataPlaneDomain)
+	}
+	if cfg.RequiresHostedIntegrations() {
+		t.Fatalf("operator profile must not require hosted integrations")
+	}
+}
+
+func TestLoadRejectsInvalidControlPlaneProfile(t *testing.T) {
+	t.Setenv("CONTROL_PLANE_PROFILE", "managed")
+	t.Setenv("DATABASE_URL", "postgres://test")
+
+	_, err := Load()
+	if err == nil {
+		t.Fatal("expected Load to reject invalid profile")
+	}
+	if !strings.Contains(err.Error(), "invalid CONTROL_PLANE_PROFILE") {
+		t.Fatalf("expected invalid profile error, got %v", err)
+	}
+}
+
+func TestCloudflareConfigDetection(t *testing.T) {
+	cfg := &Config{ControlPlaneProfile: ProfileOperator}
+	if cfg.HasCloudflareConfig() {
+		t.Fatal("expected empty config to have no Cloudflare config")
+	}
+	if cfg.CloudflareTunnelConfigured() || cfg.CloudflareKVConfigured() {
+		t.Fatal("expected empty config to disable Cloudflare tunnel and KV")
+	}
+
+	cfg.CloudflareAPIToken = "token"
+	cfg.CloudflareAccountID = "account"
+	if !cfg.HasCloudflareConfig() {
+		t.Fatal("expected partial Cloudflare config to be detected")
+	}
+	if cfg.CloudflareTunnelConfigured() {
+		t.Fatal("expected tunnel config to require zone ID")
+	}
+	if cfg.CloudflareKVConfigured() {
+		t.Fatal("expected KV config to require namespace ID")
+	}
+
+	cfg.CloudflareZoneID = "zone"
+	if !cfg.CloudflareTunnelConfigured() {
+		t.Fatal("expected complete tunnel config")
+	}
+	cfg.CloudflareKVNamespaceID = "namespace"
+	if !cfg.CloudflareKVConfigured() {
+		t.Fatal("expected complete KV config")
+	}
+}
 
 func TestLoadAgentDefaultsRuntimeOwnerToSystemdUnit(t *testing.T) {
 	t.Setenv("VM_RUNTIME_OWNER", "")
@@ -17,8 +195,9 @@ func TestLoadAgentDefaultsRuntimeOwnerToSystemdUnit(t *testing.T) {
 	}
 }
 
-func TestLoadDefaultsHermesArtifactManifests(t *testing.T) {
+func TestLoadHostedDefaultsHermesArtifactManifests(t *testing.T) {
 	t.Setenv("DATABASE_URL", "postgres://test")
+	t.Setenv("CONTROL_PLANE_PROFILE", ProfileHosted)
 	t.Setenv("HERMES_GCS_MANIFEST", "")
 	t.Setenv("HERMES_ROOTFS_GCS_MANIFEST", "")
 
@@ -35,6 +214,7 @@ func TestLoadDefaultsHermesArtifactManifests(t *testing.T) {
 }
 
 func TestLoadDefaultsBrowserRootfsToKernelStable(t *testing.T) {
+	t.Setenv("CONTROL_PLANE_PROFILE", ProfileHosted)
 	unsetEnv(t, "BROWSER_ROOTFS_GCS_MANIFEST")
 	unsetEnv(t, "BROWSER_ROOTFS_VERSION")
 	t.Setenv("DATABASE_URL", "postgres://test")
@@ -93,6 +273,7 @@ func TestLoadAgentAllowsSeparateBrowserStateDir(t *testing.T) {
 
 func TestLoadBrowserRootfsManifestDefaultsExperimentalToStableVersion(t *testing.T) {
 	t.Setenv("DATABASE_URL", "postgres://test")
+	t.Setenv("CONTROL_PLANE_PROFILE", ProfileLocal)
 	t.Setenv("BROWSER_ROOTFS_GCS_MANIFEST", ExperimentalKernelBrowserManifestURI)
 	unsetEnv(t, "BROWSER_ROOTFS_VERSION")
 
@@ -110,6 +291,7 @@ func TestLoadBrowserRootfsManifestDefaultsExperimentalToStableVersion(t *testing
 
 func TestLoadBrowserRootfsVersionExplicitEmptyUsesManifestLatest(t *testing.T) {
 	t.Setenv("DATABASE_URL", "postgres://test")
+	t.Setenv("CONTROL_PLANE_PROFILE", ProfileLocal)
 	t.Setenv("BROWSER_ROOTFS_GCS_MANIFEST", ExperimentalKernelBrowserManifestURI)
 	t.Setenv("BROWSER_ROOTFS_VERSION", "")
 
@@ -148,6 +330,7 @@ func TestLoadAgentAllowsBrowserRootfsVersionPin(t *testing.T) {
 
 func TestLoadBrowserRootfsManifestExplicitEmptyDisables(t *testing.T) {
 	t.Setenv("DATABASE_URL", "postgres://test")
+	t.Setenv("CONTROL_PLANE_PROFILE", ProfileHosted)
 	t.Setenv("BROWSER_ROOTFS_GCS_MANIFEST", "")
 
 	cfg, err := Load()

@@ -8,6 +8,10 @@ import (
 )
 
 const (
+	ProfileLocal    = "local"
+	ProfileOperator = "operator"
+	ProfileHosted   = "hosted"
+
 	defaultHermesManifestURI             = "gs://openclawmachines/hermes/manifest-stable.json"
 	defaultHermesRootfsManifestURI       = "gs://openclawmachines/hermes-rootfs/manifest.json"
 	StableBrowserRootfsManifestURI       = "gs://openclawmachines/browser-rootfs/manifest.json"
@@ -18,6 +22,7 @@ const (
 )
 
 type Config struct {
+	ControlPlaneProfile          string
 	Port                         string
 	DatabaseURL                  string
 	JWTSecret                    string
@@ -71,7 +76,13 @@ type Config struct {
 }
 
 func Load() (*Config, error) {
-	zone := getEnv("GCP_ZONE", "us-central1-b")
+	profile, err := loadControlPlaneProfile()
+	if err != nil {
+		return nil, err
+	}
+	defaults := defaultsForProfile(profile)
+
+	zone := getEnv("GCP_ZONE", defaults.GCPZone)
 
 	// Derive region from zone by stripping the last "-X" suffix (e.g. "us-central1-b" → "us-central1")
 	region := zone
@@ -80,12 +91,13 @@ func Load() (*Config, error) {
 	}
 
 	cfg := &Config{
+		ControlPlaneProfile:     profile,
 		Port:                    getEnv("PORT", "8080"),
 		DatabaseURL:             os.Getenv("DATABASE_URL"),
 		JWTSecret:               os.Getenv("JWT_SECRET"),
 		AgentToken:              os.Getenv("FC_AGENT_TOKEN"),
 		CORSOrigins:             getEnv("CORS_ORIGINS", "http://localhost:5173"),
-		GCPProject:              getEnv("GCP_PROJECT", "clarateach"),
+		GCPProject:              getEnv("GCP_PROJECT", defaults.GCPProject),
 		GCPZone:                 zone,
 		GCPRegion:               region,
 		LiteLLMMasterKey:        os.Getenv("LITELLM_MASTER_KEY"),
@@ -105,13 +117,13 @@ func Load() (*Config, error) {
 	cfg.RootfsGCSManifest = os.Getenv("ROOTFS_GCS_MANIFEST")
 	cfg.AgentGCSManifest = os.Getenv("AGENT_GCS_MANIFEST")
 	// Preserve the "empty means disabled" contract: explicit
-	// BROWSER_ROOTFS_GCS_MANIFEST="" keeps browser VM support off, while an
-	// unset env now defaults to the known-good Kernel Images rootfs.
-	cfg.BrowserRootfsGCSManifest = getEnvOrDefault("BROWSER_ROOTFS_GCS_MANIFEST", DefaultBrowserRootfsManifestURI)
+	// BROWSER_ROOTFS_GCS_MANIFEST="" keeps browser VM support off. An unset
+	// env uses the hosted rootfs default only in CONTROL_PLANE_PROFILE=hosted.
+	cfg.BrowserRootfsGCSManifest = getEnvOrDefault("BROWSER_ROOTFS_GCS_MANIFEST", defaults.BrowserRootfsManifestURI)
 	cfg.BrowserRootfsVersion = getBrowserRootfsVersionOrDefault(cfg.BrowserRootfsGCSManifest)
 	cfg.RootfsDataVersion = getEnvInt("ROOTFS_DATA_VERSION", 1)
 
-	cfg.AuthMode = getEnv("AUTH_MODE", "cfaccess")
+	cfg.AuthMode = getEnv("AUTH_MODE", defaults.AuthMode)
 	cfg.CfAccessTeamDomain = strings.TrimSpace(os.Getenv("CF_ACCESS_TEAM_DOMAIN"))
 	cfg.CfAccessAUD = strings.TrimSpace(os.Getenv("CF_ACCESS_AUD"))
 	cfg.DevUserEmail = getEnv("DEV_USER_EMAIL", "dev@localhost")
@@ -121,7 +133,7 @@ func Load() (*Config, error) {
 	cfg.OAuthClientSecret = os.Getenv("OAUTH_CLIENT_SECRET")
 	cfg.GCSServiceAccountKey = os.Getenv("GCS_SERVICE_ACCOUNT_KEY")
 	cfg.BackupMasterKey = os.Getenv("BACKUP_MASTER_KEY")
-	cfg.BackupGCSBucket = getEnv("BACKUP_GCS_BUCKET", "openclawmachines")
+	cfg.BackupGCSBucket = getEnv("BACKUP_GCS_BUCKET", defaults.BackupGCSBucket)
 	cfg.BackupGCSPrefix = getEnv("BACKUP_GCS_PREFIX", "backups")
 	cfg.EnableDurableWorkflows = getEnv("ENABLE_DURABLE_WORKFLOWS", "") == "1"
 	cfg.RunMode = getEnv("RUN_MODE", "")
@@ -130,22 +142,88 @@ func Load() (*Config, error) {
 	cfg.ExecutorID = getEnv("EXECUTOR_ID", "")
 	cfg.NebiusAPIKey = os.Getenv("NEBIUS_API_KEY")
 	cfg.FirebaseProjectID = os.Getenv("FIREBASE_PROJECT_ID")
-	cfg.DataPlaneDomain = getEnv("DATA_PLANE_DOMAIN", "openclawmachines.com")
+	cfg.DataPlaneDomain = getEnv("DATA_PLANE_DOMAIN", defaults.DataPlaneDomain)
 	cfg.SSHCAPrivateKey = os.Getenv("OCM_SSH_CA_PRIVATE_KEY")
 	cfg.EnableRuntimeVersionResolver = getEnv("FF_RUNTIME_VERSION_RESOLVER", "") == "1"
 	cfg.OpenClawManifestURI = os.Getenv("OPENCLAW_GCS_MANIFEST")
-	cfg.HermesManifestURI = getEnv("HERMES_GCS_MANIFEST", defaultHermesManifestURI)
-	cfg.HermesRootfsManifestURI = getEnv("HERMES_ROOTFS_GCS_MANIFEST", defaultHermesRootfsManifestURI)
+	cfg.HermesManifestURI = getEnv("HERMES_GCS_MANIFEST", defaults.HermesManifestURI)
+	cfg.HermesRootfsManifestURI = getEnv("HERMES_ROOTFS_GCS_MANIFEST", defaults.HermesRootfsManifestURI)
 	if cfg.ExecutorID == "" {
 		hostname, _ := os.Hostname()
 		cfg.ExecutorID = hostname
 	}
 
+	if cfg.ControlPlaneProfile == ProfileOperator && cfg.AuthMode == "" {
+		return nil, fmt.Errorf("AUTH_MODE is required when CONTROL_PLANE_PROFILE=operator")
+	}
 	if cfg.DatabaseURL == "" {
 		return nil, fmt.Errorf("DATABASE_URL is required")
 	}
 
 	return cfg, nil
+}
+
+type profileDefaults struct {
+	AuthMode                 string
+	GCPProject               string
+	GCPZone                  string
+	DataPlaneDomain          string
+	BackupGCSBucket          string
+	BrowserRootfsManifestURI string
+	HermesManifestURI        string
+	HermesRootfsManifestURI  string
+}
+
+func defaultsForProfile(profile string) profileDefaults {
+	switch profile {
+	case ProfileHosted:
+		return profileDefaults{
+			AuthMode:                 "cfaccess",
+			GCPProject:               "clarateach",
+			GCPZone:                  "us-central1-b",
+			DataPlaneDomain:          "openclawmachines.com",
+			BackupGCSBucket:          "openclawmachines",
+			BrowserRootfsManifestURI: DefaultBrowserRootfsManifestURI,
+			HermesManifestURI:        defaultHermesManifestURI,
+			HermesRootfsManifestURI:  defaultHermesRootfsManifestURI,
+		}
+	case ProfileOperator:
+		return profileDefaults{}
+	default:
+		return profileDefaults{
+			AuthMode:        "dev",
+			DataPlaneDomain: "localhost",
+		}
+	}
+}
+
+func loadControlPlaneProfile() (string, error) {
+	profile := strings.ToLower(strings.TrimSpace(getEnv("CONTROL_PLANE_PROFILE", ProfileLocal)))
+	switch profile {
+	case ProfileLocal, ProfileOperator, ProfileHosted:
+		return profile, nil
+	default:
+		return "", fmt.Errorf("invalid CONTROL_PLANE_PROFILE %q (valid: %s, %s, %s)", profile, ProfileLocal, ProfileOperator, ProfileHosted)
+	}
+}
+
+func (c *Config) RequiresHostedIntegrations() bool {
+	return c.ControlPlaneProfile == ProfileHosted
+}
+
+func (c *Config) CloudflareTunnelConfigured() bool {
+	return c.CloudflareAPIToken != "" && c.CloudflareAccountID != "" && c.CloudflareZoneID != ""
+}
+
+func (c *Config) CloudflareKVConfigured() bool {
+	return c.CloudflareAPIToken != "" && c.CloudflareAccountID != "" && c.CloudflareKVNamespaceID != ""
+}
+
+func (c *Config) HasCloudflareConfig() bool {
+	return c.CloudflareAPIToken != "" ||
+		c.CloudflareAccountID != "" ||
+		c.CloudflareZoneID != "" ||
+		c.CloudflareKVNamespaceID != ""
 }
 
 // AgentConfig is the config for the Worker Agent process.

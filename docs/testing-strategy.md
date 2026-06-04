@@ -2,6 +2,8 @@
 
 This doc unifies how we run, scope, and sequence all tests across laptops, CI, and the KVM host. It complements `docs/TESTING.md` (per-suite details) with “when/where/why” guidance.
 
+Public CI and trusted release lanes are documented in `docs/ci-release.md`.
+
 ## Goals
 - Fast feedback on common changes without waiting for the special KVM host.
 - Deterministic, reproducible runs (containerized where possible).
@@ -40,13 +42,15 @@ This doc unifies how we run, scope, and sequence all tests across laptops, CI, a
 - OpenClaw/plugin/channel change: `make test-gateway-plugin-smoke`; for version bumps run `make test-openclaw-upgrade VERSION=<v>`
 
 ## CI Matrix (recommended)
-- **PR (path-filtered):**
+- **Public PR (unprivileged):**
   - Always: `make test`, `make typecheck`, `make check`.
+  - No KVM, Firecracker, rootfs upload, deployment, promotion, or production secret targets.
+- **Trusted PR / branch (path-filtered):**
   - `frontend/**` → `make test-frontend`; optional `make test-playwright`.
   - `worker/**` → `make test-worker`.
   - `backend/internal/api/**`, `backend/internal/configassembly/**`, `backend/internal/store/**` → `make test-go`; if `workflows/` touched, add `make test-workflows`.
   - `backend/internal/agentapi/**`, `backend/internal/apiproxy/**`, `rootfs/**`, `scripts/init-openclaw.sh` → `make test-gateway-e2e`.
-  - `backend/internal/integration/**`, `rootfs/**`, `scripts/**` (init) → trigger KVM host job: `make smoke-test` or targeted `make test-integration-run 'TestGatewaySuite|TestE2E_FullWorkflow'`.
+  - `backend/internal/integration/**`, `rootfs/**`, `scripts/**` (init) → trusted KVM host only: `make smoke-test` or targeted `make test-integration-run 'TestGatewaySuite|TestE2E_FullWorkflow'`.
 - **Nightly:** full `make test-playwright`; `make test-gateway-e2e`; full `make test-integration` on KVM host (catch drift).
 - **Pre-release / rootfs upload:** `make smoke-test` gate; full `make test-integration`; optional `make test-integration-e2e` if tunnel changes.
 

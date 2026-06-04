@@ -6,6 +6,9 @@ on:
   schedule:
     - cron: "0 8 * * 1"
 
+permissions:
+  contents: read
+
 concurrency:
   group: security-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
@@ -17,7 +20,6 @@ jobs:
     env:
       EVENT_NAME: ${{ github.event_name }}
       PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-      PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -41,8 +43,8 @@ jobs:
       - name: Run Gitleaks
         run: |
           if [ "$EVENT_NAME" = "pull_request" ]; then
-            git fetch origin "$PR_BASE_SHA" "$PR_HEAD_SHA" --depth=1
-            gitleaks detect --source . --verbose --log-opts "${PR_BASE_SHA}..${PR_HEAD_SHA}"
+            git fetch origin "$PR_BASE_SHA" --depth=1
+            gitleaks detect --source . --verbose --log-opts "${PR_BASE_SHA}..HEAD"
           else
             gitleaks detect --source . --verbose
           fi

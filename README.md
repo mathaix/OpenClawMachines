@@ -12,9 +12,15 @@ microVMs**. Each [OpenClaw](https://github.com/openclaw/openclaw) agent runs in
 its own KVM-backed microVM, so you can execute agent-generated and untrusted code
 on infrastructure you control.
 
-The public core includes the CLI, a minimal control plane, host enrollment,
+The Apache-2.0 public core includes a minimal control plane, host enrollment,
 machine lifecycle, placement, worker agents, and runtime pieces needed to run
-Firecracker sandboxes locally or in a self-hosted deployment.
+Firecracker sandboxes locally or in a self-hosted/operator-hosted deployment.
+The `ocm` CLI lives in the separate
+[`mathaix/ocm-cli`](https://github.com/mathaix/ocm-cli) Apache-2.0 repository.
+
+The private overlay boundary is intentionally separate: billing, plan
+enforcement, commercial admin, enterprise-only hosted flows, launch/pricing
+material, and confidential infrastructure notes are not public-core scope.
 
 ## Why OpenClaw Machines
 
@@ -22,10 +28,10 @@ Firecracker sandboxes locally or in a self-hosted deployment.
   separate guest kernel and KVM hardware boundary.
 - **Bring your own hosts.** Run the control plane and workers on your own
   KVM-enabled Linux machines.
-- **Local or hosted.** Start with one local host, then operate the same core as a
-  hosted/self-managed deployment.
-- **Apache-2.0.** The public core and `ocm` CLI are permissively licensed for
-  adoption, embedding, and contribution.
+- **Local or operator-hosted.** Start with one local host, then operate the same
+  public core in a self-managed deployment.
+- **Apache-2.0.** The public core and companion `ocm` CLI are permissively
+  licensed for adoption, embedding, and contribution.
 - **Built for agents.** Terminal, web chat, browser automation, per-VM routing,
   and OpenClaw runtime integration.
 
@@ -39,6 +45,14 @@ Firecracker sandboxes locally or in a self-hosted deployment.
 | Local one-box evaluation | Yes | Partial | Yes | No |
 | Public minimal control plane | Yes | Yes | Yes | No |
 
+## Project Docs
+
+- [Contributing](CONTRIBUTING.md)
+- [Security policy](SECURITY.md)
+- [Code of conduct](CODE_OF_CONDUCT.md)
+- [`ocm` CLI project](https://github.com/mathaix/ocm-cli)
+- [Public docs inventory](docs/public-docs-inventory.md)
+
 ## Requirements
 
 OpenClaw Machines runs Firecracker microVMs, which require KVM. You need a
@@ -50,3 +64,10 @@ Check your host:
 
 ```bash
 make preflight
+```
+
+See [docs/local-setup.md](docs/local-setup.md) for local and BYO-host setup
+expectations.
+
+For CI and release safety boundaries, see
+[`docs/ci-release.md`](docs/ci-release.md).

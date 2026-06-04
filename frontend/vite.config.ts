@@ -22,7 +22,7 @@ export default defineConfig({
     react(),
     Sitemap({
       hostname: "https://openclawmachines.com",
-      dynamicRoutes: ["/pricing", "/blog", ...getBlogRoutes()],
+      dynamicRoutes: ["/blog", ...getBlogRoutes()],
       exclude: ["/dashboard", "/admin", "/branding/preview"],
       generateRobotsTxt: false,
     }),

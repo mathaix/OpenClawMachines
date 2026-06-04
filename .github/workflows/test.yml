@@ -1,16 +1,19 @@
-name: Test
+name: Public CI
 
 on:
   pull_request:
     branches: [main]
+
+permissions:
+  contents: read
 
 concurrency:
   group: test-${{ github.head_ref }}
   cancel-in-progress: true
 
 jobs:
-  go-test:
-    name: Go Tests
+  static-checks:
+    name: Static Checks
     runs-on: ubuntu-latest
     if: github.event.pull_request.draft == false
     steps:
@@ -19,34 +22,31 @@ jobs:
         with:
           go-version: "1.25"
           cache-dependency-path: backend/go.sum
-      - run: cd backend && go vet ./...
-      - run: cd backend && go test ./...
+      - name: Confirm ShellCheck is available
+        run: shellcheck --version
+      - name: Run lint/static checks
+        run: make check
 
-  frontend-test:
-    name: Frontend Tests
+  unit-tests:
+    name: Unit and Type Checks
     runs-on: ubuntu-latest
     if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache-dependency-path: backend/go.sum
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
           cache: npm
-          cache-dependency-path: frontend/package-lock.json
+          cache-dependency-path: |
+            frontend/package-lock.json
+            worker/package-lock.json
       - run: cd frontend && npm ci
-      - run: cd frontend && npx tsc --noEmit
-      - run: cd frontend && npm run test
-
-  worker-test:
-    name: Worker Tests
-    runs-on: ubuntu-latest
-    if: github.event.pull_request.draft == false
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "24"
-          cache: npm
-          cache-dependency-path: worker/package-lock.json
       - run: cd worker && npm ci
-      - run: cd worker && npm run test
+      - name: Run unit tests
+        run: make test
+      - name: Run frontend typecheck
+        run: make typecheck

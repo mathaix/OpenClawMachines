@@ -2,7 +2,6 @@ import { Link } from "react-router-dom";
 
 const navLinks = [
   { label: "Docs", to: "/docs" },
-  { label: "Pricing", to: "/pricing" },
   { label: "Blog", to: "/blog" },
 ];
 

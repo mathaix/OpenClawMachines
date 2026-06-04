@@ -6,13 +6,12 @@ import { UsageDashboard } from "../components/UsageDashboard";
 import { MembersTab } from "../components/MembersTab";
 import { ThemeToggle } from "../components/ThemeToggle";
 
-type SettingsTab = "profile" | "members" | "usage" | "billing";
+type SettingsTab = "profile" | "members" | "usage";
 
 const TABS: { id: SettingsTab; label: string }[] = [
   { id: "profile", label: "Profile" },
   { id: "members", label: "Members" },
   { id: "usage", label: "Usage" },
-  { id: "billing", label: "Billing" },
 ];
 
 export function Settings() {
@@ -160,12 +159,6 @@ export function Settings() {
           <p className="text-[13px] text-text-secondary">Loading account...</p>
         )}
 
-        {activeTab === "billing" && (
-          <div className="bg-card border border-border rounded-[var(--radius-lg)] shadow-card p-4 md:p-6">
-            <h2 className="text-xs md:text-sm font-medium text-text-tertiary uppercase tracking-wider mb-3">Billing</h2>
-            <p className="text-[14px] text-text-secondary">Billing settings coming soon</p>
-          </div>
-        )}
       </div>
     </div>
   );

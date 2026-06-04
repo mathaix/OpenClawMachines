@@ -11,7 +11,8 @@ Date: 2026-06-04 UTC
 ## Product Boundary
 
 - Public core license target: Apache-2.0.
-- Public core scope: Apache CLI, Firecracker/microVM runtime, and the minimum control plane that can run locally or be hosted by an operator.
+- Public core scope: Firecracker/microVM runtime and the minimum control plane that can run locally or be hosted by an operator.
+- Companion CLI scope: the Apache-2.0 `ocm` CLI lives in `mathaix/ocm-cli`.
 - Private overlay scope: billing, plan enforcement, commercial admin, enterprise-only hosted flows, launch/pricing material, confidential infrastructure notes, and other hosted business features.
 
 ## Actions Already Taken
@@ -25,7 +26,7 @@ Date: 2026-06-04 UTC
   - #2 `core-control-plane`: minimum hosted-capable control plane.
   - #3 `docs-oss`: public docs and OSS hygiene.
   - #4 `ci-release`: public-safe CI and release lanes.
-  - #5 `cli`: Apache CLI readiness.
+  - #5 `cli`: superseded for this repository; CLI work belongs in `mathaix/ocm-cli`.
   - #6 `overlay-boundary`: public/private overlay boundary scrub.
 
 ## Aborted Worker Attempt
@@ -48,7 +49,7 @@ Assignments:
 - Worker A: issue #1, local/BYO-host runtime and `make preflight`.
 - Worker B: issue #2, deployment profile and minimum control-plane dependency boundary.
 - Worker C: issue #6, billing/pricing/commercial overlay scrub.
-- Worker D: issue #5, CLI readiness and local/operator-hosted defaults.
+- Worker D: issue #5 was redirected; main-repo CLI code is dead and should be removed. External CLI readiness belongs in `mathaix/ocm-cli`.
 - Worker E: issue #4, public-safe CI and release lane review.
 - Worker F: issue #3, public docs and OSS hygiene.
 

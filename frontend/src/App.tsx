@@ -5,7 +5,6 @@ import { AppShell } from "./components/AppShell";
 import { Admin } from "./pages/Admin";
 import { Dashboard } from "./pages/Dashboard";
 import { Landing } from "./pages/Landing";
-import { Pricing } from "./pages/Pricing";
 import { MachineView } from "./pages/MachineView";
 import { MachineWorkspace } from "./pages/MachineWorkspace";
 import { Settings } from "./pages/Settings";
@@ -52,7 +51,7 @@ export function App() {
   return (
     <Routes>
       <Route path="/" element={<Landing />} />
-      <Route path="/pricing" element={<Pricing />} />
+      <Route path="/pricing" element={<Navigate to="/" replace />} />
       <Route path="/docs" element={<Suspense fallback={<div className="min-h-screen bg-gray-950" />}><Docs /></Suspense>} />
       <Route path="/docs/:slug" element={<Suspense fallback={<div className="min-h-screen bg-gray-950" />}><DocsPage /></Suspense>} />
       <Route path="/blog" element={<Suspense fallback={<div className="min-h-screen bg-gray-950" />}><Blog /></Suspense>} />

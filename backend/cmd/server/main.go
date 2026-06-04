@@ -46,6 +46,7 @@ func main() {
 		slog.Error("config.load_failed", "error", err)
 		os.Exit(1)
 	}
+	slog.Info("server.profile.configured", "profile", cfg.ControlPlaneProfile)
 	slog.Info("server.browser_rootfs.config",
 		"manifest_uri", cfg.BrowserRootfsGCSManifest,
 		"version", cfg.BrowserRootfsVersion,
@@ -66,6 +67,13 @@ func main() {
 	}
 	isAPI := cfg.RunMode == "api"
 	isWorker := cfg.RunMode == "worker"
+	if cfg.ControlPlaneProfile == config.ProfileLocal && cfg.AuthMode == "dev" && os.Getenv("OCM_ALLOW_DEV_AUTH") != "1" {
+		if err := os.Setenv("OCM_ALLOW_DEV_AUTH", "1"); err != nil {
+			slog.Error("auth.dev_mode_allow_failed", "error", err)
+			os.Exit(1)
+		}
+		slog.Warn("auth.dev_mode_allowed_for_local_profile")
+	}
 
 	ctx := context.Background()
 
@@ -90,8 +98,8 @@ func main() {
 			Strategy:      fleet.Spread,
 		})
 		agentCli := agentclient.New(cfg.AgentToken)
-		tunnelMgr := tunnel.New(cfg.CloudflareAPIToken, cfg.CloudflareAccountID, cfg.CloudflareZoneID)
-		kv := kvstore.New(cfg.CloudflareAccountID, cfg.CloudflareKVNamespaceID, cfg.CloudflareAPIToken)
+		tunnelMgr := cloudflareTunnelManagerOrExit(cfg)
+		kv := cloudflareKVStoreOrExit(cfg)
 
 		// Resolve encryption key (needed for machine secrets in migrations)
 		encryptionKey := cfg.SecretEncryptionKey
@@ -102,6 +110,9 @@ func main() {
 				os.Exit(1)
 			}
 			encryptionKey = key
+		} else if encryptionKey == "" && cfg.RequiresHostedIntegrations() {
+			slog.Error("config.missing_encryption_key", "error", "no encryption key configured (set GCP_SECRET_NAME or SECRET_ENCRYPTION_KEY)")
+			os.Exit(1)
 		}
 		if encryptionKey != "" && len(encryptionKey) != 32 {
 			slog.Error("config.invalid_encryption_key", "error", "encryption key must be exactly 32 bytes", "got_bytes", len(encryptionKey))
@@ -242,28 +253,31 @@ func main() {
 		Strategy:      fleet.Spread,
 	})
 	agentCli := agentclient.New(cfg.AgentToken)
-	tunnelMgr := tunnel.New(cfg.CloudflareAPIToken, cfg.CloudflareAccountID, cfg.CloudflareZoneID)
-	if tunnelMgr == nil {
-		slog.Error("tunnel.not_configured", "error", "CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_ZONE_ID required")
-		os.Exit(1)
+	tunnelMgr := cloudflareTunnelManagerOrExit(cfg)
+	var prov *provisioner.Provisioner
+	if cfg.GCPProject != "" && tunnelMgr != nil {
+		prov = provisioner.New(provisioner.Config{
+			Store:                    db,
+			AgentClient:              agentCli,
+			Tunnel:                   tunnelMgr,
+			Project:                  cfg.GCPProject,
+			Zone:                     cfg.GCPZone,
+			Region:                   cfg.GCPRegion,
+			Snapshot:                 cfg.SnapshotName,
+			AgentToken:               cfg.AgentToken,
+			BackendURL:               cfg.BackendURL,
+			DataDiskSizeGB:           cfg.DataDiskSizeGB,
+			RootfsGCSManifest:        cfg.RootfsGCSManifest,
+			AgentGCSManifest:         cfg.AgentGCSManifest,
+			BrowserRootfsGCSManifest: cfg.BrowserRootfsGCSManifest,
+			BrowserRootfsVersion:     cfg.BrowserRootfsVersion,
+			BackupMasterKey:          cfg.BackupMasterKey,
+		})
+	} else {
+		slog.Info("host.provisioner.disabled",
+			"profile", cfg.ControlPlaneProfile,
+			"reason", "GCP_PROJECT and Cloudflare tunnel configuration are required for managed GCE host provisioning")
 	}
-	prov := provisioner.New(provisioner.Config{
-		Store:                    db,
-		AgentClient:              agentCli,
-		Tunnel:                   tunnelMgr,
-		Project:                  cfg.GCPProject,
-		Zone:                     cfg.GCPZone,
-		Region:                   cfg.GCPRegion,
-		Snapshot:                 cfg.SnapshotName,
-		AgentToken:               cfg.AgentToken,
-		BackendURL:               cfg.BackendURL,
-		DataDiskSizeGB:           cfg.DataDiskSizeGB,
-		RootfsGCSManifest:        cfg.RootfsGCSManifest,
-		AgentGCSManifest:         cfg.AgentGCSManifest,
-		BrowserRootfsGCSManifest: cfg.BrowserRootfsGCSManifest,
-		BrowserRootfsVersion:     cfg.BrowserRootfsVersion,
-		BackupMasterKey:          cfg.BackupMasterKey,
-	})
 	// Resolve encryption key: GCP Secret Manager > env var > fatal
 	encryptionKey := cfg.SecretEncryptionKey
 	if cfg.GCPSecretName != "" {
@@ -275,28 +289,31 @@ func main() {
 		}
 		encryptionKey = key
 	} else if encryptionKey == "" {
-		slog.Error("config.missing_encryption_key", "error", "no encryption key configured (set GCP_SECRET_NAME or SECRET_ENCRYPTION_KEY)")
-		os.Exit(1)
+		if cfg.RequiresHostedIntegrations() {
+			slog.Error("config.missing_encryption_key", "error", "no encryption key configured (set GCP_SECRET_NAME or SECRET_ENCRYPTION_KEY)")
+			os.Exit(1)
+		}
+		slog.Warn("config.encryption_key_disabled", "profile", cfg.ControlPlaneProfile, "hint", "set SECRET_ENCRYPTION_KEY before using credentials or machine secrets")
 	}
-	if len(encryptionKey) != 32 {
+	if encryptionKey != "" && len(encryptionKey) != 32 {
 		slog.Error("config.invalid_encryption_key", "error", "encryption key must be exactly 32 bytes", "got_bytes", len(encryptionKey))
 		os.Exit(1)
 	}
 	cfg.SecretEncryptionKey = encryptionKey
 
-	kv := kvstore.New(cfg.CloudflareAccountID, cfg.CloudflareKVNamespaceID, cfg.CloudflareAPIToken)
-	if kv == nil {
-		slog.Error("kv.not_configured", "error", "CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_KV_NAMESPACE_ID, CLOUDFLARE_API_TOKEN required")
-		os.Exit(1)
-	}
+	kv := cloudflareKVStoreOrExit(cfg)
 
 	kvAdapter := routing.NewKVAdapter(kv)
 	routeSvc := routing.New(tunnelMgr, kvAdapter, db)
 
 	// Start route projector (DB → KV sync every 60s)
-	routeReader := routing.NewStoreAdapter(db)
-	projector := routing.NewProjector(routeReader, kvAdapter)
-	go projector.Start(ctx, 60*time.Second)
+	if kvAdapter != nil {
+		routeReader := routing.NewStoreAdapter(db)
+		projector := routing.NewProjector(routeReader, kvAdapter)
+		go projector.Start(ctx, 60*time.Second)
+	} else {
+		slog.Info("routing.projector.disabled", "profile", cfg.ControlPlaneProfile, "reason", "Cloudflare KV not configured")
+	}
 
 	// Single signer instance shared by seed-config assembly (via RuntimeService)
 	// and live-config push (via Server.signComposioProxyToken).
@@ -367,15 +384,19 @@ func main() {
 	go maint.Run(ctx, db.Pool(), maint.SchedulerOptions{})
 	slog.Info("vmmetrics.maint.scheduler.started")
 
-	computeClient, err := compute.NewInstancesRESTClient(ctx)
-	if err != nil {
-		slog.Error("reconciler.compute_client.failed", "error", err)
+	if cfg.GCPProject == "" {
+		slog.Info("reconciler.gcp.disabled", "profile", cfg.ControlPlaneProfile, "reason", "GCP_PROJECT not configured")
 	} else {
-		instanceChecker := reconciler.NewGCPInstanceChecker(computeClient)
-		hostReconciler := reconciler.New(db, instanceChecker, machineRuntime, cfg.GCPProject, 180*time.Second)
-		hostReconciler.SetActivity(activityLogger)
-		go hostReconciler.Start(ctx, 60*time.Second)
-		slog.Info("reconciler.started")
+		computeClient, err := compute.NewInstancesRESTClient(ctx)
+		if err != nil {
+			slog.Error("reconciler.compute_client.failed", "error", err)
+		} else {
+			instanceChecker := reconciler.NewGCPInstanceChecker(computeClient)
+			hostReconciler := reconciler.New(db, instanceChecker, machineRuntime, cfg.GCPProject, 180*time.Second)
+			hostReconciler.SetActivity(activityLogger)
+			go hostReconciler.Start(ctx, 60*time.Second)
+			slog.Info("reconciler.started")
+		}
 	}
 
 	httpServer := &http.Server{
@@ -447,6 +468,38 @@ func resolveComposioAPIURL() string {
 		return u + "/api/composio"
 	}
 	return ""
+}
+
+func cloudflareTunnelManagerOrExit(cfg *config.Config) *tunnel.Manager {
+	if !cfg.CloudflareTunnelConfigured() {
+		if cfg.RequiresHostedIntegrations() {
+			slog.Error("tunnel.not_configured", "error", "CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_ZONE_ID required for CONTROL_PLANE_PROFILE=hosted")
+			os.Exit(1)
+		}
+		if cfg.HasCloudflareConfig() {
+			slog.Warn("tunnel.disabled_incomplete_config", "profile", cfg.ControlPlaneProfile, "hint", "set CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, and CLOUDFLARE_ZONE_ID to enable tunnels")
+		} else {
+			slog.Info("tunnel.disabled", "profile", cfg.ControlPlaneProfile)
+		}
+		return nil
+	}
+	return tunnel.New(cfg.CloudflareAPIToken, cfg.CloudflareAccountID, cfg.CloudflareZoneID)
+}
+
+func cloudflareKVStoreOrExit(cfg *config.Config) *kvstore.KVStore {
+	if !cfg.CloudflareKVConfigured() {
+		if cfg.RequiresHostedIntegrations() {
+			slog.Error("kv.not_configured", "error", "CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_KV_NAMESPACE_ID, CLOUDFLARE_API_TOKEN required for CONTROL_PLANE_PROFILE=hosted")
+			os.Exit(1)
+		}
+		if cfg.HasCloudflareConfig() {
+			slog.Warn("kv.disabled_incomplete_config", "profile", cfg.ControlPlaneProfile, "hint", "set CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, and CLOUDFLARE_KV_NAMESPACE_ID to enable KV route sync")
+		} else {
+			slog.Info("kv.disabled", "profile", cfg.ControlPlaneProfile)
+		}
+		return nil
+	}
+	return kvstore.New(cfg.CloudflareAccountID, cfg.CloudflareKVNamespaceID, cfg.CloudflareAPIToken)
 }
 
 // resolveComposioProxyTokenSigner returns a closure that mints Composio proxy

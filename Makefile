@@ -1,7 +1,7 @@
 # OpenClaw Machines Makefile
 # Run `make help` to see available commands
 
-.PHONY: help dev backend frontend test test-go test-frontend test-worker test-unit test-e2e test-playwright test-playwright-ui test-workflows typecheck test-gateway-e2e check-openclaw-version test-gateway-plugin-smoke test-openclaw-upgrade test-proxy-e2e test-integration test-integration-e2e test-integration-run test-runtime-selection-integration smoke-test build build-server build-agent build-workspace package-workspace version agent-upload rootfs build-rootfs build-openclaw upload-openclaw promote-openclaw build-upload-openclaw build-stage-openclaw setup-local-openclaw deploy deploy-all deploy-backend deploy-frontend deploy-worker validate set-snapshot snapshot-full snapshot-quick snapshot snapshot-vm-full secrets-in secrets-out logs-backend clean lint vet vuln-check shellcheck security-scan check scan-rootfs scan-backend upload-rootfs build-upload-rootfs list-rootfs show-rootfs-manifest rollback-rootfs build-worker-binary upload-worker-binary restart-workers deploy-fleet fleet-status create-worker-fleet migrate migrate-status commit commit-push ao ao-auto ao-dry-run ao-status ao-logs ao-clean build-kernel-browser-rootfs upload-kernel-browser-rootfs build-upload-kernel-browser-rootfs show-kernel-browser-rootfs-manifest
+.PHONY: help dev preflight backend frontend test test-go test-frontend test-worker test-unit test-e2e test-playwright test-playwright-ui test-workflows typecheck test-gateway-e2e check-openclaw-version test-gateway-plugin-smoke test-openclaw-upgrade test-proxy-e2e test-integration test-integration-e2e test-integration-run test-runtime-selection-integration smoke-test build build-server build-agent build-workspace package-workspace version agent-upload rootfs build-rootfs build-openclaw upload-openclaw promote-openclaw build-upload-openclaw build-stage-openclaw setup-local-openclaw deploy deploy-all deploy-backend deploy-frontend deploy-worker validate set-snapshot snapshot-full snapshot-quick snapshot snapshot-vm-full secrets-in secrets-out logs-backend clean lint vet vuln-check shellcheck security-scan check scan-rootfs scan-backend upload-rootfs build-upload-rootfs list-rootfs show-rootfs-manifest rollback-rootfs build-worker-binary upload-worker-binary restart-workers deploy-fleet fleet-status create-worker-fleet migrate migrate-status commit commit-push ao ao-auto ao-dry-run ao-status ao-logs ao-clean build-kernel-browser-rootfs upload-kernel-browser-rootfs build-upload-kernel-browser-rootfs show-kernel-browser-rootfs-manifest
 
 # Default target
 help:
@@ -9,6 +9,7 @@ help:
 	@echo "======================================="
 	@echo ""
 	@echo "Development:"
+	@echo "  make preflight    - Check local/BYO host prerequisites"
 	@echo "  make dev          - Start backend and frontend (requires 2 terminals)"
 	@echo "  make backend      - Start backend server (port 8080)"
 	@echo "  make frontend     - Start frontend dev server (port 5173)"
@@ -102,9 +103,6 @@ help:
 	@echo "  make show-agent-manifest    - Show current agent manifest"
 	@echo "  make rollback-agent VERSION=x - Rollback to a specific agent version"
 	@echo ""
-	@echo "CLI Distribution (GCS):"
-	@echo "  make upload-cli             - Build + upload CLI to GCS (multi-platform)"
-	@echo ""
 	@echo "Build All:"
 	@echo "  make build-components       - Build + upload all components to GCS"
 	@echo ""
@@ -167,6 +165,9 @@ dev:
 	@echo "Start backend and frontend in separate terminals:"
 	@echo "  Terminal 1: make backend"
 	@echo "  Terminal 2: make frontend"
+
+preflight:
+	@bash scripts/preflight.sh
 
 backend:
 	cd backend && go run ./cmd/server/
@@ -1216,14 +1217,6 @@ else
 endif
 
 # ============================================================================
-# CLI Distribution (GCS)
-# ============================================================================
-
-# Upload CLI to GCS (multi-platform: linux/amd64, darwin/amd64, darwin/arm64)
-upload-cli:
-	bash scripts/upload-cli.sh
-
-# ============================================================================
 # Build All Components
 # ============================================================================
 
@@ -1232,11 +1225,11 @@ upload-cli:
 # NOTE: upload-agent triggers agent self-update → restarts all hosts → kills running VMs.
 # Only include it when agent code actually changed.
 build-components: build-rootfs build-openclaw
-	@$(MAKE) -j3 upload-rootfs upload-openclaw upload-cli
+	@$(MAKE) -j2 upload-rootfs upload-openclaw
 	@echo "All components built and uploaded to GCS"
 	@echo "NOTE: Agent not uploaded. Run 'make upload-agent' separately if agent code changed."
 
-.PHONY: debug debug-hosts debug-logs debug-schema debug-agent debug-ssh verify-deploy verify-deploy-wait b f t upload-agent list-agent show-agent-manifest rollback-agent upload-cli build-components build-browser-rootfs upload-browser-rootfs build-upload-browser-rootfs show-browser-rootfs-manifest build-kernel-browser-rootfs upload-kernel-browser-rootfs build-upload-kernel-browser-rootfs show-kernel-browser-rootfs-manifest test-kernel-browser-rootfs-e2e test-kernel-browser-rootfs-docker provision-host enroll-host deploy-agent-host ssh-host host-status host-logs setup-host
+.PHONY: debug debug-hosts debug-logs debug-schema debug-agent debug-ssh verify-deploy verify-deploy-wait b f t upload-agent list-agent show-agent-manifest rollback-agent build-components build-browser-rootfs upload-browser-rootfs build-upload-browser-rootfs show-browser-rootfs-manifest build-kernel-browser-rootfs upload-kernel-browser-rootfs build-upload-kernel-browser-rootfs show-kernel-browser-rootfs-manifest test-kernel-browser-rootfs-e2e test-kernel-browser-rootfs-docker provision-host enroll-host deploy-agent-host ssh-host host-status host-logs setup-host
 b: backend
 f: frontend
 t: test
