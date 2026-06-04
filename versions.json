@@ -1,0 +1,5 @@
+{
+  "openclaw": "2026.5.28",
+  "openclaw_updated": "2026-06-01",
+  "openclaw_notes": "Upgrade to OpenClaw 2026.5.28 so official external plugins requiring >=2026.5.28, including Slack, are compatible; Node 24 rootfs satisfies openclaw@2026.5.28 engine >=22.19.0"
+}

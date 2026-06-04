@@ -1,0 +1,121 @@
+# OpenClaw Machines — Hermes MicroVM Rootfs Image
+#
+# The Hermes Python runtime is delivered as a versioned artifact seeded into a
+# per-machine writable /opt/hermes drive so `hermes update` can mutate it.
+# This rootfs carries the OS, tunnel/auth services, terminal server, browser
+# dependencies, and a persistent /opt/data home.
+
+FROM node:24-trixie-slim
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV HERMES_HOME=/opt/data
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/hermes/.playwright
+
+ARG CLOUDFLARED_VERSION=2026.2.0
+ARG CLOUDFLARED_SHA256=176746db3be7dc7bd48f3dd287c8930a4645ebb6e6700f883fddda5a4c307c16
+ARG GH_VERSION=2.87.3
+ARG UV_VERSION=0.11.7
+ARG UV_SHA256=6681d691eb7f9c00ac6a3af54252f7ab29ae72f0c8f95bdc7f9d1401c23ea868
+ARG RIPGREP_VERSION=15.1.0
+ARG RIPGREP_SHA256=1c9297be4a084eea7ecaedf93eb03d058d6faae29bbc57ecdaf5063921491599
+ARG FD_VERSION=v10.4.2
+ARG FD_SHA256=e3257d48e29a6be965187dbd24ce9af564e0fe67b3e73c9bdcd180f4ec11bdde
+
+COPY seed-entropy.c /tmp/seed-entropy.c
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    ca-certificates \
+    curl \
+    dnsutils \
+    ffmpeg \
+    file \
+    git \
+    htop \
+    iproute2 \
+    iputils-ping \
+    jq \
+    less \
+    nano \
+    netcat-openbsd \
+    openssh-server \
+    procps \
+    python3 \
+    python3-pip \
+    python3-venv \
+    rsync \
+    runit \
+    sudo \
+    tmux \
+    tree \
+    unzip \
+    vim-tiny \
+    wget \
+    zip \
+    && gcc -O2 -static -o /usr/local/bin/seed-entropy /tmp/seed-entropy.c \
+    && rm /tmp/seed-entropy.c \
+    && apt-get purge -y --auto-remove build-essential \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/* /tmp/* \
+    && ln -sf /usr/bin/vi.tiny /usr/local/bin/vim
+
+RUN curl -fsSL "https://github.com/cloudflare/cloudflared/releases/download/${CLOUDFLARED_VERSION}/cloudflared-linux-amd64" \
+    -o /usr/local/bin/cloudflared \
+    && echo "${CLOUDFLARED_SHA256}  /usr/local/bin/cloudflared" | sha256sum -c - \
+    && chmod +x /usr/local/bin/cloudflared
+
+RUN curl -fsSL "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_amd64.deb" \
+    -o /tmp/gh.deb \
+    && dpkg -i /tmp/gh.deb \
+    && rm -f /tmp/gh.deb
+
+RUN curl -fsSL "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-x86_64-unknown-linux-gnu.tar.gz" \
+    -o /tmp/uv.tgz \
+    && echo "${UV_SHA256}  /tmp/uv.tgz" | sha256sum -c - \
+    && tar -xzf /tmp/uv.tgz -C /tmp \
+    && mv /tmp/uv-x86_64-unknown-linux-gnu/uv /usr/local/bin/uv \
+    && mv /tmp/uv-x86_64-unknown-linux-gnu/uvx /usr/local/bin/uvx \
+    && chmod +x /usr/local/bin/uv /usr/local/bin/uvx \
+    && rm -rf /tmp/uv.tgz /tmp/uv-x86_64-unknown-linux-gnu
+
+RUN set -eux; \
+    curl -fsSL "https://github.com/BurntSushi/ripgrep/releases/download/${RIPGREP_VERSION}/ripgrep-${RIPGREP_VERSION}-x86_64-unknown-linux-musl.tar.gz" -o /tmp/rg.tgz; \
+    echo "${RIPGREP_SHA256}  /tmp/rg.tgz" | sha256sum -c -; \
+    tar -xzf /tmp/rg.tgz -C /tmp; \
+    mv "/tmp/ripgrep-${RIPGREP_VERSION}-x86_64-unknown-linux-musl/rg" /usr/local/bin/rg; \
+    chmod +x /usr/local/bin/rg; \
+    rm -rf /tmp/rg.tgz "/tmp/ripgrep-${RIPGREP_VERSION}-x86_64-unknown-linux-musl"; \
+    curl -fsSL "https://github.com/sharkdp/fd/releases/download/${FD_VERSION}/fd-${FD_VERSION}-x86_64-unknown-linux-musl.tar.gz" -o /tmp/fd.tgz; \
+    echo "${FD_SHA256}  /tmp/fd.tgz" | sha256sum -c -; \
+    tar -xzf /tmp/fd.tgz -C /tmp; \
+    mv "/tmp/fd-${FD_VERSION}-x86_64-unknown-linux-musl/fd" /usr/local/bin/fd; \
+    chmod +x /usr/local/bin/fd; \
+    rm -rf /tmp/fd.tgz "/tmp/fd-${FD_VERSION}-x86_64-unknown-linux-musl"
+
+RUN npx playwright install --with-deps chromium --only-shell \
+    && rm -rf /root/.npm /root/.cache/ms-playwright
+
+RUN groupadd -g 10000 hermes \
+    && useradd -u 10000 -g 10000 -m -d /opt/data -s /bin/bash hermes \
+    && mkdir -p /opt/data /opt/hermes /var/service /run/ocm-service-env \
+    && chown -R hermes:hermes /opt/data /opt/hermes
+
+COPY sv-hermes/ /etc/sv/
+COPY bin/ocm /usr/local/bin/ocm
+COPY bin/ocm-service-admin /usr/local/bin/ocm-service-admin
+RUN chmod +x /etc/sv/*/run /etc/sv/*/finish 2>/dev/null || true \
+    && chmod 0755 /usr/local/bin/ocm /usr/local/bin/ocm-service-admin \
+    && printf 'export HERMES_HOME=/opt/data\nexport PATH=/opt/hermes/.venv/bin:/opt/data/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\n' > /etc/profile.d/hermes.sh \
+    && chmod 0644 /etc/profile.d/hermes.sh
+
+RUN printf '%s\n' \
+      'hermes ALL=(root) NOPASSWD: /usr/local/bin/ocm-restart-gateway' \
+      > /etc/sudoers.d/ocm-hermes-restart \
+    && chmod 0440 /etc/sudoers.d/ocm-hermes-restart \
+    && visudo -cf /etc/sudoers.d/ocm-hermes-restart \
+    && printf '%s\n' \
+      '#!/bin/sh' \
+      'exec /usr/bin/sv restart /var/service/hermes-gateway' \
+      > /usr/local/bin/ocm-restart-gateway \
+    && chmod 0755 /usr/local/bin/ocm-restart-gateway
+
+RUN rm -rf /root/.cache /tmp/* /usr/share/doc /usr/share/man /usr/share/locale

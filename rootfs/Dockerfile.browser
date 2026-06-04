@@ -1,0 +1,34 @@
+# OpenClaw Machines — Browser Companion MicroVM Rootfs
+# Lightweight Alpine + Chromium image for headless browser CDP access.
+#
+# This rootfs runs alongside the main OpenClaw VM to provide remote
+# Chrome DevTools Protocol access. The main VM's gateway connects via
+# browser.cdpUrl pointing to this VM's IP on port 9222.
+#
+# The init script (/sbin/overlay-init) is injected by build-browser-rootfs.sh
+# after Docker export, following the same pattern as the main rootfs.
+#
+# Usage: docker build -t ocm-browser-rootfs -f rootfs/Dockerfile.browser rootfs/
+
+FROM alpine:3.19
+
+# Install Chromium and minimal dependencies for headless operation
+RUN apk add --no-cache \
+    chromium \
+    nss \
+    freetype \
+    harfbuzz \
+    ttf-freefont \
+    # Networking tools for init script
+    iproute2 \
+    # socat: relay external CDP traffic to Chrome's localhost-only port
+    # (--headless=new ignores --remote-debugging-address=0.0.0.0)
+    socat
+
+# Bake stealth extension into the rootfs
+COPY stealth-extension/ /opt/stealth-extension/
+
+# Labels
+LABEL org.opencontainers.image.title="OpenClaw Browser Companion VM"
+LABEL org.opencontainers.image.description="Headless Chromium for Firecracker MicroVM CDP access"
+LABEL org.opencontainers.image.vendor="OpenClaw Machines"

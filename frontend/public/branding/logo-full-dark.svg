@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 120">
+  <defs>
+    <linearGradient id="claw-grad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ea4647"/>
+      <stop offset="40%" stop-color="#c83232"/>
+      <stop offset="100%" stop-color="#7F1D1D"/>
+    </linearGradient>
+  </defs>
+  <!-- Claw icon mark -->
+  <g transform="translate(10, 6) scale(0.21)">
+    <path d="
+      M 175 85
+      C 140 68, 78 78, 55 125
+      C 28 180, 22 255, 50 325
+      C 75 390, 145 438, 256 448
+      C 367 438, 437 390, 462 325
+      C 490 255, 484 180, 457 125
+      C 434 78, 372 68, 337 85
+      C 318 95, 315 120, 325 152
+      C 345 210, 368 278, 350 340
+      C 335 380, 298 405, 256 412
+      C 214 405, 177 380, 162 340
+      C 144 278, 167 210, 187 152
+      C 197 120, 194 95, 175 85
+      Z
+    " fill="url(#claw-grad)"/>
+    <!-- Highlight -->
+    <path d="
+      M 170 95
+      C 148 82, 105 88, 80 125
+      C 58 165, 48 220, 60 275
+    " fill="none" stroke="#ea4647" stroke-width="6" stroke-linecap="round" opacity="0.25"/>
+  </g>
+  <!-- Text: OpenClaw (top line) — deep red for dark backgrounds -->
+  <text x="130" y="52" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="46" font-weight="700" fill="#ea4647" letter-spacing="-1">
+    OpenClaw
+  </text>
+  <!-- Text: Machines (bottom line) -->
+  <text x="130" y="100" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="42" font-weight="600" fill="#2DD4BF" letter-spacing="0">
+    Machines
+  </text>
+</svg>

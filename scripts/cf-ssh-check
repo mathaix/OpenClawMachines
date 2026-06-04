@@ -1,0 +1,25 @@
+#!/bin/bash
+# CF Access SSH principal check script.
+# Called by sshd's AuthorizedPrincipalsCommand for each SSH connection.
+# Queries the metadata service for the list of authorized principals and
+# outputs them so sshd can match against the certificate's principals.
+#
+# Usage: cf-ssh-check [ignored]
+# The argument (sshd's %i token) is ignored — we fetch all authorized
+# principals from the metadata service and let sshd do the matching.
+# Exit 0 + print principals = allow, Exit 1 = deny
+
+GW_IP=$(cat /run/ocm-gateway-ip 2>/dev/null || echo "192.168.100.1")
+NONCE=""
+[ -f /run/ocm-nonce ] && NONCE=$(cat /run/ocm-nonce)
+
+NONCE_HDR=""
+[ -n "$NONCE" ] && NONCE_HDR="-H X-Metadata-Nonce:${NONCE}"
+
+PRINCIPALS=$(curl -sf --connect-timeout 2 -m 5 $NONCE_HDR "http://${GW_IP}/v1/ssh-principals" 2>/dev/null)
+if [ -n "$PRINCIPALS" ]; then
+    echo "$PRINCIPALS"
+    exit 0
+fi
+
+exit 1

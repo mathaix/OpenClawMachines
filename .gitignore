@@ -1,0 +1,63 @@
+# Binaries
+backend/server
+backend/agent
+backend/agent-linux
+backend/server-linux
+backend/authproxy
+backend/ocm-secrets
+backend/*.db
+
+# Dependencies
+node_modules/
+frontend/node_modules/
+
+# Build output
+frontend/dist/
+.gocache/
+*.tsbuildinfo
+*.tar.gz
+*.tgz
+.wrangler/
+
+# Environment
+.env
+.env.local
+.env.production
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Snapshots
+.snapshot
+
+# Logs
+*.log
+/tmp/
+
+# Test
+coverage/
+.dev.vars
+
+# Playwright
+frontend/test-results/
+frontend/playwright-report/
+frontend/blob-report/
+frontend/e2e/.auth/
+cli/ocm
+cli/bin/
+docs/architecture-blog.html
+.claude/worktrees/
+.superpowers/
+
+backend/*.test
+nohup.out
+backend/.codex
+backend/ocmptyd

@@ -1,0 +1,6 @@
+#!/bin/sh
+
+exec 2>&1
+mkdir -p /var/log
+exec chpst -u hermes -e /run/ocm-service-env/cloudflared \
+    /bin/sh -c 'exec cloudflared tunnel --no-autoupdate run --token "$TUNNEL_TOKEN" >> /var/log/cloudflared.log 2>&1'

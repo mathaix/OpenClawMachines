@@ -1,0 +1,9 @@
+User-agent: *
+Disallow: /dashboard
+Disallow: /workspace
+Disallow: /welcome
+Disallow: /cli-auth
+Disallow: /signed-out
+Disallow: /api/
+
+Sitemap: https://openclawmachines.com/sitemap.xml

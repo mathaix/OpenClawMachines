@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OCM CLI — Setup Wizard Design</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
+
+  :root {
+    --bg: #080c12;
+    --term-bg: #0d1117;
+    --term-border: #1a2030;
+    --text: #c5c8c6;
+    --dim: #4a5568;
+    --brand: #d4a44c;
+    --brand-dim: #8b6914;
+    --green: #6ccf5f;
+    --green-dim: #2d5a28;
+    --blue: #52a8e8;
+    --blue-dim: #1e4a6e;
+    --red: #e85d6c;
+    --amber: #d4a44c;
+    --cyan: #56c8d8;
+    --white: #e8e8e8;
+    --muted: #636d7e;
+    --box-border: #2a3444;
+    --step-track: #1a2030;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'IBM Plex Mono', monospace;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    overflow-x: hidden;
+  }
+
+  /* Grain overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    opacity: 0.025;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  .page-header {
+    text-align: center;
+    padding: 48px 24px 16px;
+    max-width: 740px;
+    width: 100%;
+  }
+
+  .page-header h1 {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--brand);
+    margin-bottom: 6px;
+  }
+
+  .page-header p {
+    font-size: 11px;
+    color: var(--dim);
+    line-height: 1.6;
+  }
+
+  .scene-nav {
+    display: flex;
+    gap: 2px;
+    justify-content: center;
+    padding: 20px 24px 16px;
+    flex-wrap: wrap;
+    max-width: 740px;
+  }
+
+  .scene-btn {
+    background: var(--term-bg);
+    border: 1px solid var(--term-border);
+    color: var(--dim);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    padding: 6px 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: 0.04em;
+  }
+
+  .scene-btn:hover { border-color: var(--muted); color: var(--text); }
+
+  .scene-btn.active {
+    background: var(--brand-dim);
+    border-color: var(--brand);
+    color: var(--brand);
+  }
+
+  .terminal {
+    background: var(--term-bg);
+    border: 1px solid var(--term-border);
+    border-radius: 6px;
+    width: 100%;
+    max-width: 700px;
+    margin: 0 24px 48px;
+    overflow: hidden;
+    box-shadow:
+      0 0 0 1px rgba(0,0,0,0.3),
+      0 8px 40px rgba(0,0,0,0.5),
+      0 2px 8px rgba(0,0,0,0.3);
+  }
+
+  .term-titlebar {
+    display: flex;
+    align-items: center;
+    padding: 10px 14px;
+    background: #0a0f16;
+    border-bottom: 1px solid var(--term-border);
+    gap: 7px;
+  }
+
+  .term-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: var(--term-border);
+  }
+
+  .term-dot.r { background: #e85d6c; }
+  .term-dot.y { background: #d4a44c; }
+  .term-dot.g { background: #6ccf5f; }
+
+  .term-title {
+    flex: 1;
+    text-align: center;
+    font-size: 11px;
+    color: var(--dim);
+    margin-right: 41px;
+  }
+
+  .term-body {
+    padding: 16px 20px 20px;
+    min-height: 420px;
+    font-size: 12.5px;
+    line-height: 1.65;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  /* Scene display */
+  .scene { display: none; }
+  .scene.active { display: block; }
+
+  /* Syntax coloring classes */
+  .prompt { color: var(--green); }
+  .cmd { color: var(--white); font-weight: 500; }
+  .dim { color: var(--dim); }
+  .muted { color: var(--muted); }
+  .brand { color: var(--brand); }
+  .green { color: var(--green); }
+  .red { color: var(--red); }
+  .blue { color: var(--blue); }
+  .cyan { color: var(--cyan); }
+  .amber { color: var(--amber); }
+  .white { color: var(--white); }
+  .bold { font-weight: 600; }
+  .underline { text-decoration: underline; text-underline-offset: 2px; }
+
+  /* Step indicator */
+  .steps-line {
+    color: var(--dim);
+  }
+  .step-done { color: var(--green); }
+  .step-active { color: var(--blue); }
+  .step-pending { color: var(--dim); }
+
+  /* Box drawing */
+  .box { color: var(--box-border); }
+  .box-content { color: var(--text); }
+  .box-brand { color: var(--brand); }
+  .box-green { color: var(--green); }
+  .box-dim { color: var(--dim); }
+
+  /* Banner special */
+  .banner-wall { color: var(--brand-dim); }
+  .banner-title { color: var(--brand); font-weight: 600; }
+  .banner-claw { color: var(--white); }
+  .banner-prize { color: var(--amber); }
+  .banner-bar { color: var(--brand-dim); }
+
+  /* Spinner animation */
+  @keyframes spin {
+    0% { content: '◐'; }
+    25% { content: '◓'; }
+    50% { content: '◑'; }
+    75% { content: '◒'; }
+  }
+
+  .spinner::before {
+    content: '◐';
+    animation: spin 0.6s steps(1) infinite;
+    color: var(--blue);
+  }
+
+  /* Blinking cursor */
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+  }
+
+  .cursor {
+    display: inline-block;
+    width: 7px;
+    height: 14px;
+    background: var(--text);
+    vertical-align: text-bottom;
+    animation: blink 1s steps(1) infinite;
+    margin-left: 1px;
+  }
+
+  .input-area {
+    color: var(--white);
+  }
+
+  .masked { color: var(--dim); }
+
+  /* Check marks */
+  .check { color: var(--green); }
+  .warn { color: var(--amber); }
+  .fail { color: var(--red); }
+
+  /* Footer note */
+  .footer-note {
+    text-align: center;
+    padding: 0 24px 40px;
+    font-size: 10px;
+    color: var(--dim);
+    max-width: 700px;
+    line-height: 1.7;
+  }
+
+  .footer-note kbd {
+    background: var(--term-bg);
+    border: 1px solid var(--term-border);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 10px;
+  }
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <h1>OCM CLI Design — Setup Wizard</h1>
+  <p>First-time user flow from <kbd>ocm</kbd> to working bot</p>
+</div>
+
+<div class="scene-nav" id="sceneNav">
+  <button class="scene-btn active" onclick="showScene(0)">1. First Run</button>
+  <button class="scene-btn" onclick="showScene(1)">2. Login</button>
+  <button class="scene-btn" onclick="showScene(2)">3. Machine</button>
+  <button class="scene-btn" onclick="showScene(3)">4. Provider</button>
+  <button class="scene-btn" onclick="showScene(4)">5. Channel</button>
+  <button class="scene-btn" onclick="showScene(5)">6. Identity</button>
+  <button class="scene-btn" onclick="showScene(6)">7. Verify</button>
+  <button class="scene-btn" onclick="showScene(7)">8. Status</button>
+  <button class="scene-btn" onclick="showScene(8)">9. Doctor</button>
+</div>
+
+<div class="terminal">
+  <div class="term-titlebar">
+    <div class="term-dot r"></div>
+    <div class="term-dot y"></div>
+    <div class="term-dot g"></div>
+    <div class="term-title">ocm — zsh — 80×24</div>
+  </div>
+  <div class="term-body" id="termBody">
+
+    <!-- SCENE 0: First Run -->
+    <div class="scene active" id="scene-0"><span class="prompt">$</span> <span class="cmd">ocm</span>
+
+<span class="banner-bar">+======================================================================+</span>
+<span class="banner-wall">|</span><span class="banner-title">                      O P E N C L A W                               </span><span class="banner-wall">|</span>
+<span class="banner-wall">|</span><span class="banner-title">                      M A C H I N E S                               </span><span class="banner-wall">|</span>
+<span class="banner-bar">+======================================================================+</span>
+<span class="banner-wall">|</span>                                <span class="banner-claw">|</span>                                     <span class="banner-wall">|</span>
+<span class="banner-wall">|</span>                               <span class="banner-claw">[+]</span>                                    <span class="banner-wall">|</span>
+<span class="banner-wall">|</span>                              <span class="banner-claw">/   \</span>                                   <span class="banner-wall">|</span>
+<span class="banner-wall">|</span>                                                                     <span class="banner-wall">|</span>
+<span class="banner-wall">|</span>                                                                     <span class="banner-wall">|</span>
+<span class="banner-wall">|</span> <span class="banner-prize"> *  o  +  x  @  #  o  *  +  @  x  #  *  o  +  x  @  #  o  *  +  x </span> <span class="banner-wall">|</span>
+<span class="banner-wall">|</span> <span class="banner-prize">   @  #  *  o  +  x  @  #  o  *  +  x  @  #  *  o  +  x  @  #  *  </span> <span class="banner-wall">|</span>
+<span class="banner-bar">+======================================================================+</span>
+
+OCM CLI — manage OpenClaw Machines <span class="dim">v0.9.2</span>
+
+<span class="brand bold">  First time? Run:</span> <span class="white">ocm setup</span>
+
+<span class="white bold">Commands:</span>
+  <span class="green">setup</span>        Guided setup wizard — login, create machine, add providers
+  <span class="muted">machines</span>     Manage OpenClaw Machines
+  <span class="muted">providers</span>    Manage API provider credentials
+  <span class="muted">channels</span>     Manage messaging channels
+  <span class="muted">skills</span>       Manage machine skills
+  <span class="muted">tools</span>        Manage machine tools
+  <span class="muted">identity</span>     Manage machine identity
+  <span class="muted">budget</span>       Manage spending budgets
+  <span class="muted">usage</span>        Show LLM usage records
+  <span class="muted">status</span>       Machine dashboard
+  <span class="muted">doctor</span>       Diagnose configuration problems
+  <span class="muted">config</span>       Manage CLI configuration
+  <span class="muted">login</span>        Authenticate with the OCM API
+  <span class="muted">version</span>      Print version info
+
+<span class="dim">Run</span> <span class="white">ocm &lt;command&gt; --help</span> <span class="dim">for details on any command.</span>
+
+<span class="prompt">$</span> <span class="cursor"></span></div>
+
+    <!-- SCENE 1: Login Step -->
+    <div class="scene" id="scene-1"><span class="prompt">$</span> <span class="cmd">ocm setup</span>
+
+<span class="box">  ╭───────────────────────────────────────────────────────╮</span>
+<span class="box">  │</span>  <span class="brand bold">          O P E N C L A W   M A C H I N E S</span>          <span class="box">│</span>
+<span class="box">  │</span>  <span class="dim">                  setup wizard</span>                       <span class="box">│</span>
+<span class="box">  ╰───────────────────────────────────────────────────────╯</span>
+
+  <span class="step-active">● Login</span> <span class="dim">───</span> <span class="step-pending">○ Machine</span> <span class="dim">───</span> <span class="step-pending">○ Provider</span> <span class="dim">───</span> <span class="step-pending">○ Channel</span> <span class="dim">───</span> <span class="step-pending">○ Identity</span> <span class="dim">───</span> <span class="step-pending">○ Verify</span>
+
+
+  <span class="white bold">STEP 1</span> <span class="dim">·</span> <span class="blue">LOGIN</span>
+  <span class="dim">──────────────</span>
+
+  Opening browser for authentication...
+
+  <span class="dim">If the browser didn't open, visit:</span>
+  <span class="blue underline">https://openclawmachines.com/cli-auth?port=52431</span>
+
+  <span class="spinner"></span> <span class="blue">Waiting for login...</span>
+
+</div>
+
+    <!-- SCENE 2: Login done + Machine Step -->
+    <div class="scene" id="scene-2"><span class="prompt">$</span> <span class="cmd">ocm setup</span>
+
+<span class="box">  ╭───────────────────────────────────────────────────────╮</span>
+<span class="box">  │</span>  <span class="brand bold">          O P E N C L A W   M A C H I N E S</span>          <span class="box">│</span>
+<span class="box">  │</span>  <span class="dim">                  setup wizard</span>                       <span class="box">│</span>
+<span class="box">  ╰───────────────────────────────────────────────────────╯</span>
+
+  <span class="step-done">● Login</span> <span class="dim">───</span> <span class="step-active">● Machine</span> <span class="dim">───</span> <span class="step-pending">○ Provider</span> <span class="dim">───</span> <span class="step-pending">○ Channel</span> <span class="dim">───</span> <span class="step-pending">○ Identity</span> <span class="dim">───</span> <span class="step-pending">○ Verify</span>
+
+
+  <span class="check">✓</span> <span class="green">Authenticated as</span> <span class="white">mathew@example.com</span>
+    <span class="dim">Account: my-team (ID: 42)</span>
+
+
+  <span class="white bold">STEP 2</span> <span class="dim">·</span> <span class="blue">MACHINE</span>
+  <span class="dim">─────────────────</span>
+
+  No machines found. Let's create one.
+
+  <span class="white">Machine name:</span> <span class="input-area">My Bot<span class="cursor"></span></span>
+
+  <span class="white">Size:</span>
+    <span class="white bold">1.</span> standard <span class="dim">— 2 vCPU / 2 GB</span>
+    <span class="muted">2.</span> <span class="muted">large    — 4 vCPU / 4 GB</span>
+    <span class="muted">3.</span> <span class="muted">xlarge   — 8 vCPU / 8 GB</span>
+
+  <span class="white">Select</span> <span class="dim">[1]:</span> <span class="input-area">1</span>
+
+</div>
+
+    <!-- SCENE 3: Machine done + Provider Step -->
+    <div class="scene" id="scene-3"><span class="prompt">$</span> <span class="cmd">ocm setup</span>
+
+<span class="box">  ╭───────────────────────────────────────────────────────╮</span>
+<span class="box">  │</span>  <span class="brand bold">          O P E N C L A W   M A C H I N E S</span>          <span class="box">│</span>
+<span class="box">  │</span>  <span class="dim">                  setup wizard</span>                       <span class="box">│</span>
+<span class="box">  ╰───────────────────────────────────────────────────────╯</span>
+
+  <span class="step-done">● Login</span> <span class="dim">───</span> <span class="step-done">● Machine</span> <span class="dim">───</span> <span class="step-active">● Provider</span> <span class="dim">───</span> <span class="step-pending">○ Channel</span> <span class="dim">───</span> <span class="step-pending">○ Identity</span> <span class="dim">───</span> <span class="step-pending">○ Verify</span>
+
+
+  <span class="check">✓</span> <span class="green">Machine created:</span> <span class="white">"My Bot"</span> <span class="dim">(standard — 2 vCPU / 2 GB)</span>
+    <span class="dim">Provisioning... VM will be ready in ~2 minutes.</span>
+
+
+  <span class="white bold">STEP 3</span> <span class="dim">·</span> <span class="blue">LLM PROVIDER</span>
+  <span class="dim">──────────────────────</span>
+
+  Which LLM provider do you want to use?
+
+    <span class="white bold">1.</span> Anthropic <span class="dim">(Claude)</span>
+    <span class="muted">2.</span> <span class="muted">OpenAI   (GPT)</span>
+    <span class="muted">3.</span> <span class="muted">Google   (Gemini)</span>
+
+  <span class="white">Select</span> <span class="dim">[1]:</span> <span class="input-area">1</span>
+
+  How do you want to authenticate?
+
+    <span class="white bold">1.</span> Anthropic token <span class="dim">— paste a setup-token from Claude CLI</span>
+    <span class="muted">2.</span> <span class="muted">API key         — pay-per-use from console.anthropic.com</span>
+
+  <span class="white">Select</span> <span class="dim">[1]:</span> <span class="input-area">1</span>
+
+<span class="box">  ┌──────────────────────────────────────────────────────╮</span>
+<span class="box">  │</span>                                                      <span class="box">│</span>
+<span class="box">  │</span>  Run <span class="white bold">`claude setup-token`</span> in another terminal.       <span class="box">│</span>
+<span class="box">  │</span>  Then paste the generated token below.                <span class="box">│</span>
+<span class="box">  │</span>                                                      <span class="box">│</span>
+<span class="box">  ├──────────────────────────────────────────────────────╯</span>
+
+  <span class="white">Paste setup-token:</span> <span class="masked">····························</span><span class="white">sk4f</span>
+
+  <span class="check">✓</span> <span class="green">Key validated</span>
+
+  <span class="white">Label:</span> <span class="input-area">Production<span class="cursor"></span></span>
+
+</div>
+
+    <!-- SCENE 4: Provider done + Channel Step -->
+    <div class="scene" id="scene-4"><span class="prompt">$</span> <span class="cmd">ocm setup</span>
+
+<span class="box">  ╭───────────────────────────────────────────────────────╮</span>
+<span class="box">  │</span>  <span class="brand bold">          O P E N C L A W   M A C H I N E S</span>          <span class="box">│</span>
+<span class="box">  │</span>  <span class="dim">                  setup wizard</span>                       <span class="box">│</span>
+<span class="box">  ╰───────────────────────────────────────────────────────╯</span>
+
+  <span class="step-done">● Login</span> <span class="dim">───</span> <span class="step-done">● Machine</span> <span class="dim">───</span> <span class="step-done">● Provider</span> <span class="dim">───</span> <span class="step-active">● Channel</span> <span class="dim">───</span> <span class="step-pending">○ Identity</span> <span class="dim">───</span> <span class="step-pending">○ Verify</span>
+
+
+  <span class="check">✓</span> <span class="green">Anthropic credential added</span> <span class="dim">(****sk4f)</span>
+  <span class="check">✓</span> <span class="green">Linked to machine</span> <span class="white">"My Bot"</span>
+
+
+  <span class="white bold">STEP 4</span> <span class="dim">·</span> <span class="blue">CHANNEL</span> <span class="dim">(optional)</span>
+  <span class="dim">──────────────────────────────</span>
+
+  Connect a messaging channel so people can talk to your bot.
+
+    <span class="white bold">1.</span> Telegram
+    <span class="muted">2.</span> <span class="muted">Discord</span>
+    <span class="muted">3.</span> <span class="muted">WhatsApp</span>
+    <span class="muted">s.</span> <span class="muted">Skip</span>
+
+  <span class="white">Select</span> <span class="dim">[s]:</span> <span class="input-area">1</span>
+
+  <span class="dim">Get your bot token from:</span> <span class="blue underline">https://t.me/BotFather</span>
+
+  <span class="dim">  1. Message @BotFather on Telegram</span>
+  <span class="dim">  2. Use /newbot to create a bot</span>
+  <span class="dim">  3. Copy the token</span>
+
+  <span class="white">Paste bot token:</span> <span class="masked">····························</span><span class="white">:ABC</span>
+
+  <span class="check">✓</span> <span class="green">Token validated</span>
+  <span class="check">✓</span> <span class="green">Telegram channel enabled on</span> <span class="white">"My Bot"</span>
+
+</div>
+
+    <!-- SCENE 5: Channel done + Identity Step -->
+    <div class="scene" id="scene-5"><span class="prompt">$</span> <span class="cmd">ocm setup</span>
+
+<span class="box">  ╭───────────────────────────────────────────────────────╮</span>
+<span class="box">  │</span>  <span class="brand bold">          O P E N C L A W   M A C H I N E S</span>          <span class="box">│</span>
+<span class="box">  │</span>  <span class="dim">                  setup wizard</span>                       <span class="box">│</span>
+<span class="box">  ╰───────────────────────────────────────────────────────╯</span>
+
+  <span class="step-done">● Login</span> <span class="dim">───</span> <span class="step-done">● Machine</span> <span class="dim">───</span> <span class="step-done">● Provider</span> <span class="dim">───</span> <span class="step-done">● Channel</span> <span class="dim">───</span> <span class="step-active">● Identity</span> <span class="dim">───</span> <span class="step-pending">○ Verify</span>
+
+
+  <span class="white bold">STEP 5</span> <span class="dim">·</span> <span class="blue">IDENTITY</span> <span class="dim">(optional)</span>
+  <span class="dim">────────────────────────────────</span>
+
+  Give your bot a name and personality.
+
+  <span class="white">Name</span> <span class="dim">[skip]:</span> <span class="input-area">Atlas</span>
+
+  <span class="white">Avatar URL</span> <span class="dim">[skip]:</span> <span class="input-area"><span class="cursor"></span></span>
+
+  <span class="check">✓</span> <span class="green">Identity set:</span> <span class="white">Atlas</span>
+
+</div>
+
+    <!-- SCENE 6: Identity done + Verify Step -->
+    <div class="scene" id="scene-6"><span class="prompt">$</span> <span class="cmd">ocm setup</span>
+
+<span class="box">  ╭───────────────────────────────────────────────────────╮</span>
+<span class="box">  │</span>  <span class="brand bold">          O P E N C L A W   M A C H I N E S</span>          <span class="box">│</span>
+<span class="box">  │</span>  <span class="dim">                  setup wizard</span>                       <span class="box">│</span>
+<span class="box">  ╰───────────────────────────────────────────────────────╯</span>
+
+  <span class="step-done">● Login</span> <span class="dim">───</span> <span class="step-done">● Machine</span> <span class="dim">───</span> <span class="step-done">● Provider</span> <span class="dim">───</span> <span class="step-done">● Channel</span> <span class="dim">───</span> <span class="step-done">● Identity</span> <span class="dim">───</span> <span class="step-active">● Verify</span>
+
+
+  <span class="white bold">STEP 6</span> <span class="dim">·</span> <span class="blue">VERIFY</span>
+  <span class="dim">────────────────</span>
+
+  <span class="check">✓</span> Configuration pushed
+
+  <span class="dim">Running health checks...</span>
+
+  <span class="check">✓</span> <span class="text">Machine</span> <span class="white">"My Bot"</span> <span class="text">is running</span>
+  <span class="check">✓</span> <span class="text">Anthropic credential linked</span> <span class="dim">(validated just now)</span>
+  <span class="check">✓</span> <span class="text">Telegram channel enabled</span>
+  <span class="check">✓</span> <span class="text">Config version is current</span>
+
+<span class="box">  ╭───────────────────────────────────────────────────────╮</span>
+<span class="box">  │</span>                                                       <span class="box">│</span>
+<span class="box">  │</span>  <span class="green bold">✓ Your machine is ready!</span>                             <span class="box">│</span>
+<span class="box">  │</span>                                                       <span class="box">│</span>
+<span class="box">  │</span>  <span class="dim">Name:</span>      <span class="white">Atlas</span>                                     <span class="box">│</span>
+<span class="box">  │</span>  <span class="dim">Machine:</span>   <span class="white">My Bot</span> <span class="dim">(standard)</span>                       <span class="box">│</span>
+<span class="box">  │</span>  <span class="dim">URL:</span>       <span class="blue underline">https://my-bot.openclawmachines.com</span>      <span class="box">│</span>
+<span class="box">  │</span>  <span class="dim">Provider:</span>  <span class="white">Anthropic</span> <span class="dim">(****sk4f)</span>                    <span class="box">│</span>
+<span class="box">  │</span>  <span class="dim">Channel:</span>   <span class="white">Telegram</span>                                <span class="box">│</span>
+<span class="box">  │</span>                                                       <span class="box">│</span>
+<span class="box">  │</span>  <span class="dim">Next steps:</span>                                         <span class="box">│</span>
+<span class="box">  │</span>  <span class="dim">·</span> Message your bot on Telegram                       <span class="box">│</span>
+<span class="box">  │</span>  <span class="dim">·</span> Run <span class="white">ocm status</span> to check health                    <span class="box">│</span>
+<span class="box">  │</span>  <span class="dim">·</span> Run <span class="white">ocm machines ssh</span> for a shell                  <span class="box">│</span>
+<span class="box">  │</span>                                                       <span class="box">│</span>
+<span class="box">  ╰───────────────────────────────────────────────────────╯</span>
+
+  <span class="step-done">● Login</span> <span class="dim">───</span> <span class="step-done">● Machine</span> <span class="dim">───</span> <span class="step-done">● Provider</span> <span class="dim">───</span> <span class="step-done">● Channel</span> <span class="dim">───</span> <span class="step-done">● Identity</span> <span class="dim">───</span> <span class="step-done">● Verify</span>
+
+<span class="prompt">$</span> <span class="cursor"></span></div>
+
+    <!-- SCENE 7: ocm status -->
+    <div class="scene" id="scene-7"><span class="prompt">$</span> <span class="cmd">ocm status</span>
+
+<span class="box">  ╭───────────────────────────────────────────────────────╮</span>
+<span class="box">  │</span>  <span class="white bold">My Bot</span>                             <span class="green bold">● running</span>         <span class="box">│</span>
+<span class="box">  │</span>                                                       <span class="box">│</span>
+<span class="box">  │</span>  <span class="dim">URL</span>      <span class="blue underline">https://my-bot.openclawmachines.com</span>      <span class="box">│</span>
+<span class="box">  │</span>  <span class="dim">Size</span>     <span class="text">standard</span> <span class="dim">(2 vCPU / 2 GB)</span>                 <span class="box">│</span>
+<span class="box">  │</span>  <span class="dim">Identity</span> <span class="text">Atlas</span>                                     <span class="box">│</span>
+<span class="box">  │</span>  <span class="dim">Config</span>   <span class="text">v14</span> <span class="dim">(pushed 3m ago)</span>                      <span class="box">│</span>
+<span class="box">  ╰───────────────────────────────────────────────────────╯</span>
+
+  <span class="white bold">Providers</span>
+  <span class="dim">─────────</span>
+  <span class="green">●</span> anthropic   <span class="dim">····</span><span class="text">sk4f</span>   <span class="dim">subscription_key   validated 3m ago</span>
+
+  <span class="white bold">Channels</span>
+  <span class="dim">────────</span>
+  <span class="green">●</span> telegram    <span class="green">enabled</span>
+
+  <span class="white bold">Skills</span>
+  <span class="dim">──────</span>
+  <span class="dim">  (none configured)</span>
+
+  <span class="white bold">Usage</span> <span class="dim">(24h)</span>
+  <span class="dim">───────────</span>
+  <span class="text">$2.34</span> <span class="dim">across</span> <span class="text">142</span> <span class="dim">requests</span>
+
+  <span class="dim">PROVIDER     MODEL                    IN TOKENS   OUT TOKENS   COST</span>
+  <span class="text">anthropic</span>    <span class="text">claude-sonnet-4-6</span>          <span class="text">84,210</span>      <span class="text">12,455</span>   <span class="text">$1.89</span>
+  <span class="text">anthropic</span>    <span class="text">claude-haiku-4-5</span>           <span class="text">31,004</span>       <span class="text">8,220</span>   <span class="text">$0.45</span>
+
+<span class="prompt">$</span> <span class="cursor"></span></div>
+
+    <!-- SCENE 8: ocm doctor -->
+    <div class="scene" id="scene-8"><span class="prompt">$</span> <span class="cmd">ocm doctor</span>
+
+<span class="box">  ╭───────────────────────────────────────────────────────╮</span>
+<span class="box">  │</span>  <span class="brand bold">OCM Doctor</span>                                            <span class="box">│</span>
+<span class="box">  ╰───────────────────────────────────────────────────────╯</span>
+
+  <span class="check">✓</span> <span class="text">Configuration file exists</span>          <span class="dim">~/.config/ocm/config.json</span>
+  <span class="check">✓</span> <span class="text">API is reachable</span>                   <span class="dim">200 OK (48ms)</span>
+  <span class="check">✓</span> <span class="text">Token is valid</span>                     <span class="dim">mathew@example.com</span>
+  <span class="warn">!</span> <span class="amber">Token expires in 18 hours</span>          <span class="dim">run</span> <span class="white">ocm login</span> <span class="dim">to refresh</span>
+  <span class="check">✓</span> <span class="text">Account configured</span>                 <span class="dim">my-team (ID: 42)</span>
+  <span class="check">✓</span> <span class="text">Machine "My Bot" exists</span>            <span class="dim">standard, created 2h ago</span>
+  <span class="check">✓</span> <span class="text">Machine is running</span>                 <span class="dim">uptime 2h 14m</span>
+  <span class="check">✓</span> <span class="text">LLM credential linked</span>              <span class="dim">anthropic (****sk4f)</span>
+  <span class="check">✓</span> <span class="text">Credential recently validated</span>      <span class="dim">3m ago</span>
+  <span class="check">✓</span> <span class="text">Channel enabled</span>                    <span class="dim">telegram</span>
+  <span class="warn">!</span> <span class="amber">No skills configured</span>               <span class="dim">run</span> <span class="white">ocm skills available</span>
+  <span class="check">✓</span> <span class="text">Config version is current</span>          <span class="dim">v14</span>
+
+  <span class="dim">───────────────────────────────────────────────────────────</span>
+  <span class="green">10 passed</span><span class="dim">,</span> <span class="amber">2 warnings</span><span class="dim">,</span> <span class="text">0 failures</span>
+
+<span class="prompt">$</span> <span class="cursor"></span></div>
+
+  </div>
+</div>
+
+<div class="footer-note">
+  Click the tabs above to step through the flow. This is the full first-time<br>
+  user journey from <kbd>ocm</kbd> → <kbd>ocm setup</kbd> → working bot → <kbd>ocm status</kbd> / <kbd>ocm doctor</kbd>
+</div>
+
+<script>
+function showScene(idx) {
+  document.querySelectorAll('.scene').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.scene-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('scene-' + idx).classList.add('active');
+  document.querySelectorAll('.scene-btn')[idx].classList.add('active');
+}
+
+// Keyboard navigation
+document.addEventListener('keydown', (e) => {
+  const btns = document.querySelectorAll('.scene-btn');
+  const activeIdx = [...btns].findIndex(b => b.classList.contains('active'));
+  if (e.key === 'ArrowRight' || e.key === 'l') {
+    showScene(Math.min(activeIdx + 1, btns.length - 1));
+  } else if (e.key === 'ArrowLeft' || e.key === 'h') {
+    showScene(Math.max(activeIdx - 1, 0));
+  }
+});
+</script>
+
+</body>
+</html>

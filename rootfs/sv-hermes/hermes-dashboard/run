@@ -1,0 +1,6 @@
+#!/bin/sh
+
+exec 2>&1
+mkdir -p /var/log
+exec chpst -u hermes -e /run/ocm-service-env/hermes-dashboard \
+    /bin/sh -c 'set -a; [ -f /opt/data/.env ] && . /opt/data/.env; set +a; exec "$HERMES_BIN" dashboard --tui --host "${HERMES_DASHBOARD_HOST:-127.0.0.1}" --port "${HERMES_DASHBOARD_PORT:-9119}" >> /var/log/hermes-dashboard.log 2>&1'

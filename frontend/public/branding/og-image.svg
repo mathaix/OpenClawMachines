@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0.5" y2="1">
+      <stop offset="0%" stop-color="#050811"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+    <linearGradient id="claw-grad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ea4647"/>
+      <stop offset="40%" stop-color="#c83232"/>
+      <stop offset="100%" stop-color="#7F1D1D"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.35" cy="0.5" r="0.4">
+      <stop offset="0%" stop-color="#DC2626" stop-opacity="0.1"/>
+      <stop offset="100%" stop-color="#DC2626" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect width="1200" height="630" fill="url(#glow)"/>
+
+  <!-- Subtle grid -->
+  <g opacity="0.03" stroke="#2DD4BF" stroke-width="1">
+    <line x1="0" y1="105" x2="1200" y2="105"/>
+    <line x1="0" y1="210" x2="1200" y2="210"/>
+    <line x1="0" y1="315" x2="1200" y2="315"/>
+    <line x1="0" y1="420" x2="1200" y2="420"/>
+    <line x1="0" y1="525" x2="1200" y2="525"/>
+    <line x1="200" y1="0" x2="200" y2="630"/>
+    <line x1="400" y1="0" x2="400" y2="630"/>
+    <line x1="600" y1="0" x2="600" y2="630"/>
+    <line x1="800" y1="0" x2="800" y2="630"/>
+    <line x1="1000" y1="0" x2="1000" y2="630"/>
+  </g>
+
+  <!-- Large claw mark — left of center -->
+  <g transform="translate(140, 115) scale(0.78)">
+    <path d="
+      M 175 85
+      C 140 68, 78 78, 55 125
+      C 28 180, 22 255, 50 325
+      C 75 390, 145 438, 256 448
+      C 367 438, 437 390, 462 325
+      C 490 255, 484 180, 457 125
+      C 434 78, 372 68, 337 85
+      C 318 95, 315 120, 325 152
+      C 345 210, 368 278, 350 340
+      C 335 380, 298 405, 256 412
+      C 214 405, 177 380, 162 340
+      C 144 278, 167 210, 187 152
+      C 197 120, 194 95, 175 85
+      Z
+    " fill="url(#claw-grad)" opacity="0.85"/>
+    <path d="
+      M 170 95
+      C 148 82, 105 88, 80 125
+      C 58 165, 48 220, 60 275
+    " fill="none" stroke="#ea4647" stroke-width="6" stroke-linecap="round" opacity="0.2"/>
+  </g>
+
+  <!-- OpenClaw text -->
+  <text x="560" y="260" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="96" font-weight="800" fill="#ea4647" letter-spacing="-3">
+    OpenClaw
+  </text>
+
+  <!-- Machines text -->
+  <text x="560" y="360" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="82" font-weight="600" fill="#2DD4BF" letter-spacing="2">
+    Machines
+  </text>
+
+  <!-- Tagline -->
+  <text x="560" y="420" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="26" font-weight="400" fill="#64748b" letter-spacing="2">
+    SECURE SANDBOXED OPENCLAW AGENTS
+  </text>
+
+  <!-- Accent line -->
+  <rect x="560" y="445" width="120" height="3" rx="1.5" fill="#DC2626" opacity="0.5"/>
+
+  <!-- URL bottom -->
+  <text x="600" y="590" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="20" font-weight="400" fill="#475569" letter-spacing="2">
+    openclawmachines.com
+  </text>
+
+  <!-- by ClaraMap -->
+  <text x="1140" y="590" text-anchor="end" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="16" font-weight="400" fill="#475569" letter-spacing="1">
+    by Clara<tspan fill="#14B8A6">Map</tspan>
+  </text>
+</svg>

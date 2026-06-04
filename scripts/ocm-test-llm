@@ -1,0 +1,54 @@
+#!/bin/bash
+# ocm-test-llm — Test LLM connectivity through the API proxy
+# Usage: ocm-test-llm
+
+CONFIG_FILE="/home/openclaw/.openclaw/openclaw.json"
+
+echo "Reading provider config from openclaw.json..."
+if [ ! -f "$CONFIG_FILE" ]; then
+    echo "ERROR: Config file not found: $CONFIG_FILE"
+    exit 1
+fi
+
+PROVIDERS_JSON=$(jq -r '.models.providers // {}' "$CONFIG_FILE" 2>/dev/null)
+if [ -z "$PROVIDERS_JSON" ] || [ "$PROVIDERS_JSON" = "{}" ] || [ "$PROVIDERS_JSON" = "null" ]; then
+    echo "ERROR: No LLM providers configured in $CONFIG_FILE"
+    exit 1
+fi
+
+echo "Configured providers:"
+echo "$PROVIDERS_JSON" | jq -r 'to_entries[] | "  \(.key): baseUrl=\(.value.baseUrl // "(none)")"'
+echo ""
+
+# Test first available provider through the proxy
+PROVIDER=$(echo "$PROVIDERS_JSON" | jq -r 'keys[0]')
+PROXY_URL=$(echo "$PROVIDERS_JSON" | jq -r ".[\"$PROVIDER\"].baseUrl")
+
+if [ -z "$PROXY_URL" ] || [ "$PROXY_URL" = "null" ]; then
+    echo "ERROR: No baseUrl configured for provider '$PROVIDER'"
+    exit 1
+fi
+
+echo "Testing $PROVIDER via proxy ($PROXY_URL)..."
+
+if [ "$PROVIDER" = "openai" ]; then
+    curl -s "$PROXY_URL/v1/chat/completions" \
+        -H "Content-Type: application/json" \
+        -d '{"model":"gpt-4o-mini","max_tokens":10,"messages":[{"role":"user","content":"Say hello"}]}' | jq .
+elif [ "$PROVIDER" = "anthropic" ]; then
+    curl -s "$PROXY_URL/v1/messages" \
+        -H "anthropic-version: 2023-06-01" \
+        -H "Content-Type: application/json" \
+        -d '{"model":"claude-sonnet-4-20250514","max_tokens":10,"messages":[{"role":"user","content":"Say hello"}]}' | jq .
+elif [ "$PROVIDER" = "google" ]; then
+    curl -s "$PROXY_URL/v1/chat/completions" \
+        -H "Content-Type: application/json" \
+        -d '{"model":"gemini-2.0-flash","max_tokens":10,"messages":[{"role":"user","content":"Say hello"}]}' | jq .
+elif [ "$PROVIDER" = "nebius" ]; then
+    curl -s "$PROXY_URL/v1/chat/completions" \
+        -H "Content-Type: application/json" \
+        -d '{"model":"nebius/deepseek-ai/DeepSeek-V3","max_tokens":10,"messages":[{"role":"user","content":"Say hello"}]}' | jq .
+else
+    echo "Unknown provider '$PROVIDER' — try calling the proxy URL manually:"
+    echo "  curl -s $PROXY_URL/v1/chat/completions -H 'Content-Type: application/json' -d '{\"model\":\"MODEL\",\"max_tokens\":10,\"messages\":[{\"role\":\"user\",\"content\":\"Say hello\"}]}'"
+fi

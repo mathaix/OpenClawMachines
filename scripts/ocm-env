@@ -1,0 +1,14 @@
+#!/bin/bash
+# ocm-env — Show current OCM and provider environment variables
+# Usage: ocm-env
+
+echo "=== Provider Environment Variables ==="
+env | grep -E "^(ANTHROPIC|OPENAI|GOOGLE)_" | sort || echo "  (none set)"
+
+echo ""
+echo "=== OCM Environment Variables ==="
+env | grep -E "^OCM_" | sort || echo "  (none set)"
+
+echo ""
+echo "=== OpenClaw Paths ==="
+env | grep -E "^OPENCLAW_" | sort || echo "  (none set)"

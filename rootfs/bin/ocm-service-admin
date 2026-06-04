@@ -1,0 +1,271 @@
+#!/bin/sh
+set -eu
+
+SERVICES_DIR=/home/openclaw/.openclaw/services
+STATE_DIR=/var/lib/ocm-svcd
+SYSTEM_SV_DIR=/etc/sv
+SYSTEM_SERVICE_DIR=/var/service
+PLATFORM_RESERVED_NAMES='gateway pty-server cloudflared authproxy filebrowser ocm-svcd'
+RESERVED_PORTS='18789 8082 9090 9091'
+
+fail() {
+    echo "ocm-service-admin: $*" >&2
+    exit 1
+}
+
+require_root() {
+    [ "$(id -u)" -eq 0 ] || fail "must run as root"
+}
+
+validate_name() {
+    name="$1"
+    case "$name" in
+        ""|u-*|*/*|*..*|*[!A-Za-z0-9._-]*)
+            return 1
+            ;;
+    esac
+    for reserved in $PLATFORM_RESERVED_NAMES; do
+        [ "$name" != "$reserved" ] || return 1
+    done
+    [ "${#name}" -le 32 ]
+}
+
+json_string() {
+    printf '%s' "$1" | jq -Rs .
+}
+
+single_quote() {
+    printf "%s" "$1" | sed "s/'/'\\\\''/g"
+}
+
+service_decl_dir() {
+    printf '%s/%s\n' "$SERVICES_DIR" "$1"
+}
+
+service_state_dir() {
+    printf '%s/u-%s\n' "$STATE_DIR" "$1"
+}
+
+service_system_dir() {
+    printf '%s/u-%s\n' "$SYSTEM_SV_DIR" "$1"
+}
+
+service_link_path() {
+    printf '%s/u-%s\n' "$SYSTEM_SERVICE_DIR" "$1"
+}
+
+load_meta() {
+    meta_path="$1"
+    name="$2"
+
+    jq -e . "$meta_path" >/dev/null 2>&1 || fail "$name has invalid meta.json"
+
+    cwd=$(jq -r 'if has("cwd") and .cwd != null then .cwd else "/home/openclaw" end' "$meta_path")
+    case "$cwd" in
+        /home/openclaw|/home/openclaw/*) ;;
+        *) fail "$name cwd must stay under /home/openclaw" ;;
+    esac
+
+    if jq -e 'has("port") and .port != null' "$meta_path" >/dev/null 2>&1; then
+        port=$(jq -r '.port' "$meta_path")
+        case "$port" in
+            ''|*[!0-9]*) fail "$name port must be numeric" ;;
+        esac
+        [ "$port" -ge 1024 ] && [ "$port" -le 65535 ] || fail "$name port out of range"
+        for reserved in $RESERVED_PORTS; do
+            [ "$port" != "$reserved" ] || fail "$name port $port is reserved"
+        done
+    fi
+}
+
+materialize_one() {
+    name="$1"
+    validate_name "$name" || fail "invalid service name: $name"
+
+    decl_dir=$(service_decl_dir "$name")
+    run_path="$decl_dir/run"
+    meta_path="$decl_dir/meta.json"
+    log_dir="$decl_dir/logs"
+    log_path="$log_dir/current.log"
+    state_dir=$(service_state_dir "$name")
+    sys_dir=$(service_system_dir "$name")
+    link_path=$(service_link_path "$name")
+
+    [ -d "$decl_dir" ] || fail "service declaration missing: $decl_dir"
+    [ -f "$run_path" ] || fail "service run script missing: $run_path"
+    [ -x "$run_path" ] || fail "service run script is not executable: $run_path"
+    [ -f "$meta_path" ] || fail "service meta.json missing: $meta_path"
+
+    load_meta "$meta_path" "$name"
+
+    mkdir -p "$log_dir" "$state_dir" "$sys_dir"
+    touch "$log_path"
+    chown -R openclaw:openclaw "$decl_dir"
+    chown -R root:root "$state_dir" "$sys_dir"
+    chmod 0755 "$state_dir" "$sys_dir"
+
+    cp "$meta_path" "$state_dir/meta.json"
+    chmod 0644 "$state_dir/meta.json"
+
+    cwd_sq=$(single_quote "$cwd")
+    run_sq=$(single_quote "$run_path")
+    log_sq=$(single_quote "$log_path")
+
+    cat >"$sys_dir/run" <<EOF
+#!/bin/sh
+set -eu
+CWD='$cwd_sq'
+RUN_FILE='$run_sq'
+LOG_FILE='$log_sq'
+mkdir -p "\$(dirname "\$LOG_FILE")"
+touch "\$LOG_FILE"
+chown openclaw:openclaw "\$LOG_FILE" 2>/dev/null || true
+exec chpst -u openclaw:openclaw sh -c 'cd "\$1" && exec "\$2"' sh "\$CWD" "\$RUN_FILE" >>"\$LOG_FILE" 2>&1
+EOF
+    chmod 0755 "$sys_dir/run"
+    chown root:root "$sys_dir/run"
+    rm -f "$sys_dir/down"
+    ln -sfn "$sys_dir" "$link_path"
+}
+
+remove_one() {
+    name="$1"
+    validate_name "$name" || fail "invalid service name: $name"
+
+    decl_dir=$(service_decl_dir "$name")
+    sys_dir=$(service_system_dir "$name")
+    link_path=$(service_link_path "$name")
+    state_dir=$(service_state_dir "$name")
+
+    if [ -L "$link_path" ] || [ -d "$sys_dir" ]; then
+        /usr/bin/sv -w 30 down "$link_path" >/dev/null 2>&1 || true
+    fi
+    rm -f "$link_path"
+    rm -rf "$sys_dir" "$state_dir"
+    rm -rf "$decl_dir"
+}
+
+rematerialize_all() {
+    mkdir -p "$SERVICES_DIR" "$STATE_DIR" "$SYSTEM_SERVICE_DIR"
+
+    for path in "$SERVICES_DIR"/*; do
+        [ -d "$path" ] || continue
+        name=$(basename "$path")
+        if validate_name "$name"; then
+            if [ -f "$path/run" ] && [ -f "$path/meta.json" ]; then
+                materialize_one "$name"
+            fi
+        fi
+    done
+
+    for path in "$SYSTEM_SERVICE_DIR"/u-*; do
+        [ -e "$path" ] || continue
+        name=$(basename "$path")
+        name=${name#u-}
+        if [ ! -d "$SERVICES_DIR/$name" ]; then
+            remove_one "$name"
+        fi
+    done
+}
+
+write_decl_meta() {
+    name="$1"
+    cwd="$2"
+    port="$3"
+    description="$4"
+    cmd="$5"
+    meta_path="$6"
+
+    port_json=null
+    [ -n "$port" ] && port_json=$port
+
+    desc_json=null
+    [ -n "$description" ] && desc_json=$(json_string "$description")
+
+    cmd_json=$(json_string "$cmd")
+    cwd_json=$(json_string "$cwd")
+
+    cat >"$meta_path" <<EOF
+{
+  "name": $(json_string "$name"),
+  "cmd": $cmd_json,
+  "cwd": $cwd_json,
+  "port": $port_json,
+  "description": $desc_json
+}
+EOF
+}
+
+cmd_create_decl() {
+    name="$1"
+    cmd="$2"
+    cwd="$3"
+    port="$4"
+    description="$5"
+
+    validate_name "$name" || fail "invalid service name: $name"
+    case "$cwd" in
+        /home/openclaw|/home/openclaw/*) ;;
+        *) fail "cwd must stay under /home/openclaw" ;;
+    esac
+    if [ -n "$port" ]; then
+        case "$port" in
+            ''|*[!0-9]*) fail "port must be numeric" ;;
+        esac
+    fi
+
+    decl_dir=$(service_decl_dir "$name")
+    run_path="$decl_dir/run"
+    meta_path="$decl_dir/meta.json"
+
+    mkdir -p "$decl_dir/logs"
+    cat >"$run_path" <<EOF
+#!/bin/sh
+set -eu
+exec /bin/sh -lc $(json_string "$cmd")
+EOF
+    chmod 0755 "$run_path"
+    chown -R openclaw:openclaw "$decl_dir"
+
+    write_decl_meta "$name" "$cwd" "$port" "$description" "$cmd" "$meta_path"
+    chown openclaw:openclaw "$meta_path"
+
+    materialize_one "$name"
+}
+
+usage() {
+    cat >&2 <<'EOF'
+usage:
+  ocm-service-admin materialize <name>
+  ocm-service-admin remove <name>
+  ocm-service-admin rematerialize-all
+  ocm-service-admin create-decl <name> <cmd> <cwd> <port-or-empty> <description-or-empty>
+EOF
+    exit 2
+}
+
+require_root
+
+[ $# -ge 1 ] || usage
+
+case "$1" in
+    materialize)
+        [ $# -eq 2 ] || usage
+        materialize_one "$2"
+        ;;
+    remove)
+        [ $# -eq 2 ] || usage
+        remove_one "$2"
+        ;;
+    rematerialize-all)
+        [ $# -eq 1 ] || usage
+        rematerialize_all
+        ;;
+    create-decl)
+        [ $# -eq 6 ] || usage
+        cmd_create_decl "$2" "$3" "$4" "$5" "$6"
+        ;;
+    *)
+        usage
+        ;;
+esac

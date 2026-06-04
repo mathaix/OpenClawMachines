@@ -1,0 +1,55 @@
+#!/bin/sh
+
+now=$(date +%s)
+state=/run/ocm-gateway-crashes
+manual=/run/ocm-gateway-manual-restart
+latch=/run/ocm-gateway-crash-loop
+
+rm -f /tmp/openclaw/*.lock /tmp/openclaw/*.pid 2>/dev/null
+
+ts=0
+remaining=0
+read -r ts remaining 2>/dev/null < "$manual" || true
+case "$ts" in
+    ''|*[!0-9]*) ts=0 ;;
+esac
+case "$remaining" in
+    ''|*[!0-9]*) remaining=0 ;;
+esac
+
+if [ "$remaining" -gt 0 ] && [ $(( now - ts )) -le 60 ]; then
+    remaining=$(( remaining - 1 ))
+    printf '%s %s\n' "$ts" "$remaining" > "$manual"
+    printf '0\n' > "$latch"
+    rm -f "$state"
+    exit 0
+fi
+
+printf '0 0\n' > "$manual"
+
+window=$now
+count=0
+read -r saved_window saved_count 2>/dev/null < "$state" || true
+case "$saved_window" in
+    ''|*[!0-9]*) saved_window=$now ;;
+esac
+case "$saved_count" in
+    ''|*[!0-9]*) saved_count=0 ;;
+esac
+
+window=$saved_window
+count=$saved_count
+if [ $(( now - window )) -gt 60 ]; then
+    window=$now
+    count=0
+fi
+
+count=$(( count + 1 ))
+printf '%s %s\n' "$window" "$count" > "$state"
+
+if [ "$count" -ge 3 ]; then
+    echo "crash-loop" > /run/ocm-gateway-status
+    printf '1\n' > "$latch"
+fi
+
+exit 0

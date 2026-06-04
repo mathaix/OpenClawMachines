@@ -1,0 +1,1467 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OpenClaw Machines — Dashboard Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=JetBrains+Mono:wght@400;500;600&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;0,9..144,700;1,9..144,400&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg-deep: #07080d;
+  --bg-surface: #0e1017;
+  --bg-card: #141620;
+  --bg-card-hover: #1a1d2c;
+  --bg-elevated: #1c1f30;
+  --bg-input: #111320;
+  --border: #1e2235;
+  --border-subtle: #171a28;
+  --border-focus: #f97316;
+  --text-primary: #e8eaf0;
+  --text-secondary: #8b8fa6;
+  --text-muted: #5c6078;
+  --text-dim: #3d4156;
+  --brand-orange: #f97316;
+  --brand-orange-soft: rgba(249,115,22,0.1);
+  --brand-teal: #2dd4bf;
+  --brand-teal-soft: rgba(45,212,191,0.1);
+  --brand-red: #ef4444;
+  --brand-red-soft: rgba(239,68,68,0.1);
+  --success: #22c55e;
+  --success-soft: rgba(34,197,94,0.1);
+  --warning: #eab308;
+  --warning-soft: rgba(234,179,8,0.1);
+  --font-display: 'Fraunces', Georgia, serif;
+  --font-body: 'DM Sans', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', monospace;
+  --radius: 12px;
+  --radius-sm: 8px;
+  --radius-lg: 16px;
+}
+
+html { font-size: 16px; }
+body {
+  font-family: var(--font-body);
+  background: var(--bg-deep);
+  color: var(--text-primary);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── App Shell ── */
+.app-shell { display: flex; flex-direction: column; min-height: 100vh; }
+
+.topbar {
+  padding: 0 24px;
+  height: 56px;
+  display: flex; align-items: center; justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-surface);
+  position: sticky; top: 0; z-index: 50;
+}
+.topbar-left { display: flex; align-items: center; gap: 32px; }
+.logo {
+  font-family: var(--font-mono);
+  font-size: 14px; font-weight: 600;
+  letter-spacing: -0.3px;
+  display: flex; gap: 2px;
+  cursor: pointer;
+}
+.logo-open { color: var(--brand-red); }
+.logo-claw { color: var(--brand-teal); }
+.logo-machines { color: #a0a5bc; font-weight: 400; margin-left: 3px; }
+
+.nav { display: flex; gap: 2px; }
+.nav-link {
+  padding: 6px 14px;
+  font-size: 13px; font-weight: 500;
+  color: var(--text-muted);
+  text-decoration: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.nav-link:hover { color: var(--text-secondary); background: rgba(255,255,255,0.03); }
+.nav-link.active { color: var(--text-primary); background: rgba(255,255,255,0.06); }
+
+.topbar-right { display: flex; align-items: center; gap: 14px; }
+.topbar-user {
+  font-size: 12px; color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+/* ── Main content ── */
+.main { flex: 1; }
+.container { max-width: 960px; margin: 0 auto; padding: 32px 24px; }
+
+/* ── Page header ── */
+.page-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 24px;
+}
+.page-title {
+  font-family: var(--font-display);
+  font-size: 24px; font-weight: 500;
+  letter-spacing: -0.5px;
+}
+.page-count {
+  font-size: 14px; color: var(--text-muted);
+  margin-left: 8px; font-family: var(--font-body);
+  font-weight: 400;
+}
+
+/* ── Buttons ── */
+.btn {
+  padding: 8px 18px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-body);
+  font-size: 13px; font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all 0.15s;
+  display: inline-flex; align-items: center; gap: 6px;
+  text-decoration: none;
+}
+.btn-primary {
+  background: var(--brand-orange);
+  color: #fff;
+}
+.btn-primary:hover {
+  background: #ea580c;
+  box-shadow: 0 2px 12px rgba(249,115,22,0.25);
+}
+.btn-secondary {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+.btn-secondary:hover { background: var(--bg-card-hover); color: var(--text-primary); }
+.btn-ghost {
+  background: transparent;
+  color: var(--text-muted);
+  padding: 6px 10px;
+}
+.btn-ghost:hover { color: var(--text-secondary); }
+.btn-sm { padding: 5px 12px; font-size: 12px; }
+.btn-danger { background: var(--brand-red-soft); color: var(--brand-red); border: 1px solid rgba(239,68,68,0.2); }
+.btn-danger:hover { background: rgba(239,68,68,0.15); }
+.btn-success { background: var(--success-soft); color: var(--success); border: 1px solid rgba(34,197,94,0.2); }
+.btn-success:hover { background: rgba(34,197,94,0.15); }
+
+/* ── Machine grid ── */
+.machine-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 12px;
+}
+
+/* ── Machine card ── */
+.machine-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+.machine-card:hover {
+  border-color: #2a2e45;
+  background: var(--bg-card-hover);
+}
+
+.card-top {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  margin-bottom: 12px;
+}
+.card-name {
+  font-size: 15px; font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 3px;
+}
+.card-url {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* Status badges */
+.badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 11px; font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.badge-running { background: var(--success-soft); color: var(--success); }
+.badge-stopped { background: rgba(139,143,166,0.1); color: var(--text-muted); }
+.badge-provisioning { background: var(--warning-soft); color: var(--warning); }
+.badge-error { background: var(--brand-red-soft); color: var(--brand-red); }
+
+.pulse-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  animation: pulse 2s ease-in-out infinite;
+}
+.pulse-dot.green { background: var(--success); }
+.pulse-dot.yellow { background: var(--warning); }
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.8); }
+}
+
+/* Card specs */
+.card-specs {
+  display: flex; gap: 12px;
+  margin-bottom: 14px;
+}
+.spec {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  display: flex; align-items: center; gap: 4px;
+}
+.spec-icon {
+  width: 14px; height: 14px;
+  opacity: 0.4;
+}
+
+/* Card capabilities row */
+.card-caps {
+  display: flex; gap: 6px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.cap-pill {
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 10px; font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+.cap-provider { background: rgba(217,119,6,0.12); color: #d97706; }
+.cap-channel { background: var(--brand-teal-soft); color: var(--brand-teal); }
+.cap-identity { background: rgba(168,85,247,0.1); color: #a855f7; }
+
+/* Card actions */
+.card-actions {
+  display: flex; align-items: center; justify-content: space-between;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-subtle);
+}
+.card-links { display: flex; gap: 4px; }
+.card-link {
+  font-size: 12px; font-weight: 500;
+  color: var(--text-muted);
+  text-decoration: none;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.15s;
+  cursor: pointer;
+}
+.card-link:hover { color: var(--brand-orange); background: var(--brand-orange-soft); }
+.card-link.disabled { opacity: 0.3; pointer-events: none; }
+.card-controls { display: flex; gap: 4px; }
+
+/* ── VIEWS ── */
+.view { display: none; }
+.view.active { display: block; }
+
+/* ── Machine Detail ── */
+.detail-header {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  margin-bottom: 8px;
+}
+.detail-name {
+  font-family: var(--font-display);
+  font-size: 26px; font-weight: 500;
+  letter-spacing: -0.5px;
+}
+.detail-slug {
+  font-family: var(--font-mono);
+  font-size: 12px; color: var(--text-muted);
+  margin-bottom: 20px;
+}
+.detail-actions { display: flex; gap: 8px; align-items: center; }
+
+/* Tab bar */
+.tab-bar {
+  display: flex; gap: 2px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 24px;
+  overflow-x: auto;
+}
+.tab {
+  padding: 10px 16px;
+  font-size: 13px; font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.15s;
+  white-space: nowrap;
+  position: relative;
+}
+.tab:hover { color: var(--text-secondary); }
+.tab.active {
+  color: var(--brand-orange);
+  border-bottom-color: var(--brand-orange);
+}
+.tab .tab-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 16px; height: 16px;
+  padding: 0 5px;
+  border-radius: 8px;
+  font-size: 10px; font-weight: 700;
+  margin-left: 6px;
+  background: var(--brand-orange-soft);
+  color: var(--brand-orange);
+}
+
+/* Tab content */
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+/* ── Section cards ── */
+.section {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+.section-header {
+  padding: 16px 20px;
+  display: flex; align-items: center; justify-content: space-between;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.section-title {
+  font-size: 14px; font-weight: 600;
+  color: var(--text-primary);
+}
+.section-body { padding: 16px 20px; }
+.section-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 0;
+}
+.section-row + .section-row { border-top: 1px solid var(--border-subtle); }
+.section-label {
+  font-size: 12px; font-weight: 500;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  min-width: 100px;
+}
+.section-value {
+  font-size: 14px; font-weight: 500;
+  color: var(--text-primary);
+  text-align: right;
+}
+.section-value.mono {
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+/* ── Channels section ── */
+.channel-row {
+  display: flex; align-items: center; gap: 14px;
+  padding: 14px 20px;
+  transition: background 0.15s;
+}
+.channel-row:not(:last-child) { border-bottom: 1px solid var(--border-subtle); }
+.channel-row:hover { background: rgba(255,255,255,0.015); }
+
+.channel-icon {
+  width: 38px; height: 38px;
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+.channel-icon.telegram { background: rgba(0,136,204,0.12); }
+.channel-icon.discord { background: rgba(88,101,242,0.12); }
+.channel-icon.whatsapp { background: rgba(37,211,102,0.12); }
+
+.channel-info { flex: 1; }
+.channel-name {
+  font-size: 14px; font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+}
+.channel-detail {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.toggle-track {
+  width: 40px; height: 22px;
+  border-radius: 11px;
+  background: var(--border);
+  position: relative;
+  cursor: pointer;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+.toggle-track.on { background: var(--success); }
+.toggle-thumb {
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  position: absolute;
+  top: 2px; left: 2px;
+  transition: transform 0.2s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+.toggle-track.on .toggle-thumb { transform: translateX(18px); }
+
+/* ── Credential linking ── */
+.cred-row {
+  display: flex; align-items: center; gap: 14px;
+  padding: 14px 20px;
+}
+.cred-row:not(:last-child) { border-bottom: 1px solid var(--border-subtle); }
+.cred-icon {
+  width: 36px; height: 36px;
+  border-radius: 9px;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 15px;
+  flex-shrink: 0;
+}
+.cred-icon.anthropic { background: rgba(217,119,6,0.15); color: #d97706; }
+.cred-icon.openai { background: rgba(5,150,105,0.15); color: #059669; }
+.cred-icon.google { background: rgba(37,99,235,0.15); color: #2563eb; }
+.cred-icon.discord { background: rgba(99,102,241,0.15); color: #6366f1; }
+.cred-icon.telegram { background: rgba(0,136,204,0.15); color: #0088cc; }
+.cred-icon.whatsapp { background: rgba(37,211,102,0.15); color: #25d366; }
+
+.cred-info { flex: 1; }
+.cred-name {
+  font-size: 13px; font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+}
+.cred-detail {
+  font-size: 11px; color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+.link-badge {
+  padding: 3px 10px;
+  border-radius: 6px;
+  font-size: 11px; font-weight: 600;
+}
+.link-badge.linked { background: var(--success-soft); color: var(--success); }
+.link-badge.unlinked { background: rgba(139,143,166,0.08); color: var(--text-muted); }
+
+/* ── Identity section ── */
+.identity-preview {
+  display: flex; gap: 20px; align-items: center;
+  padding: 20px;
+}
+.identity-avatar {
+  width: 72px; height: 72px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(249,115,22,0.2), rgba(45,212,191,0.2));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 28px; font-weight: 700;
+  color: var(--brand-orange);
+  flex-shrink: 0;
+  border: 2px solid var(--border);
+}
+.identity-info { flex: 1; }
+.identity-name-display {
+  font-family: var(--font-display);
+  font-size: 20px; font-weight: 500;
+  margin-bottom: 4px;
+}
+.identity-meta {
+  font-size: 12px; color: var(--text-muted);
+}
+
+/* ── Config viewer ── */
+.config-viewer {
+  background: var(--bg-deep);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  max-height: 400px;
+  overflow-y: auto;
+  white-space: pre;
+  tab-size: 2;
+}
+.config-viewer .key { color: var(--brand-teal); }
+.config-viewer .str { color: var(--brand-orange); }
+.config-viewer .bool { color: #a78bfa; }
+.config-viewer .num { color: #f59e0b; }
+
+/* ── Usage table ── */
+.usage-summary {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 12px; margin-bottom: 20px;
+}
+.usage-stat {
+  padding: 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  text-align: center;
+}
+.usage-stat-value {
+  font-family: var(--font-mono);
+  font-size: 22px; font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+.usage-stat-label {
+  font-size: 11px; color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.usage-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.usage-table th {
+  text-align: left;
+  padding: 8px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  border-bottom: 1px solid var(--border);
+}
+.usage-table td {
+  padding: 10px 12px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-subtle);
+}
+.usage-table td.mono {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.usage-table tr:hover td { background: rgba(255,255,255,0.015); }
+
+/* ── Push banner ── */
+.push-banner {
+  display: flex; align-items: center; gap: 14px;
+  padding: 12px 20px;
+  background: var(--brand-orange-soft);
+  border: 1px solid rgba(249,115,22,0.2);
+  border-radius: var(--radius);
+  margin-bottom: 20px;
+}
+.push-banner-text {
+  flex: 1;
+  font-size: 13px; color: var(--brand-orange);
+  font-weight: 500;
+}
+.push-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--brand-orange);
+  flex-shrink: 0;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+/* ── Settings page ── */
+.settings-layout { display: flex; gap: 32px; }
+.settings-nav {
+  width: 180px; flex-shrink: 0;
+  display: flex; flex-direction: column; gap: 2px;
+  position: sticky; top: 80px; align-self: flex-start;
+}
+.settings-nav-item {
+  padding: 8px 14px;
+  font-size: 13px; font-weight: 500;
+  color: var(--text-muted);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.settings-nav-item:hover { color: var(--text-secondary); background: rgba(255,255,255,0.03); }
+.settings-nav-item.active { color: var(--text-primary); background: rgba(255,255,255,0.06); }
+.settings-content { flex: 1; min-width: 0; }
+
+/* ── Provider row (settings) ── */
+.provider-setting-row {
+  display: flex; align-items: center; gap: 14px;
+  padding: 16px 20px;
+}
+.provider-setting-row:not(:last-child) { border-bottom: 1px solid var(--border-subtle); }
+.provider-status {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px; font-weight: 600;
+  font-family: var(--font-mono);
+}
+.provider-status.configured { background: var(--success-soft); color: var(--success); }
+.provider-status.not-configured { background: rgba(139,143,166,0.06); color: var(--text-muted); }
+
+/* ── Budget bar ── */
+.budget-bar-track {
+  width: 100%; height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: 6px;
+}
+.budget-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s;
+}
+.budget-bar-fill.green { background: var(--success); }
+.budget-bar-fill.yellow { background: var(--warning); }
+.budget-bar-fill.red { background: var(--brand-red); }
+
+/* ── Utility ── */
+.hidden { display: none !important; }
+.flex { display: flex; }
+.items-center { align-items: center; }
+.gap-8 { gap: 8px; }
+.gap-12 { gap: 12px; }
+.mt-16 { margin-top: 16px; }
+.mb-8 { margin-bottom: 8px; }
+.mb-16 { margin-bottom: 16px; }
+.text-sm { font-size: 13px; }
+.text-muted { color: var(--text-muted); }
+.text-secondary { color: var(--text-secondary); }
+.mono { font-family: var(--font-mono); }
+
+/* ── Empty state ── */
+.empty-state {
+  text-align: center;
+  padding: 48px 24px;
+  color: var(--text-muted);
+}
+.empty-state-icon {
+  font-size: 36px;
+  margin-bottom: 12px;
+  opacity: 0.4;
+}
+.empty-state-text {
+  font-size: 15px;
+  margin-bottom: 16px;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+/* ── Animations ── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-in { animation: fadeIn 0.3s ease; }
+
+@media (max-width: 700px) {
+  .machine-grid { grid-template-columns: 1fr; }
+  .settings-layout { flex-direction: column; }
+  .settings-nav { width: 100%; flex-direction: row; overflow-x: auto; position: static; }
+  .usage-summary { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<div class="app-shell">
+  <!-- ══ Top Bar ══ -->
+  <div class="topbar">
+    <div class="topbar-left">
+      <div class="logo" onclick="showView('dashboard')">
+        <span class="logo-open">Open</span><span class="logo-claw">Claw</span>
+        <span class="logo-machines">Machines</span>
+      </div>
+      <nav class="nav">
+        <a class="nav-link active" id="nav-dashboard" onclick="showView('dashboard')">Dashboard</a>
+        <a class="nav-link" id="nav-settings" onclick="showView('settings')">Settings</a>
+      </nav>
+    </div>
+    <div class="topbar-right">
+      <span class="topbar-user">mantiz@example.com</span>
+      <button class="btn btn-ghost btn-sm">Sign out</button>
+    </div>
+  </div>
+
+  <div class="main">
+
+    <!-- ══════════════════════════════════════ -->
+    <!-- ══ DASHBOARD VIEW ══ -->
+    <!-- ══════════════════════════════════════ -->
+    <div class="view active" id="view-dashboard">
+      <div class="container animate-in">
+        <div class="page-header">
+          <h1 class="page-title">Machines<span class="page-count">3</span></h1>
+          <button class="btn btn-primary" onclick="showView('dashboard')">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1v12M1 7h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            New Machine
+          </button>
+        </div>
+
+        <div class="machine-grid">
+          <!-- Card 1: Running -->
+          <div class="machine-card" onclick="showView('detail')">
+            <div class="card-top">
+              <div>
+                <div class="card-name">machine-a3f2</div>
+                <div class="card-url">mantiz-lab.ocm.com/machine-a3f2</div>
+              </div>
+              <span class="badge badge-running"><span class="pulse-dot green"></span> Running</span>
+            </div>
+            <div class="card-specs">
+              <span class="spec">2 vCPU</span>
+              <span class="spec">2 GB</span>
+              <span class="spec">20 GB</span>
+              <span class="spec" style="color: var(--success);">up 2h 14m</span>
+            </div>
+            <div class="card-caps">
+              <span class="cap-pill cap-provider">Anthropic</span>
+              <span class="cap-pill cap-channel">Telegram</span>
+              <span class="cap-pill cap-identity">Claw</span>
+            </div>
+            <div class="card-actions">
+              <div class="card-links">
+                <a class="card-link" onclick="event.stopPropagation()">Gateway</a>
+                <a class="card-link" onclick="event.stopPropagation()">Workspace</a>
+                <a class="card-link" onclick="event.stopPropagation()">SSH</a>
+              </div>
+              <div class="card-controls">
+                <button class="btn btn-sm btn-danger" onclick="event.stopPropagation()">Stop</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card 2: Stopped -->
+          <div class="machine-card">
+            <div class="card-top">
+              <div>
+                <div class="card-name">staging-bot</div>
+                <div class="card-url">mantiz-lab.ocm.com/staging-bot</div>
+              </div>
+              <span class="badge badge-stopped">Stopped</span>
+            </div>
+            <div class="card-specs">
+              <span class="spec">1 vCPU</span>
+              <span class="spec">2 GB</span>
+              <span class="spec">10 GB</span>
+              <span class="spec">data preserved &middot; 3d ago</span>
+            </div>
+            <div class="card-caps">
+              <span class="cap-pill cap-provider">OpenAI</span>
+              <span class="cap-pill cap-channel">Discord</span>
+            </div>
+            <div class="card-actions">
+              <div class="card-links">
+                <a class="card-link disabled">Gateway</a>
+                <a class="card-link disabled">Workspace</a>
+              </div>
+              <div class="card-controls">
+                <button class="btn btn-sm btn-success" onclick="event.stopPropagation()">Start</button>
+                <button class="btn btn-sm btn-danger" onclick="event.stopPropagation()">Delete</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card 3: Provisioning -->
+          <div class="machine-card">
+            <div class="card-top">
+              <div>
+                <div class="card-name">prod-agent</div>
+                <div class="card-url">mantiz-lab.ocm.com/prod-agent</div>
+              </div>
+              <span class="badge badge-provisioning"><span class="pulse-dot yellow"></span> Provisioning</span>
+            </div>
+            <div class="card-specs">
+              <span class="spec">4 vCPU</span>
+              <span class="spec">4 GB</span>
+              <span class="spec">40 GB</span>
+              <span class="spec" style="color: var(--warning);">Creating VM...</span>
+            </div>
+            <div class="card-caps">
+              <span class="cap-pill cap-provider">Anthropic</span>
+              <span class="cap-pill cap-provider">Google</span>
+            </div>
+            <div class="card-actions">
+              <div class="card-links">
+                <a class="card-link disabled">Gateway</a>
+                <a class="card-link disabled">Workspace</a>
+              </div>
+              <div class="card-controls">
+                <button class="btn btn-sm btn-danger" onclick="event.stopPropagation()">Stop</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════ -->
+    <!-- ══ MACHINE DETAIL VIEW ══ -->
+    <!-- ══════════════════════════════════════ -->
+    <div class="view" id="view-detail">
+      <div class="container animate-in">
+        <div style="margin-bottom: 20px;">
+          <a class="btn btn-ghost" onclick="showView('dashboard')" style="margin-left: -10px;">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9 2L4 7l5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            Machines
+          </a>
+        </div>
+
+        <div class="detail-header">
+          <div>
+            <div class="detail-name">machine-a3f2</div>
+            <div class="detail-slug">mantiz-lab.openclawmachines.com/machine-a3f2</div>
+          </div>
+          <div class="detail-actions">
+            <span class="badge badge-running"><span class="pulse-dot green"></span> Running</span>
+            <a class="btn btn-secondary btn-sm">Gateway</a>
+            <a class="btn btn-primary btn-sm">Workspace</a>
+            <button class="btn btn-danger btn-sm">Stop</button>
+          </div>
+        </div>
+
+        <!-- Push config banner (shown when config changes are pending) -->
+        <div class="push-banner" id="pushBanner">
+          <span class="push-dot"></span>
+          <span class="push-banner-text">Configuration changes detected. Push to apply.</span>
+          <button class="btn btn-primary btn-sm" onclick="pushConfig()">Push Config</button>
+        </div>
+
+        <!-- Tab bar -->
+        <div class="tab-bar" id="detailTabs">
+          <div class="tab active" data-tab="overview" onclick="switchTab(this)">Overview</div>
+          <div class="tab" data-tab="channels" onclick="switchTab(this)">Channels<span class="tab-badge">1</span></div>
+          <div class="tab" data-tab="credentials" onclick="switchTab(this)">Credentials<span class="tab-badge">2</span></div>
+          <div class="tab" data-tab="identity" onclick="switchTab(this)">Identity</div>
+          <div class="tab" data-tab="secrets" onclick="switchTab(this)">Secrets</div>
+          <div class="tab" data-tab="usage" onclick="switchTab(this)">Usage</div>
+          <div class="tab" data-tab="config" onclick="switchTab(this)">Config</div>
+        </div>
+
+        <!-- ── Overview Tab ── -->
+        <div class="tab-content active" id="tab-overview">
+          <div class="section">
+            <div class="section-body">
+              <div class="section-row">
+                <span class="section-label">Status</span>
+                <span class="section-value"><span class="badge badge-running" style="font-size:10px;"><span class="pulse-dot green"></span> Running</span></span>
+              </div>
+              <div class="section-row">
+                <span class="section-label">Size</span>
+                <span class="section-value">Standard &middot; 2 vCPU &middot; 2 GB RAM</span>
+              </div>
+              <div class="section-row">
+                <span class="section-label">Storage</span>
+                <span class="section-value">20 GB</span>
+              </div>
+              <div class="section-row">
+                <span class="section-label">Uptime</span>
+                <span class="section-value mono" style="color: var(--success);">2h 14m</span>
+              </div>
+              <div class="section-row">
+                <span class="section-label">Created</span>
+                <span class="section-value mono">Feb 28, 2026</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-header">
+              <span class="section-title">Access</span>
+            </div>
+            <div class="section-body">
+              <div class="section-row">
+                <span class="section-label">Domain</span>
+                <span class="section-value mono" style="color: var(--brand-teal);">mantiz-lab.openclawmachines.com</span>
+              </div>
+              <div class="section-row">
+                <span class="section-label">SSH</span>
+                <span class="section-value mono" style="font-size:11px; color: var(--text-secondary);">cloudflared access ssh --hostname ssh-machine-a3f2.ocm.com</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Channels Tab ── -->
+        <div class="tab-content" id="tab-channels">
+          <div class="section">
+            <div class="section-header">
+              <span class="section-title">Enabled Channels</span>
+              <button class="btn btn-sm btn-secondary">Add Channel</button>
+            </div>
+            <div class="channel-row">
+              <div class="channel-icon telegram">✈️</div>
+              <div class="channel-info">
+                <div class="channel-name">Telegram</div>
+                <div class="channel-detail">@mantiz_ocm_bot &middot; Linked &middot; Active</div>
+              </div>
+              <div class="toggle-track on" onclick="this.classList.toggle('on')">
+                <div class="toggle-thumb"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-header">
+              <span class="section-title">Available Channels</span>
+            </div>
+            <div class="channel-row">
+              <div class="channel-icon discord">🎮</div>
+              <div class="channel-info">
+                <div class="channel-name">Discord</div>
+                <div class="channel-detail">Not configured &middot; Requires bot token</div>
+              </div>
+              <button class="btn btn-sm btn-secondary">Setup</button>
+            </div>
+            <div class="channel-row">
+              <div class="channel-icon whatsapp">💬</div>
+              <div class="channel-info">
+                <div class="channel-name">WhatsApp</div>
+                <div class="channel-detail">Not configured &middot; Requires Business API</div>
+              </div>
+              <button class="btn btn-sm btn-secondary">Setup</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Credentials Tab ── -->
+        <div class="tab-content" id="tab-credentials">
+          <p class="text-sm text-muted mb-16">Credentials linked to this machine. Manage account-level keys in <a style="color: var(--brand-orange); cursor:pointer;" onclick="showView('settings')">Settings</a>.</p>
+
+          <div class="section">
+            <div class="section-header">
+              <span class="section-title">Linked Credentials</span>
+              <button class="btn btn-sm btn-secondary">Link Credential</button>
+            </div>
+            <div class="cred-row">
+              <div class="cred-icon anthropic">A</div>
+              <div class="cred-info">
+                <div class="cred-name">Anthropic</div>
+                <div class="cred-detail">subscription_key &middot; ····oat-3f &middot; Claude Pro</div>
+              </div>
+              <span class="link-badge linked">Linked</span>
+              <button class="btn btn-ghost btn-sm">Unlink</button>
+            </div>
+            <div class="cred-row">
+              <div class="cred-icon telegram">T</div>
+              <div class="cred-info">
+                <div class="cred-name">Telegram Bot</div>
+                <div class="cred-detail">token &middot; ····1035 &middot; @mantiz_ocm_bot</div>
+              </div>
+              <span class="link-badge linked">Linked</span>
+              <button class="btn btn-ghost btn-sm">Unlink</button>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-header">
+              <span class="section-title">Available (Not Linked)</span>
+            </div>
+            <div class="cred-row">
+              <div class="cred-icon openai">O</div>
+              <div class="cred-info">
+                <div class="cred-name">OpenAI</div>
+                <div class="cred-detail">api_key &middot; ····k-7x &middot; Added Feb 15</div>
+              </div>
+              <span class="link-badge unlinked">Not linked</span>
+              <button class="btn btn-sm btn-secondary">Link</button>
+            </div>
+            <div class="cred-row">
+              <div class="cred-icon google">G</div>
+              <div class="cred-info">
+                <div class="cred-name">Google AI</div>
+                <div class="cred-detail">Not configured</div>
+              </div>
+              <span class="link-badge unlinked" style="opacity:0.4;">No key</span>
+              <button class="btn btn-sm btn-secondary" style="opacity:0.4;" disabled>Link</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Identity Tab ── -->
+        <div class="tab-content" id="tab-identity">
+          <div class="section">
+            <div class="section-header">
+              <span class="section-title">Assistant Identity</span>
+              <button class="btn btn-sm btn-secondary">Edit</button>
+            </div>
+            <div class="identity-preview">
+              <div class="identity-avatar">C</div>
+              <div class="identity-info">
+                <div class="identity-name-display">Claw</div>
+                <div class="identity-meta">Custom name &middot; No avatar URL set</div>
+                <div class="identity-meta" style="margin-top:4px;">This name appears in Telegram, Discord, and other channels.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-header">
+              <span class="section-title">System Prompt</span>
+              <button class="btn btn-sm btn-secondary">Edit</button>
+            </div>
+            <div class="section-body">
+              <p class="text-sm text-muted" style="font-style: italic;">No system prompt configured. Using default behavior.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Secrets Tab ── -->
+        <div class="tab-content" id="tab-secrets">
+          <div class="section">
+            <div class="section-header">
+              <span class="section-title">Machine Secrets</span>
+              <button class="btn btn-sm btn-secondary">
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1v10M1 6h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                Add Secret
+              </button>
+            </div>
+            <div class="cred-row">
+              <div class="cred-icon" style="background: rgba(139,143,166,0.08); color: var(--text-muted); font-size: 12px;">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1L2 4v4c0 3.3 2.6 6.4 6 7 3.4-.6 6-3.7 6-7V4L8 1z" stroke="currentColor" stroke-width="1.2"/></svg>
+              </div>
+              <div class="cred-info">
+                <div class="cred-name" style="font-family: var(--font-mono);">ANTHROPIC_API_KEY</div>
+                <div class="cred-detail">Updated Feb 28, 2026</div>
+              </div>
+              <button class="btn btn-ghost btn-sm" style="color: var(--brand-red);">Remove</button>
+            </div>
+            <div class="cred-row">
+              <div class="cred-icon" style="background: rgba(139,143,166,0.08); color: var(--text-muted); font-size: 12px;">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1L2 4v4c0 3.3 2.6 6.4 6 7 3.4-.6 6-3.7 6-7V4L8 1z" stroke="currentColor" stroke-width="1.2"/></svg>
+              </div>
+              <div class="cred-info">
+                <div class="cred-name" style="font-family: var(--font-mono);">TELEGRAM_BOT_TOKEN</div>
+                <div class="cred-detail">Updated Feb 28, 2026</div>
+              </div>
+              <button class="btn btn-ghost btn-sm" style="color: var(--brand-red);">Remove</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Usage Tab ── -->
+        <div class="tab-content" id="tab-usage">
+          <div class="usage-summary">
+            <div class="usage-stat">
+              <div class="usage-stat-value">$4.82</div>
+              <div class="usage-stat-label">This Month</div>
+            </div>
+            <div class="usage-stat">
+              <div class="usage-stat-value">$25.00</div>
+              <div class="usage-stat-label">Budget</div>
+            </div>
+            <div class="usage-stat">
+              <div class="usage-stat-value">19.3%</div>
+              <div class="usage-stat-label">Used</div>
+            </div>
+          </div>
+
+          <div style="margin-bottom: 12px;">
+            <div class="budget-bar-track">
+              <div class="budget-bar-fill green" style="width: 19.3%;"></div>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-header">
+              <span class="section-title">Recent Usage</span>
+              <span class="text-sm text-muted">Last 24 hours</span>
+            </div>
+            <table class="usage-table">
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>Provider</th>
+                  <th>Model</th>
+                  <th>Tokens</th>
+                  <th style="text-align:right;">Cost</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="mono">14:32</td>
+                  <td>Anthropic</td>
+                  <td class="mono">claude-sonnet-4-6</td>
+                  <td class="mono">2,841 in / 1,205 out</td>
+                  <td class="mono" style="text-align:right;">$0.024</td>
+                </tr>
+                <tr>
+                  <td class="mono">14:28</td>
+                  <td>Anthropic</td>
+                  <td class="mono">claude-sonnet-4-6</td>
+                  <td class="mono">1,520 in / 890 out</td>
+                  <td class="mono" style="text-align:right;">$0.015</td>
+                </tr>
+                <tr>
+                  <td class="mono">14:15</td>
+                  <td>Anthropic</td>
+                  <td class="mono">claude-haiku-4-5</td>
+                  <td class="mono">3,200 in / 450 out</td>
+                  <td class="mono" style="text-align:right;">$0.004</td>
+                </tr>
+                <tr>
+                  <td class="mono">13:55</td>
+                  <td>Anthropic</td>
+                  <td class="mono">claude-sonnet-4-6</td>
+                  <td class="mono">4,100 in / 2,300 out</td>
+                  <td class="mono" style="text-align:right;">$0.041</td>
+                </tr>
+                <tr>
+                  <td class="mono">13:42</td>
+                  <td>Anthropic</td>
+                  <td class="mono">claude-sonnet-4-6</td>
+                  <td class="mono">1,880 in / 720 out</td>
+                  <td class="mono" style="text-align:right;">$0.016</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ── Config Tab ── -->
+        <div class="tab-content" id="tab-config">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+            <div>
+              <span class="text-sm text-secondary" style="font-weight:600;">Assembled Configuration</span>
+              <span class="text-sm text-muted" style="margin-left:8px;">v3</span>
+            </div>
+            <div class="flex gap-8">
+              <button class="btn btn-sm btn-secondary">Copy JSON</button>
+              <button class="btn btn-sm btn-primary" onclick="pushConfig()">Push to Machine</button>
+            </div>
+          </div>
+          <div class="config-viewer"><span class="key">"gateway"</span>: {
+  <span class="key">"controlUi"</span>: {
+    <span class="key">"enabled"</span>: <span class="bool">true</span>,
+    <span class="key">"auth"</span>: { <span class="key">"enabled"</span>: <span class="bool">false</span> }
+  },
+  <span class="key">"reload"</span>: { <span class="key">"mode"</span>: <span class="str">"hot"</span> },
+  <span class="key">"trustedProxies"</span>: [<span class="str">"127.0.0.1"</span>]
+},
+<span class="key">"models"</span>: {
+  <span class="key">"providers"</span>: {
+    <span class="key">"anthropic"</span>: {
+      <span class="key">"baseUrl"</span>: <span class="str">"http://169.254.169.253:4000/anthropic"</span>
+    }
+  }
+},
+<span class="key">"agents"</span>: {
+  <span class="key">"defaults"</span>: {
+    <span class="key">"model"</span>: { <span class="key">"primary"</span>: <span class="str">"anthropic/claude-sonnet-4-6"</span> }
+  }
+},
+<span class="key">"channels"</span>: {
+  <span class="key">"telegram"</span>: {
+    <span class="key">"enabled"</span>: <span class="bool">true</span>,
+    <span class="key">"mode"</span>: <span class="str">"default"</span>
+  }
+},
+<span class="key">"ui"</span>: {
+  <span class="key">"assistant"</span>: {
+    <span class="key">"name"</span>: <span class="str">"Claw"</span>,
+    <span class="key">"avatar"</span>: <span class="bool">null</span>
+  }
+},
+<span class="key">"skills"</span>: {
+  <span class="key">"allowBundled"</span>: []
+},
+<span class="key">"session"</span>: {
+  <span class="key">"dmScope"</span>: <span class="str">"per-channel-peer"</span>
+}</div>
+        </div>
+
+      </div>
+    </div>
+
+
+    <!-- ══════════════════════════════════════ -->
+    <!-- ══ SETTINGS VIEW ══ -->
+    <!-- ══════════════════════════════════════ -->
+    <div class="view" id="view-settings">
+      <div class="container animate-in">
+        <h1 class="page-title" style="margin-bottom: 32px;">Settings</h1>
+
+        <div class="settings-layout">
+          <nav class="settings-nav">
+            <div class="settings-nav-item active" onclick="switchSettingsTab(this, 'integrations')">Integrations</div>
+            <div class="settings-nav-item" onclick="switchSettingsTab(this, 'channels')">Channels</div>
+            <div class="settings-nav-item" onclick="switchSettingsTab(this, 'usage')">Usage & Billing</div>
+            <div class="settings-nav-item" onclick="switchSettingsTab(this, 'profile')">Profile</div>
+          </nav>
+
+          <div class="settings-content">
+
+            <!-- ── Integrations ── -->
+            <div class="tab-content active" id="stab-integrations">
+              <p class="text-sm text-muted mb-16">API keys are shared across all machines. Keys are validated and encrypted at rest.</p>
+
+              <div class="section">
+                <div class="section-header">
+                  <span class="section-title">AI Providers</span>
+                </div>
+                <div class="provider-setting-row">
+                  <div class="cred-icon anthropic">A</div>
+                  <div class="cred-info">
+                    <div class="cred-name">Anthropic</div>
+                    <div class="cred-detail">subscription_key &middot; ····oat-3f &middot; Validated Feb 28</div>
+                  </div>
+                  <span class="provider-status configured">Configured</span>
+                  <button class="btn btn-ghost btn-sm">Replace</button>
+                </div>
+                <div class="provider-setting-row">
+                  <div class="cred-icon openai">O</div>
+                  <div class="cred-info">
+                    <div class="cred-name">OpenAI</div>
+                    <div class="cred-detail">api_key &middot; ····k-7x &middot; Validated Feb 15</div>
+                  </div>
+                  <span class="provider-status configured">Configured</span>
+                  <button class="btn btn-ghost btn-sm">Replace</button>
+                </div>
+                <div class="provider-setting-row">
+                  <div class="cred-icon google">G</div>
+                  <div class="cred-info">
+                    <div class="cred-name">Google AI</div>
+                    <div class="cred-detail">Not configured</div>
+                  </div>
+                  <span class="provider-status not-configured">Not set</span>
+                  <button class="btn btn-sm btn-secondary">Add Key</button>
+                </div>
+              </div>
+
+              <div class="section">
+                <div class="section-header">
+                  <span class="section-title">Messaging Platforms</span>
+                </div>
+                <div class="provider-setting-row">
+                  <div class="cred-icon telegram">T</div>
+                  <div class="cred-info">
+                    <div class="cred-name">Telegram Bot</div>
+                    <div class="cred-detail">token &middot; ····1035 &middot; @mantiz_ocm_bot</div>
+                  </div>
+                  <span class="provider-status configured">Configured</span>
+                  <button class="btn btn-ghost btn-sm">Replace</button>
+                </div>
+                <div class="provider-setting-row">
+                  <div class="cred-icon discord">D</div>
+                  <div class="cred-info">
+                    <div class="cred-name">Discord Bot</div>
+                    <div class="cred-detail">Not configured</div>
+                  </div>
+                  <span class="provider-status not-configured">Not set</span>
+                  <button class="btn btn-sm btn-secondary">Add Token</button>
+                </div>
+                <div class="provider-setting-row">
+                  <div class="cred-icon whatsapp">W</div>
+                  <div class="cred-info">
+                    <div class="cred-name">WhatsApp Business</div>
+                    <div class="cred-detail">Not configured</div>
+                  </div>
+                  <span class="provider-status not-configured">Not set</span>
+                  <button class="btn btn-sm btn-secondary">Add Token</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- ── Channels (account-level) ── -->
+            <div class="tab-content" id="stab-channels">
+              <p class="text-sm text-muted mb-16">Channel credentials stored at account level. Enable them per-machine in each machine's Channels tab.</p>
+
+              <div class="section">
+                <div class="section-header">
+                  <span class="section-title">Configured Channels</span>
+                </div>
+                <div class="channel-row">
+                  <div class="channel-icon telegram">✈️</div>
+                  <div class="channel-info">
+                    <div class="channel-name">Telegram</div>
+                    <div class="channel-detail">@mantiz_ocm_bot &middot; Linked to machine-a3f2</div>
+                  </div>
+                  <span class="provider-status configured">Active</span>
+                </div>
+              </div>
+
+              <div class="section">
+                <div class="section-header">
+                  <span class="section-title">Available Channels</span>
+                </div>
+                <div class="channel-row">
+                  <div class="channel-icon discord">🎮</div>
+                  <div class="channel-info">
+                    <div class="channel-name">Discord</div>
+                    <div class="channel-detail">Connect a Discord bot to your machines</div>
+                  </div>
+                  <button class="btn btn-sm btn-secondary">Setup</button>
+                </div>
+                <div class="channel-row">
+                  <div class="channel-icon whatsapp">💬</div>
+                  <div class="channel-info">
+                    <div class="channel-name">WhatsApp</div>
+                    <div class="channel-detail">Connect via WhatsApp Business API</div>
+                  </div>
+                  <button class="btn btn-sm btn-secondary">Setup</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- ── Usage & Billing ── -->
+            <div class="tab-content" id="stab-usage">
+              <div class="usage-summary">
+                <div class="usage-stat">
+                  <div class="usage-stat-value">$12.47</div>
+                  <div class="usage-stat-label">Total This Month</div>
+                </div>
+                <div class="usage-stat">
+                  <div class="usage-stat-value">3</div>
+                  <div class="usage-stat-label">Machines</div>
+                </div>
+                <div class="usage-stat">
+                  <div class="usage-stat-value">1,247</div>
+                  <div class="usage-stat-label">Requests</div>
+                </div>
+              </div>
+
+              <div class="section">
+                <div class="section-header">
+                  <span class="section-title">Per Machine</span>
+                </div>
+                <div style="padding: 14px 20px;">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                    <span class="text-sm" style="font-weight:600;">machine-a3f2</span>
+                    <span class="mono text-sm">$4.82 / $25.00</span>
+                  </div>
+                  <div class="budget-bar-track">
+                    <div class="budget-bar-fill green" style="width: 19.3%;"></div>
+                  </div>
+                  <div style="display:flex; justify-content:space-between; margin-top:4px;">
+                    <span class="text-sm text-muted">19.3% used</span>
+                    <button class="btn btn-ghost btn-sm" style="padding:2px 6px;">Edit budget</button>
+                  </div>
+                </div>
+                <div style="padding: 14px 20px; border-top: 1px solid var(--border-subtle);">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                    <span class="text-sm" style="font-weight:600;">staging-bot</span>
+                    <span class="mono text-sm">$6.21 / $10.00</span>
+                  </div>
+                  <div class="budget-bar-track">
+                    <div class="budget-bar-fill yellow" style="width: 62.1%;"></div>
+                  </div>
+                  <div style="display:flex; justify-content:space-between; margin-top:4px;">
+                    <span class="text-sm text-muted">62.1% used</span>
+                    <button class="btn btn-ghost btn-sm" style="padding:2px 6px;">Edit budget</button>
+                  </div>
+                </div>
+                <div style="padding: 14px 20px; border-top: 1px solid var(--border-subtle);">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                    <span class="text-sm" style="font-weight:600;">prod-agent</span>
+                    <span class="mono text-sm">$1.44</span>
+                  </div>
+                  <div style="display:flex; justify-content:space-between; margin-top:4px;">
+                    <span class="text-sm text-muted">No budget set</span>
+                    <button class="btn btn-ghost btn-sm" style="padding:2px 6px;">Set budget</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- ── Profile ── -->
+            <div class="tab-content" id="stab-profile">
+              <div class="section">
+                <div class="section-header">
+                  <span class="section-title">Account</span>
+                </div>
+                <div class="section-body">
+                  <div class="section-row">
+                    <span class="section-label">Email</span>
+                    <span class="section-value mono">mantiz@example.com</span>
+                  </div>
+                  <div class="section-row">
+                    <span class="section-label">Name</span>
+                    <span class="section-value">Mantiz Lab</span>
+                  </div>
+                  <div class="section-row">
+                    <span class="section-label">Slug</span>
+                    <span class="section-value mono">mantiz-lab</span>
+                  </div>
+                  <div class="section-row">
+                    <span class="section-label">Auth</span>
+                    <span class="section-value">Cloudflare Access</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+function showView(name) {
+  document.querySelectorAll('.view').forEach(function(v) { v.classList.remove('active'); });
+  document.getElementById('view-' + name).classList.add('active');
+
+  document.querySelectorAll('.nav-link').forEach(function(l) { l.classList.remove('active'); });
+  var navId = 'nav-' + name;
+  var navEl = document.getElementById(navId);
+  if (navEl) navEl.classList.add('active');
+
+  // Replay animation
+  var container = document.getElementById('view-' + name).querySelector('.container');
+  if (container) {
+    container.classList.remove('animate-in');
+    void container.offsetHeight;
+    container.classList.add('animate-in');
+  }
+
+  window.scrollTo(0, 0);
+}
+
+function switchTab(tabEl) {
+  var tabName = tabEl.getAttribute('data-tab');
+  document.querySelectorAll('#detailTabs .tab').forEach(function(t) { t.classList.remove('active'); });
+  tabEl.classList.add('active');
+  document.querySelectorAll('#view-detail .tab-content').forEach(function(c) { c.classList.remove('active'); });
+  document.getElementById('tab-' + tabName).classList.add('active');
+}
+
+function switchSettingsTab(navEl, tabName) {
+  document.querySelectorAll('.settings-nav-item').forEach(function(n) { n.classList.remove('active'); });
+  navEl.classList.add('active');
+  document.querySelectorAll('#view-settings .tab-content').forEach(function(c) { c.classList.remove('active'); });
+  document.getElementById('stab-' + tabName).classList.add('active');
+}
+
+function pushConfig() {
+  var banner = document.getElementById('pushBanner');
+  var btn = banner.querySelector('.btn');
+  btn.textContent = 'Pushing...';
+  btn.disabled = true;
+  setTimeout(function() {
+    banner.style.background = 'var(--success-soft)';
+    banner.style.borderColor = 'rgba(34,197,94,0.2)';
+    banner.querySelector('.push-dot').style.background = 'var(--success)';
+    banner.querySelector('.push-dot').style.animation = 'none';
+    banner.querySelector('.push-banner-text').textContent = 'Config pushed successfully. v4 is live.';
+    banner.querySelector('.push-banner-text').style.color = 'var(--success)';
+    btn.textContent = 'Pushed';
+    setTimeout(function() { banner.style.display = 'none'; }, 2000);
+  }, 1200);
+}
+</script>
+</body>
+</html>

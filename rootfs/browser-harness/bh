@@ -1,0 +1,94 @@
+#!/bin/sh
+# bh — browser-harness wrapper.
+#
+# Automatically resolves BU_CDP_WS from the paired browser VM's CDP bridge
+# before execing browser-harness, so agents don't have to discover the dynamic
+# webSocketDebuggerUrl every session.
+#
+# Capability: needs a browser VM paired with this machine. Probe first with
+#   bh --check
+# which exits 0 when CDP is reachable (via whichever endpoint will actually be
+# used at exec time) or 1 when not.
+#
+# Endpoint resolution order:
+#   1. $BU_CDP_WS — caller already knows the WS URL. `--check` derives the
+#      HTTP equivalent (ws://HOST:PORT/… → http://HOST:PORT/json/version) so
+#      the probe tests the same host:port `bh` would talk to.
+#   2. ${OCM_CDP_BRIDGE_URL:-http://192.168.100.1:9222} — our managed bridge.
+
+set -eu
+
+: "${OCM_CDP_BRIDGE_URL:=http://192.168.100.1:9222}"
+
+# The editable install from /home/openclaw/.openclaw/browser-harness lives in
+# ~/.local/bin; make sure it takes precedence even in contexts that didn't
+# source /etc/profile.d/ (e.g. non-login agent shells).
+if [ -n "${HOME:-}" ] && [ -d "${HOME}/.local/bin" ]; then
+    case ":$PATH:" in
+        *":${HOME}/.local/bin:"*) ;;
+        *) PATH="${HOME}/.local/bin:${PATH}"; export PATH ;;
+    esac
+fi
+
+# Derive the HTTP /json/version URL from whichever endpoint we'll actually use.
+# If $BU_CDP_WS is set, mirror its scheme + host + *path prefix* into http(s),
+# stripping only the /devtools/... tail. This matters when BU_CDP_WS points
+# at a CDP endpoint behind a reverse proxy (e.g. wss://host/chrome/devtools/...)
+# — without preserving the /chrome prefix, --check would probe a 404 path
+# while real `browser-harness` would still connect fine.
+# Runs in a subshell so local-ish vars don't leak (POSIX sh lacks `local`).
+resolve_probe_url() (
+    if [ -n "${BU_CDP_WS:-}" ]; then
+        ws="$BU_CDP_WS"
+        scheme="${ws%%://*}"
+        rest="${ws#*://}"
+        # Strip /devtools/<rest>. If the URL has no /devtools/ segment
+        # (malformed or unknown shape), fall back to host-only probe.
+        host_path="${rest%/devtools/*}"
+        [ "$host_path" = "$rest" ] && host_path="${rest%%/*}"
+        http_scheme="http"
+        [ "$scheme" = "wss" ] && http_scheme="https"
+        printf '%s://%s/json/version' "$http_scheme" "$host_path"
+    else
+        printf '%s/json/version' "$OCM_CDP_BRIDGE_URL"
+    fi
+)
+
+fetch_ws() {
+    curl -sf --max-time 2 "$(resolve_probe_url)" 2>/dev/null \
+        | jq -r '.webSocketDebuggerUrl // empty' 2>/dev/null
+}
+
+if [ "${1:-}" = "--check" ]; then
+    probe_url=$(resolve_probe_url)
+    ws=$(fetch_ws) || ws=""
+    if [ -n "$ws" ]; then
+        echo "bh: CDP reachable at ${probe_url} → ${ws}"
+        exit 0
+    fi
+    cat >&2 <<EOF
+bh: no CDP reachable at ${probe_url}
+    A browser VM must be paired with this machine before bh can connect.
+    Pair one from the OpenClaw admin UI, then rerun \`bh --check\`.
+    Set BU_CDP_WS or OCM_CDP_BRIDGE_URL to target a different endpoint.
+EOF
+    exit 1
+fi
+
+if [ -z "${BU_CDP_WS:-}" ]; then
+    ws=$(fetch_ws) || ws=""
+    if [ -z "$ws" ]; then
+        probe_url=$(resolve_probe_url)
+        cat >&2 <<EOF
+bh: no browser reachable at ${probe_url}
+    A browser VM must be paired with this machine before bh can connect.
+    Pair one from the OpenClaw admin UI, then retry. (Tip: run \`bh --check\`
+    to verify readiness before writing any code.)
+    Override the endpoint with OCM_CDP_BRIDGE_URL or BU_CDP_WS if needed.
+EOF
+        exit 1
+    fi
+    export BU_CDP_WS="$ws"
+fi
+
+exec browser-harness "$@"

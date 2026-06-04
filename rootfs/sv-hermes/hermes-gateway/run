@@ -1,0 +1,6 @@
+#!/bin/sh
+
+exec 2>&1
+mkdir -p /var/log
+exec chpst -u hermes -e /run/ocm-service-env/hermes-gateway \
+    /bin/sh -c 'set -a; [ -f /opt/data/.env ] && . /opt/data/.env; set +a; exec "$HERMES_BIN" gateway >> /var/log/hermes-gateway.log 2>&1'

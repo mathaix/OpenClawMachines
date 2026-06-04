@@ -1,0 +1,92 @@
+#!/bin/bash
+# ocm-status — Show OpenClaw MicroVM service status and debug info
+set -e
+
+GATEWAY_IP="192.168.100.1"
+
+echo "=== OpenClaw Machine Status ==="
+echo ""
+
+# Version
+if [ -f /etc/ocm-versions.json ]; then
+    echo "--- Versions (from /etc/ocm-versions.json) ---"
+    SNAPSHOT=$(jq -r '.snapshot // "unknown"' /etc/ocm-versions.json 2>/dev/null)
+    BUILT_AT=$(jq -r '.built_at // "unknown"' /etc/ocm-versions.json 2>/dev/null)
+    AGENT_VER=$(jq -r '.agent // "unknown"' /etc/ocm-versions.json 2>/dev/null)
+    OC_VER=$(jq -r '.openclaw // "unknown"' /etc/ocm-versions.json 2>/dev/null)
+    OC_FORK_VER=$(jq -r '.openclaw_patch.version // "unknown"' /etc/ocm-versions.json 2>/dev/null)
+    OC_FORK_COMMIT=$(jq -r '.openclaw_patch.commit // "unknown"' /etc/ocm-versions.json 2>/dev/null)
+    OC_FORK_BRANCH=$(jq -r '.openclaw_patch.branch // "unknown"' /etc/ocm-versions.json 2>/dev/null)
+    OC_FORK_BUILT=$(jq -r '.openclaw_patch.built_at // "unknown"' /etc/ocm-versions.json 2>/dev/null)
+    PATCHED_AT=$(jq -r '.updated_at // empty' /etc/ocm-versions.json 2>/dev/null)
+    echo "  Rootfs snapshot: $SNAPSHOT (built $BUILT_AT)"
+    echo "  Agent:           $AGENT_VER"
+    echo "  OpenClaw:        $OC_VER"
+    echo "  OpenClaw patch:  $OC_FORK_VER (commit $OC_FORK_COMMIT, branch $OC_FORK_BRANCH)"
+    echo "  Patch built:     $OC_FORK_BUILT"
+    if [ -n "$PATCHED_AT" ]; then
+        echo "  Updated:         $PATCHED_AT"
+    fi
+elif [ -f /etc/ocm-agent-version ]; then
+    echo "Agent version:  $(cat /etc/ocm-agent-version)"
+else
+    echo "Agent version:  unknown (no /etc/ocm-versions.json)"
+fi
+echo ""
+
+# PTY server
+PTY_PID=$(cat /var/run/pty-server.pid 2>/dev/null || echo "")
+if [ -n "$PTY_PID" ] && kill -0 "$PTY_PID" 2>/dev/null; then
+    echo "PTY server:     running (PID=$PTY_PID)"
+else
+    echo "PTY server:     NOT RUNNING"
+fi
+
+# Gateway
+GW_PID=$(pgrep -f "openclaw gateway" 2>/dev/null | head -1 || echo "")
+if [ -n "$GW_PID" ]; then
+    echo "Gateway:        running (PID=$GW_PID)"
+else
+    echo "Gateway:        NOT RUNNING"
+fi
+
+# Port checks
+echo ""
+echo "--- Port checks ---"
+for port in 7681 18789; do
+    if ss -tlnp 2>/dev/null | grep -q ":${port} " 2>/dev/null; then
+        echo "Port $port:       LISTENING"
+    elif netstat -tlnp 2>/dev/null | grep -q ":${port} " 2>/dev/null; then
+        echo "Port $port:       LISTENING"
+    else
+        echo "Port $port:       NOT LISTENING"
+    fi
+done
+
+# Metadata server
+echo ""
+echo "--- Metadata server ---"
+if curl -sf "http://${GATEWAY_IP}/health" --connect-timeout 2 > /dev/null 2>&1; then
+    echo "Metadata:       reachable (${GATEWAY_IP}:80)"
+else
+    echo "Metadata:       UNREACHABLE (${GATEWAY_IP}:80)"
+fi
+
+# Log files
+echo ""
+echo "--- Log files ---"
+for logfile in /var/log/pty-server.log /var/log/openclaw-gateway.log; do
+    if [ -f "$logfile" ]; then
+        SIZE=$(du -h "$logfile" 2>/dev/null | cut -f1)
+        LINES=$(wc -l < "$logfile" 2>/dev/null)
+        echo "$logfile  ${SIZE} (${LINES} lines)"
+    else
+        echo "$logfile  (not found)"
+    fi
+done
+
+# Uptime
+echo ""
+echo "--- System ---"
+uptime 2>/dev/null || echo "uptime: unavailable"
+echo ""

@@ -1,0 +1,190 @@
+/* ═══════════════════════════════════════════════
+   DESIGN TOKENS — Dark (default)
+   ═══════════════════════════════════════════════ */
+:root {
+  --deep:         #07080d;
+  --surface:      #0c0e14;
+  --card:         #12141e;
+  --card-hover:   #181b28;
+  --elevated:     #1a1d2c;
+  --input:        #0f1119;
+  --border:       #222640;
+  --border-subtle:#181c30;
+  --border-hover: #303660;
+
+  --brand-400:    #fb923c;
+  --brand-500:    #f97316;
+  --brand-600:    #ea580c;
+  --brand-700:    #c2410c;
+  --brand-glow:   rgba(249,115,22,0.06);
+
+  --green-400:    #4ade80;
+  --green-500:    #22c55e;
+  --green-600:    #16a34a;
+  --green-glow:   rgba(74,222,128,0.15);
+  --yellow-400:   #facc15;
+  --red-400:      #f87171;
+  --red-600:      #dc2626;
+  --blue-400:     #60a5fa;
+  --teal-400:     #2dd4bf;
+  --purple-400:   #a78bfa;
+
+  --text-primary:   #f0f1f4;
+  --text-secondary: #94979f;
+  --text-tertiary:  #5e626d;
+  --text-muted:     #3d4150;
+
+  --font-body: 'DM Sans', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 14px;
+
+  --shadow-card: 0 2px 8px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.03) inset;
+  --shadow-elevated: 0 8px 30px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.04) inset;
+  --shadow-modal: 0 24px 64px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.04) inset;
+}
+
+/* ═══════════════════════════════════════════════
+   DESIGN TOKENS — Light
+   ═══════════════════════════════════════════════ */
+[data-theme="light"] {
+  --deep:         #f8f9fb;
+  --surface:      #ffffff;
+  --card:         #ffffff;
+  --card-hover:   #f3f4f6;
+  --elevated:     #f9fafb;
+  --input:        #f3f4f6;
+  --border:       #e5e7eb;
+  --border-subtle:#f0f1f4;
+  --border-hover: #d1d5db;
+
+  --text-primary:   #111827;
+  --text-secondary: #4b5563;
+  --text-tertiary:  #6b7280;
+  --text-muted:     #9ca3af;
+
+  --shadow-card: 0 1px 3px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.04) inset;
+  --shadow-elevated: 0 4px 16px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.04) inset;
+  --shadow-modal: 0 24px 64px rgba(0,0,0,0.2), 0 0 0 1px rgba(0,0,0,0.06) inset;
+}
+
+/* ═══════════════════════════════════════════════
+   LANDING PAGE — standalone public site aesthetic
+   ═══════════════════════════════════════════════ */
+.landing {
+  --l-accent: #e05030;
+  --l-teal: #2ea8a0;
+  --l-text: #1a1a2e;
+  --l-text-muted: #6b7280;
+  --l-bg: #fafafa;
+  --l-bg-alt: #f3f4f6;
+  --l-card-bg: rgba(255,255,255,0.6);
+  --l-border: rgba(120,120,120,0.18);
+  --l-terminal-bg: #1a1a2e;
+}
+
+@media (prefers-color-scheme: dark) {
+  .landing {
+    --l-text: #e4e4e7;
+    --l-text-muted: #9ca3af;
+    --l-bg: #0f0f1a;
+    --l-bg-alt: #161625;
+    --l-card-bg: rgba(255,255,255,0.03);
+    --l-border: rgba(255,255,255,0.12);
+    --l-terminal-bg: #0c0e14;
+  }
+}
+
+/* ═══════════════════════════════════════════════
+   BASE STYLES
+   ═══════════════════════════════════════════════ */
+body {
+  font-family: var(--font-body);
+  background: var(--deep);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  min-height: 100vh;
+  line-height: 1.5;
+}
+
+/* Noise texture (dark only) */
+:root:not([data-theme="light"]) body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  opacity: 0.015;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* Ambient glow (dark only) */
+:root:not([data-theme="light"]) body::after {
+  content: '';
+  position: fixed;
+  top: -200px;
+  left: -200px;
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(249,115,22,0.06) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ═══════════════════════════════════════════════
+   LANDING PAGE — public pages use app tokens
+   ═══════════════════════════════════════════════ */
+.landing {
+  --l-accent: var(--brand-500);
+  --l-teal: var(--teal-400);
+  --l-text: var(--text-primary);
+  --l-text-muted: var(--text-secondary);
+  --l-bg: var(--deep);
+  --l-bg-alt: var(--surface);
+  --l-card-bg: var(--card);
+  --l-border: var(--border);
+  --l-terminal-bg: #0c0e14;
+}
+
+/* ═══════════════════════════════════════════════
+   SCROLLBAR
+   ═══════════════════════════════════════════════ */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--border-hover); }
+
+/* ═══════════════════════════════════════════════
+   ANIMATIONS
+   ═══════════════════════════════════════════════ */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes modalIn {
+  from { opacity: 0; transform: scale(0.96) translateY(8px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.animate-fade-up { animation: fadeUp 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+.animate-modal-in { animation: modalIn 0.25s cubic-bezier(0.16, 1, 0.3, 1); }
+.animate-pulse-dot { animation: pulse 2.5s ease-in-out infinite; }
+.animate-shimmer {
+  background: linear-gradient(90deg, var(--card) 25%, var(--card-hover) 50%, var(--card) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}

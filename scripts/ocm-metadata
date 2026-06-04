@@ -1,0 +1,40 @@
+#!/bin/bash
+# ocm-metadata — Display all metadata from the host metadata service
+# Usage: ocm-metadata
+
+GATEWAY_IP=$(cat /run/ocm-gateway-ip 2>/dev/null || echo "192.168.100.1")
+METADATA_URL="http://$GATEWAY_IP"
+CONFIG_FILE="/home/openclaw/.openclaw/openclaw.json"
+
+echo "=== Machine ==="
+curl -sf "$METADATA_URL/v1/machine" 2>/dev/null | jq . || echo "  (unavailable)"
+
+echo ""
+echo "=== Providers (from openclaw.json) ==="
+if [ -f "$CONFIG_FILE" ]; then
+    PROVIDERS=$(jq -r '.models.providers // {} | keys[]' "$CONFIG_FILE" 2>/dev/null)
+    if [ -n "$PROVIDERS" ]; then
+        echo "$PROVIDERS" | while read -r p; do
+            BASE_URL=$(jq -r ".models.providers[\"$p\"].baseUrl // \"(none)\"" "$CONFIG_FILE" 2>/dev/null)
+            MODELS=$(jq -r ".models.providers[\"$p\"].models // [] | map(.id // .name // .) | join(\", \")" "$CONFIG_FILE" 2>/dev/null)
+            echo "  $p: baseUrl=$BASE_URL models=[$MODELS]"
+        done
+    else
+        echo "  (no providers configured)"
+    fi
+else
+    echo "  (config file not found: $CONFIG_FILE)"
+fi
+
+echo ""
+echo "=== Secrets (keys only) ==="
+SECRETS=$(curl -sf "$METADATA_URL/v1/secrets" 2>/dev/null)
+if [ -n "$SECRETS" ] && [ "$SECRETS" != "null" ]; then
+    echo "$SECRETS" | jq -r 'keys[]' 2>/dev/null || echo "  (none)"
+else
+    echo "  (none)"
+fi
+
+echo ""
+echo "=== Health ==="
+curl -sf "$METADATA_URL/health" 2>/dev/null | jq . || echo "  (unavailable)"

@@ -1,0 +1,2 @@
+ALTER TABLE hosts ADD COLUMN IF NOT EXISTS rootfs_version TEXT DEFAULT '';
+ALTER TABLE hosts ADD COLUMN IF NOT EXISTS browser_rootfs_version TEXT DEFAULT '';

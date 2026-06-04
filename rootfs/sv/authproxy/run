@@ -1,0 +1,6 @@
+#!/bin/sh
+
+exec 2>&1
+mkdir -p /var/log
+exec chpst -u openclaw -e /run/ocm-service-env/authproxy \
+    /bin/sh -c 'exec /usr/local/bin/authproxy >> /var/log/authproxy.log 2>&1'

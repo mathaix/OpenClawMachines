@@ -1,0 +1,6 @@
+#!/bin/sh
+
+exec 2>&1
+mkdir -p /var/log
+exec chpst -u openclaw \
+    /bin/sh -c 'exec filebrowser --root /data --address 127.0.0.1 --port 8082 --baseURL /files --database /tmp/filebrowser.db >> /var/log/filebrowser.log 2>&1'

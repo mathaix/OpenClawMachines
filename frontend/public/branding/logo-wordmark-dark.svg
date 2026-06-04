@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 50">
+  <!-- Wordmark only for dark backgrounds — deep red per openclaw.ai -->
+  <text x="0" y="36" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="38" font-weight="700" fill="#ea4647" letter-spacing="-1">
+    OpenClaw<tspan fill="#2DD4BF" font-weight="600"> Machines</tspan>
+  </text>
+</svg>

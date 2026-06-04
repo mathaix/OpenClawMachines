@@ -1,0 +1,1065 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1400">
+<title>OpenClaw Machines — Architecture</title>
+<style>
+/* ─── Reset & Base ─── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0a0e17;--bg2:#111827;--bg3:#1a2236;
+  --card:#151d2e;--card-border:#243049;
+  --accent:#f97316;--accent2:#fb923c;--accent-dim:rgba(249,115,22,.15);
+  --blue:#3b82f6;--blue-dim:rgba(59,130,246,.12);
+  --cyan:#06b6d4;--cyan-dim:rgba(6,182,212,.12);
+  --green:#22c55e;--green-dim:rgba(34,197,94,.12);
+  --purple:#a855f7;--purple-dim:rgba(168,85,247,.12);
+  --pink:#ec4899;--pink-dim:rgba(236,72,153,.12);
+  --yellow:#eab308;--yellow-dim:rgba(234,179,8,.12);
+  --red:#ef4444;
+  --text:#e2e8f0;--text2:#94a3b8;--text3:#64748b;
+  --font:-apple-system,BlinkMacSystemFont,'Inter','Segoe UI',sans-serif;
+  --mono:'SF Mono','Fira Code','Cascadia Code',monospace;
+  --radius:12px;--radius-sm:8px;
+}
+html{font-size:15px;scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--font);line-height:1.6;overflow-x:hidden}
+
+/* ─── Utilities ─── */
+.container{max-width:1360px;margin:0 auto;padding:0 2rem}
+.mono{font-family:var(--mono);font-size:.85em}
+.tag{display:inline-block;padding:2px 10px;border-radius:20px;font-size:.75rem;font-weight:600;letter-spacing:.03em}
+.tag-orange{background:var(--accent-dim);color:var(--accent)}
+.tag-blue{background:var(--blue-dim);color:var(--blue)}
+.tag-cyan{background:var(--cyan-dim);color:var(--cyan)}
+.tag-green{background:var(--green-dim);color:var(--green)}
+.tag-purple{background:var(--purple-dim);color:var(--purple)}
+.tag-pink{background:var(--pink-dim);color:var(--pink)}
+.tag-yellow{background:var(--yellow-dim);color:var(--yellow)}
+
+/* ─── Header ─── */
+header{padding:3rem 0 2rem;text-align:center;position:relative}
+header::after{content:'';position:absolute;bottom:0;left:10%;right:10%;height:1px;background:linear-gradient(90deg,transparent,var(--card-border),transparent)}
+.logo{display:inline-flex;align-items:center;gap:.75rem;margin-bottom:1rem}
+.logo svg{width:48px;height:48px}
+.logo-text{font-size:1.8rem;font-weight:800;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+header p{color:var(--text2);font-size:1.05rem;max-width:640px;margin:0 auto}
+
+/* ─── Nav ─── */
+nav{position:sticky;top:0;z-index:100;background:rgba(10,14,23,.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--card-border);padding:.6rem 0}
+nav .container{display:flex;gap:.5rem;overflow-x:auto;scrollbar-width:none}
+nav .container::-webkit-scrollbar{display:none}
+nav a{white-space:nowrap;padding:6px 14px;border-radius:20px;font-size:.78rem;font-weight:600;color:var(--text2);text-decoration:none;transition:all .2s}
+nav a:hover,nav a.active{background:var(--accent-dim);color:var(--accent)}
+
+/* ─── Section ─── */
+section{padding:3.5rem 0 2rem}
+.section-head{margin-bottom:2rem}
+.section-head .num{font-size:.75rem;font-weight:700;color:var(--accent);letter-spacing:.1em;margin-bottom:.25rem}
+.section-head h2{font-size:1.6rem;font-weight:800;color:#fff;margin-bottom:.35rem}
+.section-head p{color:var(--text2);max-width:720px}
+
+/* ─── Cards ─── */
+.card{background:var(--card);border:1px solid var(--card-border);border-radius:var(--radius);padding:1.5rem;position:relative;overflow:hidden}
+.card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px}
+.card-orange::before{background:linear-gradient(90deg,var(--accent),var(--accent2))}
+.card-blue::before{background:linear-gradient(90deg,var(--blue),#60a5fa)}
+.card-cyan::before{background:linear-gradient(90deg,var(--cyan),#22d3ee)}
+.card-green::before{background:linear-gradient(90deg,var(--green),#4ade80)}
+.card-purple::before{background:linear-gradient(90deg,var(--purple),#c084fc)}
+.card-pink::before{background:linear-gradient(90deg,var(--pink),#f472b6)}
+.card-yellow::before{background:linear-gradient(90deg,var(--yellow),#facc15)}
+.card h3{font-size:1rem;font-weight:700;color:#fff;margin-bottom:.5rem;display:flex;align-items:center;gap:.5rem}
+.card h4{font-size:.85rem;font-weight:600;color:var(--text2);margin:1rem 0 .4rem;text-transform:uppercase;letter-spacing:.06em}
+.card p,.card li{font-size:.88rem;color:var(--text2);line-height:1.55}
+.card ul{list-style:none;padding:0}
+.card li{padding-left:1.1rem;position:relative;margin-bottom:.25rem}
+.card li::before{content:'';position:absolute;left:0;top:.55em;width:6px;height:6px;border-radius:50%}
+.card-orange li::before{background:var(--accent)}
+.card-blue li::before{background:var(--blue)}
+.card-cyan li::before{background:var(--cyan)}
+.card-green li::before{background:var(--green)}
+.card-purple li::before{background:var(--purple)}
+.card-pink li::before{background:var(--pink)}
+.card-yellow li::before{background:var(--yellow)}
+.card code{font-family:var(--mono);font-size:.82em;background:rgba(255,255,255,.06);padding:1px 6px;border-radius:4px}
+
+/* ─── Grid layouts ─── */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:1.25rem}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:1.25rem}
+.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem}
+.span-2{grid-column:span 2}
+.span-3{grid-column:span 3}
+
+/* ─── SVG diagram ─── */
+.diagram-wrap{background:var(--bg2);border:1px solid var(--card-border);border-radius:var(--radius);padding:1.5rem;margin-bottom:1.5rem;overflow-x:auto}
+.diagram-wrap svg{display:block;margin:0 auto}
+
+/* ─── Animated flow dots ─── */
+@keyframes flowRight{0%{offset-distance:0%}100%{offset-distance:100%}}
+@keyframes flowDown{0%{transform:translateY(-20px);opacity:0}50%{opacity:1}100%{transform:translateY(20px);opacity:0}}
+@keyframes pulse{0%,100%{opacity:.6}50%{opacity:1}}
+@keyframes glow{0%,100%{filter:drop-shadow(0 0 3px currentColor)}50%{filter:drop-shadow(0 0 8px currentColor)}}
+.flow-dot{animation:pulse 2s ease-in-out infinite}
+
+/* ─── Stat boxes ─── */
+.stat{text-align:center;padding:1rem}
+.stat .val{font-size:1.8rem;font-weight:800;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.stat .label{font-size:.78rem;color:var(--text3);margin-top:.15rem}
+
+/* ─── Flow diagram rows ─── */
+.flow-row{display:flex;align-items:center;gap:.75rem;margin-bottom:.75rem;flex-wrap:wrap}
+.flow-box{background:var(--bg2);border:1px solid var(--card-border);border-radius:var(--radius-sm);padding:.5rem 1rem;font-size:.82rem;font-weight:600;color:#fff;white-space:nowrap}
+.flow-arrow{color:var(--accent);font-size:1.2rem;flex-shrink:0}
+.flow-box.highlight{border-color:var(--accent);box-shadow:0 0 12px var(--accent-dim)}
+
+/* ─── Table ─── */
+.arch-table{width:100%;border-collapse:collapse;font-size:.85rem}
+.arch-table th{text-align:left;padding:.6rem .8rem;color:var(--accent);font-weight:700;border-bottom:2px solid var(--card-border);font-size:.75rem;text-transform:uppercase;letter-spacing:.06em}
+.arch-table td{padding:.55rem .8rem;border-bottom:1px solid rgba(255,255,255,.04);color:var(--text2)}
+.arch-table tr:hover td{background:rgba(255,255,255,.02)}
+
+/* ─── Port table ─── */
+.port-grid{display:grid;grid-template-columns:auto 1fr;gap:0}
+.port-grid .port{font-family:var(--mono);font-size:.82rem;font-weight:700;padding:.4rem .8rem;border-bottom:1px solid rgba(255,255,255,.04)}
+.port-grid .port-desc{font-size:.82rem;color:var(--text2);padding:.4rem .8rem;border-bottom:1px solid rgba(255,255,255,.04)}
+
+/* ─── Dividers ─── */
+.divider{height:1px;background:linear-gradient(90deg,transparent,var(--card-border),transparent);margin:1rem 0}
+
+/* ─── Footer ─── */
+footer{text-align:center;padding:3rem 0 2rem;color:var(--text3);font-size:.82rem}
+footer a{color:var(--accent);text-decoration:none}
+
+/* ─── Animated background blobs ─── */
+.bg-blob{position:fixed;border-radius:50%;filter:blur(120px);opacity:.08;pointer-events:none;z-index:-1}
+.bg-blob-1{width:600px;height:600px;background:var(--accent);top:-200px;right:-200px}
+.bg-blob-2{width:500px;height:500px;background:var(--blue);bottom:-150px;left:-150px}
+.bg-blob-3{width:400px;height:400px;background:var(--purple);top:50%;left:50%;transform:translate(-50%,-50%)}
+
+/* ─── Responsive (presentation scale) ─── */
+@media(max-width:1100px){
+  .grid-3{grid-template-columns:1fr 1fr}
+  .grid-4{grid-template-columns:1fr 1fr}
+}
+@media(max-width:800px){
+  .grid-2,.grid-3,.grid-4{grid-template-columns:1fr}
+  .span-2,.span-3{grid-column:span 1}
+}
+</style>
+</head>
+<body>
+
+<div class="bg-blob bg-blob-1"></div>
+<div class="bg-blob bg-blob-2"></div>
+<div class="bg-blob bg-blob-3"></div>
+
+<!-- ════════════════════════════════════════ HEADER ════════════════════════════════════════ -->
+<header>
+  <div class="container">
+    <div class="logo">
+      <svg viewBox="0 0 48 48" fill="none">
+        <rect x="4" y="4" width="40" height="40" rx="10" stroke="url(#lg)" stroke-width="2.5" fill="rgba(249,115,22,.1)"/>
+        <path d="M16 20 L24 14 L32 20 L32 30 L24 36 L16 30Z" fill="url(#lg)" opacity=".8"/>
+        <circle cx="24" cy="25" r="4" fill="#fff"/>
+        <defs><linearGradient id="lg" x1="0" y1="0" x2="48" y2="48"><stop stop-color="#f97316"/><stop offset="1" stop-color="#fb923c"/></linearGradient></defs>
+      </svg>
+      <span class="logo-text">OpenClaw Machines</span>
+    </div>
+    <p>Production-grade AI agent hosting platform.<br>Firecracker MicroVMs &middot; KVM isolation &middot; Cloudflare edge &middot; Zero public IPs.</p>
+  </div>
+</header>
+
+<!-- ════════════════════════════════════════ NAV ════════════════════════════════════════ -->
+<nav>
+  <div class="container">
+    <a href="#overview">Overview</a>
+    <a href="#split-plane">Split-Plane</a>
+    <a href="#firecracker">Firecracker</a>
+    <a href="#tunnels">CF Tunnels</a>
+    <a href="#metadata">Metadata Svc</a>
+    <a href="#llm-proxy">LLM Proxy</a>
+    <a href="#config">Config Assembly</a>
+    <a href="#secrets">Secrets</a>
+    <a href="#auth">Auth Layers</a>
+    <a href="#delivery">Artifact Delivery</a>
+    <a href="#scheduling">Scheduling</a>
+    <a href="#cli">CLI</a>
+  </div>
+</nav>
+
+<!-- ════════════════════════════════════════ 0 · OVERVIEW ════════════════════════════════════════ -->
+<section id="overview">
+<div class="container">
+  <div class="section-head">
+    <div class="num">OVERVIEW</div>
+    <h2>High-Level Architecture</h2>
+    <p>A split-plane design with stateless control, multi-tenant worker hosts, and Cloudflare edge networking.</p>
+  </div>
+
+  <!-- ── Main SVG Diagram ── -->
+  <div class="diagram-wrap">
+    <svg viewBox="0 0 1100 540" width="1100" height="540" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,BlinkMacSystemFont,Inter,sans-serif">
+      <!-- Background grid -->
+      <defs>
+        <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255,255,255,.03)" stroke-width=".5"/></pattern>
+        <linearGradient id="gOrange" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#f97316"/><stop offset="1" stop-color="#fb923c"/></linearGradient>
+        <linearGradient id="gBlue" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#3b82f6"/><stop offset="1" stop-color="#60a5fa"/></linearGradient>
+        <linearGradient id="gCyan" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#06b6d4"/><stop offset="1" stop-color="#22d3ee"/></linearGradient>
+        <linearGradient id="gGreen" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#22c55e"/><stop offset="1" stop-color="#4ade80"/></linearGradient>
+        <linearGradient id="gPurple" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#a855f7"/><stop offset="1" stop-color="#c084fc"/></linearGradient>
+        <linearGradient id="gPink" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#ec4899"/><stop offset="1" stop-color="#f472b6"/></linearGradient>
+        <filter id="glow"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        <marker id="arrowO" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#f97316"/></marker>
+        <marker id="arrowB" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#3b82f6"/></marker>
+        <marker id="arrowC" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#06b6d4"/></marker>
+        <marker id="arrowG" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#22c55e"/></marker>
+        <marker id="arrowP" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#a855f7"/></marker>
+      </defs>
+      <rect width="1100" height="540" fill="#0d1220" rx="12"/>
+      <rect width="1100" height="540" fill="url(#grid)" rx="12"/>
+
+      <!-- ─── Browser / Dashboard ─── -->
+      <rect x="30" y="170" width="120" height="75" rx="10" fill="rgba(168,85,247,.1)" stroke="#a855f7" stroke-width="1.5"/>
+      <text x="90" y="198" text-anchor="middle" fill="#c084fc" font-size="11" font-weight="700">BROWSER</text>
+      <text x="90" y="215" text-anchor="middle" fill="#94a3b8" font-size="9">Dashboard</text>
+      <text x="90" y="230" text-anchor="middle" fill="#94a3b8" font-size="9">Workspace iframe</text>
+
+      <!-- ─── ocm CLI ─── -->
+      <rect x="22" y="310" width="136" height="105" rx="10" fill="rgba(168,85,247,.1)" stroke="#c084fc" stroke-width="1.5"/>
+      <text x="90" y="336" text-anchor="middle" fill="#c084fc" font-size="11" font-weight="700">ocm CLI</text>
+      <text x="90" y="354" text-anchor="middle" fill="#94a3b8" font-size="9">Go &middot; Cobra &middot; --json</text>
+      <text x="90" y="369" text-anchor="middle" fill="#94a3b8" font-size="8">machines &middot; providers</text>
+      <text x="90" y="382" text-anchor="middle" fill="#94a3b8" font-size="8">channels &middot; config push</text>
+      <text x="90" y="395" text-anchor="middle" fill="#94a3b8" font-size="8">setup &middot; ssh &middot; logs</text>
+      <!-- CLI → GCS label -->
+      <text x="90" y="410" text-anchor="middle" fill="#64748b" font-size="7">curl install from GCS</text>
+
+      <!-- ─── Cloudflare Edge ─── -->
+      <rect x="200" y="60" width="180" height="400" rx="10" fill="rgba(249,115,22,.05)" stroke="#f97316" stroke-width="1.5" stroke-dasharray="6 3"/>
+      <text x="290" y="85" text-anchor="middle" fill="#f97316" font-size="12" font-weight="800">CLOUDFLARE EDGE</text>
+      <rect x="220" y="105" width="140" height="45" rx="6" fill="rgba(249,115,22,.12)" stroke="#f97316" stroke-width="1"/>
+      <text x="290" y="125" text-anchor="middle" fill="#fb923c" font-size="10" font-weight="600">CF Access</text>
+      <text x="290" y="140" text-anchor="middle" fill="#94a3b8" font-size="8">SSO &middot; Edge Auth</text>
+      <rect x="220" y="165" width="140" height="45" rx="6" fill="rgba(249,115,22,.12)" stroke="#f97316" stroke-width="1"/>
+      <text x="290" y="185" text-anchor="middle" fill="#fb923c" font-size="10" font-weight="600">CF Worker</text>
+      <text x="290" y="200" text-anchor="middle" fill="#94a3b8" font-size="8">Route &rarr; KV Cache</text>
+      <rect x="220" y="225" width="140" height="55" rx="6" fill="rgba(249,115,22,.12)" stroke="#f97316" stroke-width="1"/>
+      <text x="290" y="247" text-anchor="middle" fill="#fb923c" font-size="10" font-weight="600">CF Tunnels</text>
+      <text x="290" y="262" text-anchor="middle" fill="#94a3b8" font-size="8">Per-VM &middot; Auto DNS</text>
+      <text x="290" y="274" text-anchor="middle" fill="#94a3b8" font-size="8">Zero Public IPs</text>
+      <rect x="220" y="295" width="140" height="45" rx="6" fill="rgba(249,115,22,.12)" stroke="#f97316" stroke-width="1"/>
+      <text x="290" y="315" text-anchor="middle" fill="#fb923c" font-size="10" font-weight="600">CF KV</text>
+      <text x="290" y="330" text-anchor="middle" fill="#94a3b8" font-size="8">Route Cache &middot; 1h TTL</text>
+      <rect x="220" y="355" width="140" height="45" rx="6" fill="rgba(249,115,22,.12)" stroke="#f97316" stroke-width="1"/>
+      <text x="290" y="375" text-anchor="middle" fill="#fb923c" font-size="10" font-weight="600">Auto TLS</text>
+      <text x="290" y="390" text-anchor="middle" fill="#94a3b8" font-size="8">Custom Domains</text>
+
+      <!-- Arrow: Browser → CF Edge -->
+      <line x1="150" y1="210" x2="198" y2="210" stroke="#a855f7" stroke-width="1.5" marker-end="url(#arrowP)"/>
+
+      <!-- Arrow: CLI → Control Plane API (direct REST) -->
+      <path d="M158,340 C280,340 380,180 428,134" fill="none" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#arrowB)"/>
+      <text x="280" y="290" fill="#3b82f6" font-size="7" font-weight="600">REST API</text>
+      <!-- Animated flow dot on CLI → API path -->
+      <circle r="3" fill="#3b82f6" opacity=".8">
+        <animateMotion dur="3s" repeatCount="indefinite" path="M158,340 C280,340 380,180 428,134"/>
+      </circle>
+
+      <!-- Arrow: CLI → CF Tunnel → MicroVM (SSH via short-lived cert) -->
+      <path d="M158,380 L290,380 L290,280 L290,252 L380,252 L728,242" fill="none" stroke="#c084fc" stroke-width="1.3" stroke-dasharray="5 3" marker-end="url(#arrowP)"/>
+      <text x="188" y="394" fill="#c084fc" font-size="7" font-weight="600">ocm machines ssh</text>
+      <text x="550" y="244" fill="#c084fc" font-size="7" font-weight="600">CF Tunnel &rarr; cloudflared &rarr; SSH</text>
+      <!-- Animated flow dot on SSH path -->
+      <circle r="2.5" fill="#c084fc" opacity=".7">
+        <animateMotion dur="4s" repeatCount="indefinite" path="M158,380 L290,380 L290,252 L380,252 L728,242"/>
+      </circle>
+
+      <!-- ─── Control Plane ─── -->
+      <rect x="430" y="60" width="220" height="290" rx="10" fill="rgba(59,130,246,.06)" stroke="#3b82f6" stroke-width="1.5"/>
+      <text x="540" y="85" text-anchor="middle" fill="#3b82f6" font-size="12" font-weight="800">CONTROL PLANE</text>
+      <text x="540" y="100" text-anchor="middle" fill="#64748b" font-size="8">Cloud Run &middot; Stateless</text>
+      <rect x="448" y="115" width="184" height="38" rx="6" fill="rgba(59,130,246,.1)" stroke="#3b82f6" stroke-width="1"/>
+      <text x="540" y="138" text-anchor="middle" fill="#60a5fa" font-size="10" font-weight="600">API Server (Go)</text>
+      <rect x="448" y="163" width="184" height="38" rx="6" fill="rgba(59,130,246,.1)" stroke="#3b82f6" stroke-width="1"/>
+      <text x="540" y="186" text-anchor="middle" fill="#60a5fa" font-size="10" font-weight="600">Scheduler (Bin-Pack)</text>
+      <rect x="448" y="211" width="184" height="38" rx="6" fill="rgba(59,130,246,.1)" stroke="#3b82f6" stroke-width="1"/>
+      <text x="540" y="234" text-anchor="middle" fill="#60a5fa" font-size="10" font-weight="600">Config Assembly</text>
+      <rect x="448" y="259" width="88" height="38" rx="6" fill="rgba(59,130,246,.1)" stroke="#3b82f6" stroke-width="1"/>
+      <text x="492" y="282" text-anchor="middle" fill="#60a5fa" font-size="9" font-weight="600">Provisioner</text>
+      <rect x="544" y="259" width="88" height="38" rx="6" fill="rgba(59,130,246,.1)" stroke="#3b82f6" stroke-width="1"/>
+      <text x="588" y="282" text-anchor="middle" fill="#60a5fa" font-size="9" font-weight="600">Billing</text>
+      <rect x="448" y="307" width="184" height="30" rx="6" fill="rgba(59,130,246,.1)" stroke="#3b82f6" stroke-width="1"/>
+      <text x="540" y="326" text-anchor="middle" fill="#60a5fa" font-size="9" font-weight="600">Host Provisioner (GCP VMs)</text>
+
+      <!-- Arrow: CF → Control Plane -->
+      <line x1="380" y1="180" x2="428" y2="134" stroke="#f97316" stroke-width="1.5" marker-end="url(#arrowO)"/>
+      <text x="400" y="148" fill="#f97316" font-size="7" font-weight="600">API</text>
+
+      <!-- ─── Database ─── -->
+      <rect x="450" y="380" width="180" height="90" rx="10" fill="rgba(236,72,153,.06)" stroke="#ec4899" stroke-width="1.5"/>
+      <text x="540" y="405" text-anchor="middle" fill="#ec4899" font-size="11" font-weight="700">Neon PostgreSQL</text>
+      <text x="540" y="422" text-anchor="middle" fill="#94a3b8" font-size="8">pgvector &middot; Serverless</text>
+      <text x="540" y="437" text-anchor="middle" fill="#94a3b8" font-size="8">Users &middot; Machines &middot; Hosts</text>
+      <text x="540" y="452" text-anchor="middle" fill="#94a3b8" font-size="8">Credentials &middot; Usage &middot; Events</text>
+      <!-- Arrow: Control Plane → DB -->
+      <line x1="540" y1="350" x2="540" y2="378" stroke="#ec4899" stroke-width="1.5" marker-end="url(#arrowP)"/>
+
+      <!-- ─── Worker Plane ─── -->
+      <rect x="700" y="60" width="370" height="400" rx="10" fill="rgba(6,182,212,.04)" stroke="#06b6d4" stroke-width="1.5"/>
+      <text x="885" y="85" text-anchor="middle" fill="#06b6d4" font-size="12" font-weight="800">WORKER PLANE</text>
+      <text x="885" y="100" text-anchor="middle" fill="#64748b" font-size="8">GCP Compute &middot; Nested KVM</text>
+
+      <!-- Host VM box -->
+      <rect x="718" y="112" width="335" height="175" rx="8" fill="rgba(6,182,212,.06)" stroke="#06b6d4" stroke-width="1" stroke-dasharray="4 2"/>
+      <text x="735" y="130" fill="#22d3ee" font-size="9" font-weight="700">HOST VM (n2-standard-16)</text>
+
+      <!-- Agent -->
+      <rect x="730" y="140" width="105" height="55" rx="6" fill="rgba(34,197,94,.1)" stroke="#22c55e" stroke-width="1"/>
+      <text x="782" y="162" text-anchor="middle" fill="#4ade80" font-size="9" font-weight="700">Agent (Go)</text>
+      <text x="782" y="176" text-anchor="middle" fill="#94a3b8" font-size="7">:9090 Control</text>
+      <text x="782" y="186" text-anchor="middle" fill="#94a3b8" font-size="7">:9091 Proxy</text>
+
+      <!-- LiteLLM -->
+      <rect x="845" y="140" width="95" height="55" rx="6" fill="rgba(234,179,8,.1)" stroke="#eab308" stroke-width="1"/>
+      <text x="892" y="162" text-anchor="middle" fill="#facc15" font-size="9" font-weight="700">LiteLLM</text>
+      <text x="892" y="176" text-anchor="middle" fill="#94a3b8" font-size="7">AI Gateway</text>
+      <text x="892" y="186" text-anchor="middle" fill="#94a3b8" font-size="7">192.168.100.1:4000</text>
+
+      <!-- Metadata Service -->
+      <rect x="950" y="140" width="92" height="55" rx="6" fill="rgba(168,85,247,.1)" stroke="#a855f7" stroke-width="1"/>
+      <text x="996" y="162" text-anchor="middle" fill="#c084fc" font-size="9" font-weight="700">Metadata</text>
+      <text x="996" y="176" text-anchor="middle" fill="#94a3b8" font-size="7">Config+Secrets</text>
+      <text x="996" y="186" text-anchor="middle" fill="#94a3b8" font-size="7">IP Isolation</text>
+
+      <!-- MicroVMs -->
+      <rect x="730" y="208" width="100" height="68" rx="6" fill="rgba(249,115,22,.08)" stroke="#f97316" stroke-width="1.2"/>
+      <text x="780" y="224" text-anchor="middle" fill="#fb923c" font-size="8" font-weight="700">MicroVM 1</text>
+      <text x="780" y="238" text-anchor="middle" fill="#94a3b8" font-size="7">Gateway :18789</text>
+      <text x="780" y="250" text-anchor="middle" fill="#94a3b8" font-size="7">AuthProxy :8080</text>
+      <text x="780" y="262" text-anchor="middle" fill="#94a3b8" font-size="7">PTY :7681</text>
+
+      <rect x="840" y="208" width="100" height="68" rx="6" fill="rgba(249,115,22,.08)" stroke="#f97316" stroke-width="1.2"/>
+      <text x="890" y="224" text-anchor="middle" fill="#fb923c" font-size="8" font-weight="700">MicroVM 2</text>
+      <text x="890" y="238" text-anchor="middle" fill="#94a3b8" font-size="7">Gateway :18789</text>
+      <text x="890" y="250" text-anchor="middle" fill="#94a3b8" font-size="7">AuthProxy :8080</text>
+      <text x="890" y="262" text-anchor="middle" fill="#94a3b8" font-size="7">PTY :7681</text>
+
+      <rect x="950" y="208" width="92" height="68" rx="6" fill="rgba(249,115,22,.04)" stroke="rgba(249,115,22,.4)" stroke-width="1" stroke-dasharray="4 2"/>
+      <text x="996" y="240" text-anchor="middle" fill="rgba(249,115,22,.6)" font-size="9" font-weight="600">&middot;&middot;&middot;</text>
+      <text x="996" y="260" text-anchor="middle" fill="#64748b" font-size="7">Up to 8 VMs</text>
+
+      <!-- Bridge Network label -->
+      <rect x="730" y="200" width="312" height="1" fill="rgba(249,115,22,.3)"/>
+      <text x="886" y="198" text-anchor="middle" fill="rgba(249,115,22,.5)" font-size="7">192.168.100.0/24 bridge</text>
+
+      <!-- Storage -->
+      <rect x="718" y="300" width="160" height="55" rx="6" fill="rgba(34,197,94,.06)" stroke="#22c55e" stroke-width="1"/>
+      <text x="798" y="320" text-anchor="middle" fill="#4ade80" font-size="9" font-weight="700">Persistent Disk</text>
+      <text x="798" y="335" text-anchor="middle" fill="#94a3b8" font-size="7">/var/lib/ocm/data/</text>
+      <text x="798" y="347" text-anchor="middle" fill="#94a3b8" font-size="7">CoW rootfs &middot; ext4 data vols</text>
+
+      <!-- GCS -->
+      <rect x="893" y="300" width="160" height="55" rx="6" fill="rgba(234,179,8,.06)" stroke="#eab308" stroke-width="1"/>
+      <text x="973" y="320" text-anchor="middle" fill="#facc15" font-size="9" font-weight="700">GCS Bucket</text>
+      <text x="973" y="335" text-anchor="middle" fill="#94a3b8" font-size="7">Rootfs &middot; Agent &middot; CLI</text>
+      <text x="973" y="347" text-anchor="middle" fill="#94a3b8" font-size="7">manifest.json</text>
+
+      <!-- LLM Providers -->
+      <rect x="718" y="380" width="335" height="60" rx="8" fill="rgba(168,85,247,.04)" stroke="rgba(168,85,247,.3)" stroke-width="1"/>
+      <text x="885" y="400" text-anchor="middle" fill="#c084fc" font-size="10" font-weight="700">LLM Providers</text>
+      <text x="885" y="418" text-anchor="middle" fill="#94a3b8" font-size="8">Anthropic &middot; OpenAI &middot; Google &middot; Custom</text>
+      <text x="885" y="432" text-anchor="middle" fill="#94a3b8" font-size="8">Credential injection &middot; No keys exposed to VMs</text>
+
+      <!-- Arrows: Control Plane → Worker -->
+      <line x1="650" y1="180" x2="698" y2="180" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#arrowB)"/>
+      <text x="674" y="174" fill="#3b82f6" font-size="7" font-weight="600">POST /vms</text>
+
+      <!-- Arrow: CF Tunnels → Worker MicroVMs -->
+      <line x1="380" y1="252" x2="700" y2="252" stroke="#f97316" stroke-width="1.2" stroke-dasharray="4 3" marker-end="url(#arrowO)"/>
+      <text x="530" y="245" fill="#f97316" font-size="7" font-weight="600">Per-VM Tunnel</text>
+
+      <!-- Animated flow dots -->
+      <circle r="3" fill="#f97316" opacity=".8">
+        <animateMotion dur="3s" repeatCount="indefinite" path="M150,210 L700,252"/>
+      </circle>
+      <circle r="3" fill="#3b82f6" opacity=".8">
+        <animateMotion dur="2.5s" repeatCount="indefinite" path="M650,180 L700,180"/>
+      </circle>
+      <circle r="3" fill="#a855f7" opacity=".8">
+        <animateMotion dur="3.5s" repeatCount="indefinite" path="M150,210 L200,210"/>
+      </circle>
+    </svg>
+  </div>
+
+  <!-- Key stats -->
+  <div class="grid-4">
+    <div class="card card-orange"><div class="stat"><div class="val">~125ms</div><div class="label">MicroVM Boot Time</div></div></div>
+    <div class="card card-blue"><div class="stat"><div class="val">~5MB</div><div class="label">Per-VM Overhead</div></div></div>
+    <div class="card card-green"><div class="stat"><div class="val">0</div><div class="label">Public IPs Needed</div></div></div>
+    <div class="card card-purple"><div class="stat"><div class="val">3-Layer</div><div class="label">Auth Stack</div></div></div>
+  </div>
+</div>
+</section>
+
+<!-- ════════════════════════════════════════ 1 · SPLIT-PLANE ════════════════════════════════════════ -->
+<section id="split-plane">
+<div class="container">
+  <div class="section-head">
+    <div class="num">01</div>
+    <h2>Split-Plane Architecture</h2>
+    <p>Stateless control plane on Cloud Run, stateful worker agents on GCP Compute with nested KVM.</p>
+  </div>
+  <div class="grid-3">
+    <div class="card card-blue">
+      <h3><span class="tag tag-blue">CONTROL</span> Cloud Run</h3>
+      <p>Stateless Go API. Scales to zero. Handles scheduling, provisioning, config assembly, billing.</p>
+      <h4>Responsibilities</h4>
+      <ul>
+        <li>REST API for dashboard &amp; CLI</li>
+        <li>Bin-pack scheduling across hosts</li>
+        <li>GCP VM provisioning on demand</li>
+        <li>Config assembly &amp; secret injection</li>
+        <li>Credential encryption &amp; storage</li>
+        <li>Usage tracking &amp; billing</li>
+      </ul>
+    </div>
+    <div class="card card-cyan">
+      <h3><span class="tag tag-cyan">WORKER</span> GCP Compute VMs</h3>
+      <p>Multi-tenant hosts running the Agent process. Each host manages multiple Firecracker MicroVMs.</p>
+      <h4>Components</h4>
+      <ul>
+        <li>Agent (Go) &mdash; VM lifecycle &amp; proxy</li>
+        <li>LiteLLM &mdash; shared AI gateway</li>
+        <li>Metadata service &mdash; config delivery</li>
+        <li>Persistent disk &mdash; data volumes</li>
+        <li>Per-VM Cloudflare tunnels</li>
+      </ul>
+    </div>
+    <div class="card card-orange">
+      <h3><span class="tag tag-orange">EDGE</span> Cloudflare</h3>
+      <p>All user traffic enters through Cloudflare. No ports exposed, no public IPs.</p>
+      <h4>Services</h4>
+      <ul>
+        <li>CF Access &mdash; SSO (Google, GitHub, Email)</li>
+        <li>CF Tunnels &mdash; per-VM, ephemeral</li>
+        <li>CF Worker &mdash; slug-based routing</li>
+        <li>CF KV &mdash; route cache (1h TTL)</li>
+        <li>Auto-TLS &amp; custom domains</li>
+        <li>DDoS protection at edge</li>
+      </ul>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ════════════════════════════════════════ 2 · FIRECRACKER ════════════════════════════════════════ -->
+<section id="firecracker">
+<div class="container">
+  <div class="section-head">
+    <div class="num">02</div>
+    <h2>Firecracker MicroVMs</h2>
+    <p>Each Machine runs in its own KVM-isolated MicroVM with sub-second boot and minimal overhead.</p>
+  </div>
+  <div class="grid-2">
+    <div class="card card-orange">
+      <h3>VM Internals</h3>
+      <h4>Ports</h4>
+      <div class="port-grid">
+        <div class="port" style="color:var(--accent)">:8080</div><div class="port-desc">AuthProxy &mdash; HS256 JWT validation, request routing</div>
+        <div class="port" style="color:var(--accent)">:18789</div><div class="port-desc">OpenClaw Gateway &mdash; agent runtime, tool execution</div>
+        <div class="port" style="color:var(--accent)">:7681</div><div class="port-desc">PTY Server (ttyd) &mdash; terminal access via WebSocket</div>
+        <div class="port" style="color:var(--text3)">custom</div><div class="port-desc">User-defined ports &mdash; proxied via agent</div>
+      </div>
+      <h4>Boot Sequence</h4>
+      <ul>
+        <li>CoW clone of base rootfs (~instant)</li>
+        <li>Create ext4 data volume (sparse, 5GB)</li>
+        <li>Create tap device + bridge IP</li>
+        <li>Boot Firecracker (~125ms)</li>
+        <li>Init script mounts /data, starts services</li>
+        <li>Register per-VM Cloudflare tunnel</li>
+      </ul>
+    </div>
+    <div class="card card-green">
+      <h3>Isolation &amp; Storage</h3>
+      <h4>Security Boundaries</h4>
+      <ul>
+        <li><strong>KVM hardware isolation</strong> &mdash; each VM is a separate kernel</li>
+        <li><strong>Bridge network</strong> &mdash; 192.168.100.0/24, IP-per-VM</li>
+        <li><strong>Separate rootfs</strong> &mdash; CoW snapshot, destroyed on stop</li>
+        <li><strong>Memory-only secrets</strong> &mdash; never written to disk in VM</li>
+      </ul>
+      <h4>Data Persistence</h4>
+      <ul>
+        <li>ext4 data volume per Machine on shared PD</li>
+        <li>Survives stop/restart (host-affinity)</li>
+        <li>Auto-backup before upgrades (<code>.ext4.pre-upgrade</code>)</li>
+        <li>Symlinked: <code>/home/openclaw</code>, <code>/workspace</code></li>
+      </ul>
+      <h4>Capacity (n2-standard-16)</h4>
+      <ul>
+        <li>8x Small (2 vCPU, 2GB) per host</li>
+        <li>4x Medium (4 vCPU, 4GB) per host</li>
+        <li>2x Large (8 vCPU, 8GB) per host</li>
+      </ul>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ════════════════════════════════════════ 3 · TUNNELS ════════════════════════════════════════ -->
+<section id="tunnels">
+<div class="container">
+  <div class="section-head">
+    <div class="num">03</div>
+    <h2>Per-VM Cloudflare Tunnels</h2>
+    <p>Every MicroVM gets its own ephemeral Cloudflare tunnel. Zero public IPs, auto DNS, DDoS protection.</p>
+  </div>
+
+  <div class="card card-orange" style="margin-bottom:1.25rem">
+    <h3>Request Path</h3>
+    <div class="flow-row">
+      <div class="flow-box" style="border-color:var(--purple)">Browser</div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-box highlight">CF Access</div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-box highlight">CF Tunnel</div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-box" style="border-color:var(--cyan)">cloudflared (VM)</div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-box" style="border-color:var(--cyan)">AuthProxy :8080</div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-box" style="border-color:var(--green)">Gateway / Terminal</div>
+    </div>
+    <p style="margin-top:.5rem"><code>m-{slug}.openclawmachines.com</code> &mdash; created on start, deleted on stop. No static infrastructure.</p>
+  </div>
+
+  <div class="grid-3">
+    <div class="card card-orange">
+      <h3>Ephemeral</h3>
+      <ul>
+        <li>Tunnel created when Machine starts</li>
+        <li>Tunnel destroyed when Machine stops</li>
+        <li>DNS records auto-managed</li>
+        <li>No static IPs or firewall rules</li>
+      </ul>
+    </div>
+    <div class="card card-orange">
+      <h3>Custom Domains</h3>
+      <ul>
+        <li>CNAME to tunnel hostname</li>
+        <li>Auto-provisioned TLS certs</li>
+        <li>Dashboard or API configuration</li>
+        <li>Route cache via CF KV (1h TTL)</li>
+      </ul>
+    </div>
+    <div class="card card-orange">
+      <h3>Edge Benefits</h3>
+      <ul>
+        <li>DDoS mitigation at Cloudflare edge</li>
+        <li>Global anycast network</li>
+        <li>TLS termination at edge</li>
+        <li>Bot protection &amp; WAF rules</li>
+      </ul>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ════════════════════════════════════════ 4 · METADATA ════════════════════════════════════════ -->
+<section id="metadata">
+<div class="container">
+  <div class="section-head">
+    <div class="num">04</div>
+    <h2>Metadata Service</h2>
+    <p>Bridge-network service providing config, secrets, and LLM credentials to VMs with IP-based isolation.</p>
+  </div>
+  <div class="grid-2">
+    <div class="card card-purple">
+      <h3>How It Works</h3>
+      <ul>
+        <li>Runs on bridge IP <code>192.168.100.1</code></li>
+        <li>Each VM has unique bridge IP (192.168.100.X)</li>
+        <li>Requests authenticated by source IP + nonce</li>
+        <li>Serves assembled config.json5 per VM</li>
+        <li>Delivers decrypted secrets (memory-only)</li>
+        <li>Provides LLM API keys for LiteLLM proxy</li>
+      </ul>
+    </div>
+    <div class="card card-purple">
+      <h3>What It Delivers</h3>
+      <div class="arch-table" style="margin-top:.5rem">
+        <table class="arch-table">
+          <tr><th>Endpoint</th><th>Content</th></tr>
+          <tr><td><code>/config</code></td><td>Assembled config.json5 (3-layer merge)</td></tr>
+          <tr><td><code>/secrets</code></td><td>Decrypted key-value secrets</td></tr>
+          <tr><td><code>/credentials</code></td><td>LLM API keys for proxy injection</td></tr>
+          <tr><td><code>/identity</code></td><td>Machine name, avatar, metadata</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ════════════════════════════════════════ 5 · LLM PROXY ════════════════════════════════════════ -->
+<section id="llm-proxy">
+<div class="container">
+  <div class="section-head">
+    <div class="num">05</div>
+    <h2>LLM API Proxy</h2>
+    <p>Credential injection without exposing keys to VMs. Multi-provider routing, usage tracking, budget enforcement.</p>
+  </div>
+  <div class="grid-2">
+    <div class="card card-yellow">
+      <h3>Architecture</h3>
+      <ul>
+        <li>LiteLLM runs on host at <code>192.168.100.1:4000</code></li>
+        <li>Shared by all MicroVMs on the host</li>
+        <li>VMs call proxy &mdash; never see real API keys</li>
+        <li>Keys injected from metadata service at boot</li>
+        <li>Supports BYOK + managed billing modes</li>
+      </ul>
+      <h4>Supported Providers</h4>
+      <ul>
+        <li>Anthropic (Claude)</li>
+        <li>OpenAI (GPT, o-series)</li>
+        <li>Google (Gemini)</li>
+        <li>Custom OpenAI-compatible endpoints</li>
+      </ul>
+    </div>
+    <div class="card card-yellow">
+      <h3>Credential Flow</h3>
+      <div class="flow-row">
+        <div class="flow-box" style="border-color:var(--purple)">User saves key</div>
+        <div class="flow-arrow">&rarr;</div>
+        <div class="flow-box" style="border-color:var(--pink)">AES-256-GCM encrypt</div>
+      </div>
+      <div class="flow-row">
+        <div class="flow-box" style="border-color:var(--pink)">Stored in DB</div>
+        <div class="flow-arrow">&rarr;</div>
+        <div class="flow-box" style="border-color:var(--blue)">Decrypted at start</div>
+      </div>
+      <div class="flow-row">
+        <div class="flow-box" style="border-color:var(--blue)">Passed to Agent</div>
+        <div class="flow-arrow">&rarr;</div>
+        <div class="flow-box highlight">Injected into LiteLLM</div>
+      </div>
+      <h4>Tracking</h4>
+      <ul>
+        <li>Per-request token counting (input/output)</li>
+        <li>Cost calculation per provider model</li>
+        <li>Budget enforcement with hard limits</li>
+        <li>Usage dashboard per Machine &amp; account</li>
+      </ul>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ════════════════════════════════════════ 6 · CONFIG ASSEMBLY ════════════════════════════════════════ -->
+<section id="config">
+<div class="container">
+  <div class="section-head">
+    <div class="num">06</div>
+    <h2>Three-Layer Config Assembly</h2>
+    <p>Platform defaults, capability-based settings, and user overrides merged into a single config served to each VM.</p>
+  </div>
+
+  <div class="diagram-wrap">
+    <svg viewBox="0 0 800 180" width="800" height="180" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,BlinkMacSystemFont,Inter,sans-serif">
+      <rect width="800" height="180" fill="#0d1220" rx="8"/>
+      <!-- Layer 1 -->
+      <rect x="30" y="30" width="180" height="120" rx="8" fill="rgba(59,130,246,.08)" stroke="#3b82f6" stroke-width="1.5"/>
+      <text x="120" y="60" text-anchor="middle" fill="#60a5fa" font-size="11" font-weight="700">Platform Defaults</text>
+      <text x="120" y="80" text-anchor="middle" fill="#94a3b8" font-size="9">Base config.json5</text>
+      <text x="120" y="95" text-anchor="middle" fill="#94a3b8" font-size="9">Sane defaults for</text>
+      <text x="120" y="110" text-anchor="middle" fill="#94a3b8" font-size="9">all Machines</text>
+      <text x="120" y="135" text-anchor="middle" fill="#3b82f6" font-size="8" font-weight="600">LAYER 1</text>
+      <!-- Arrow -->
+      <path d="M215,90 L260,90" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrowB)"/>
+      <text x="237" y="82" text-anchor="middle" fill="#64748b" font-size="8">merge</text>
+      <!-- Layer 2 -->
+      <rect x="265" y="30" width="180" height="120" rx="8" fill="rgba(34,197,94,.08)" stroke="#22c55e" stroke-width="1.5"/>
+      <text x="355" y="60" text-anchor="middle" fill="#4ade80" font-size="11" font-weight="700">Capabilities</text>
+      <text x="355" y="80" text-anchor="middle" fill="#94a3b8" font-size="9">Skills, tools, channels</text>
+      <text x="355" y="95" text-anchor="middle" fill="#94a3b8" font-size="9">enabled via registry</text>
+      <text x="355" y="110" text-anchor="middle" fill="#94a3b8" font-size="9">+ credential links</text>
+      <text x="355" y="135" text-anchor="middle" fill="#22c55e" font-size="8" font-weight="600">LAYER 2</text>
+      <!-- Arrow -->
+      <path d="M450,90 L495,90" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrowG)"/>
+      <text x="472" y="82" text-anchor="middle" fill="#64748b" font-size="8">merge</text>
+      <!-- Layer 3 -->
+      <rect x="500" y="30" width="180" height="120" rx="8" fill="rgba(249,115,22,.08)" stroke="#f97316" stroke-width="1.5"/>
+      <text x="590" y="60" text-anchor="middle" fill="#fb923c" font-size="11" font-weight="700">User Overrides</text>
+      <text x="590" y="80" text-anchor="middle" fill="#94a3b8" font-size="9">Custom settings pushed</text>
+      <text x="590" y="95" text-anchor="middle" fill="#94a3b8" font-size="9">via API / CLI / Dashboard</text>
+      <text x="590" y="110" text-anchor="middle" fill="#94a3b8" font-size="9">Hot-reload supported</text>
+      <text x="590" y="135" text-anchor="middle" fill="#f97316" font-size="8" font-weight="600">LAYER 3</text>
+      <!-- Arrow to output -->
+      <path d="M685,90 L720,90" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrowO)"/>
+      <text x="700" y="82" text-anchor="middle" fill="#64748b" font-size="7">=</text>
+      <!-- Final config -->
+      <rect x="722" y="50" width="55" height="80" rx="6" fill="rgba(255,255,255,.05)" stroke="rgba(255,255,255,.2)" stroke-width="1.5"/>
+      <text x="749" y="85" text-anchor="middle" fill="#fff" font-size="9" font-weight="700">Final</text>
+      <text x="749" y="100" text-anchor="middle" fill="#94a3b8" font-size="8">config</text>
+      <text x="749" y="115" text-anchor="middle" fill="#94a3b8" font-size="8">.json5</text>
+    </svg>
+  </div>
+
+  <div class="grid-3">
+    <div class="card card-blue">
+      <h3>Layer 1: Defaults</h3>
+      <ul>
+        <li>Base gateway configuration</li>
+        <li>Standard tool permissions</li>
+        <li>Default model selections</li>
+        <li>Rate limiting &amp; safety guards</li>
+      </ul>
+    </div>
+    <div class="card card-green">
+      <h3>Layer 2: Capabilities</h3>
+      <ul>
+        <li>Registry-based skills &amp; tools</li>
+        <li>Channel configs (Telegram, Discord, etc.)</li>
+        <li>Linked credential references</li>
+        <li>Identity (name, avatar)</li>
+      </ul>
+    </div>
+    <div class="card card-orange">
+      <h3>Layer 3: User Overrides</h3>
+      <ul>
+        <li>Custom model preferences</li>
+        <li>Behavior instructions</li>
+        <li>Push via <code>ocm config push</code></li>
+        <li>Hot-reload without restart</li>
+      </ul>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ════════════════════════════════════════ 7 · SECRETS ════════════════════════════════════════ -->
+<section id="secrets">
+<div class="container">
+  <div class="section-head">
+    <div class="num">07</div>
+    <h2>Secret Management</h2>
+    <p>AES-256-GCM encryption at rest. Secrets exist only in memory inside VMs. Instant revocation via key rotation.</p>
+  </div>
+  <div class="grid-2">
+    <div class="card card-pink">
+      <h3>Encryption Pipeline</h3>
+      <div class="flow-row">
+        <div class="flow-box" style="border-color:var(--purple)">User sets secret</div>
+        <div class="flow-arrow">&rarr;</div>
+        <div class="flow-box" style="border-color:var(--pink)">AES-256-GCM</div>
+        <div class="flow-arrow">&rarr;</div>
+        <div class="flow-box" style="border-color:var(--pink)">Neon DB</div>
+      </div>
+      <div class="flow-row">
+        <div class="flow-box" style="border-color:var(--blue)">Machine start</div>
+        <div class="flow-arrow">&rarr;</div>
+        <div class="flow-box" style="border-color:var(--blue)">Decrypt in API</div>
+        <div class="flow-arrow">&rarr;</div>
+        <div class="flow-box" style="border-color:var(--cyan)">Metadata svc</div>
+      </div>
+      <div class="flow-row">
+        <div class="flow-box" style="border-color:var(--cyan)">VM reads once</div>
+        <div class="flow-arrow">&rarr;</div>
+        <div class="flow-box highlight">Memory only</div>
+      </div>
+    </div>
+    <div class="card card-pink">
+      <h3>Security Properties</h3>
+      <ul>
+        <li><strong>Encrypted at rest</strong> &mdash; AES-256-GCM in database</li>
+        <li><strong>Memory-only in VM</strong> &mdash; never written to VM disk</li>
+        <li><strong>IP-isolated delivery</strong> &mdash; metadata service per-VM</li>
+        <li><strong>Nonce authentication</strong> &mdash; prevents replay</li>
+        <li><strong>Instant revocation</strong> &mdash; rotate encryption key, secrets invalidated</li>
+        <li><strong>Destroyed on stop</strong> &mdash; VM memory freed, rootfs destroyed</li>
+      </ul>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ════════════════════════════════════════ 8 · AUTH ════════════════════════════════════════ -->
+<section id="auth">
+<div class="container">
+  <div class="section-head">
+    <div class="num">08</div>
+    <h2>Three-Layer Authentication</h2>
+    <p>Defense in depth: edge identity, machine authorization, and internal service auth.</p>
+  </div>
+
+  <div class="diagram-wrap">
+    <svg viewBox="0 0 800 140" width="800" height="140" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,BlinkMacSystemFont,Inter,sans-serif">
+      <rect width="800" height="140" fill="#0d1220" rx="8"/>
+      <!-- Layer 1 -->
+      <rect x="30" y="20" width="220" height="100" rx="8" fill="rgba(249,115,22,.08)" stroke="#f97316" stroke-width="1.5"/>
+      <text x="140" y="48" text-anchor="middle" fill="#fb923c" font-size="12" font-weight="700">Layer 1: CF Access</text>
+      <text x="140" y="68" text-anchor="middle" fill="#94a3b8" font-size="9">Edge authentication</text>
+      <text x="140" y="83" text-anchor="middle" fill="#94a3b8" font-size="9">SSO: Google, GitHub, Email OTP</text>
+      <text x="140" y="98" text-anchor="middle" fill="#94a3b8" font-size="9">CF_Authorization cookie</text>
+      <!-- Arrow -->
+      <path d="M255,70 L290,70" stroke="#f97316" stroke-width="1.5" marker-end="url(#arrowO)"/>
+      <!-- Layer 2 -->
+      <rect x="295" y="20" width="220" height="100" rx="8" fill="rgba(59,130,246,.08)" stroke="#3b82f6" stroke-width="1.5"/>
+      <text x="405" y="48" text-anchor="middle" fill="#60a5fa" font-size="12" font-weight="700">Layer 2: Machine Token</text>
+      <text x="405" y="68" text-anchor="middle" fill="#94a3b8" font-size="9">VM authorization</text>
+      <text x="405" y="83" text-anchor="middle" fill="#94a3b8" font-size="9">HS256 JWT, 5-min TTL</text>
+      <text x="405" y="98" text-anchor="middle" fill="#94a3b8" font-size="9">Scoped: terminal / gateway / port</text>
+      <!-- Arrow -->
+      <path d="M520,70 L555,70" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#arrowB)"/>
+      <!-- Layer 3 -->
+      <rect x="560" y="20" width="210" height="100" rx="8" fill="rgba(34,197,94,.08)" stroke="#22c55e" stroke-width="1.5"/>
+      <text x="665" y="48" text-anchor="middle" fill="#4ade80" font-size="12" font-weight="700">Layer 3: Auth Proxy</text>
+      <text x="665" y="68" text-anchor="middle" fill="#94a3b8" font-size="9">Per-request validation</text>
+      <text x="665" y="83" text-anchor="middle" fill="#94a3b8" font-size="9">OPENCLAW_GATEWAY_TOKEN</text>
+      <text x="665" y="98" text-anchor="middle" fill="#94a3b8" font-size="9">Internal service &rarr; gateway only</text>
+    </svg>
+  </div>
+
+  <div class="grid-3">
+    <div class="card card-orange">
+      <h3>CF Access (Edge)</h3>
+      <ul>
+        <li>User identity verification</li>
+        <li>SSO via Google, GitHub, Email OTP</li>
+        <li>Sets <code>CF_Authorization</code> cookie</li>
+        <li>Zero-trust network access</li>
+      </ul>
+    </div>
+    <div class="card card-blue">
+      <h3>Machine Token (VM)</h3>
+      <ul>
+        <li>HS256 JWT with 5-minute TTL</li>
+        <li>Scoped to specific access types</li>
+        <li>Validated by AuthProxy in each VM</li>
+        <li>Short-lived, auto-refreshed</li>
+      </ul>
+    </div>
+    <div class="card card-green">
+      <h3>Auth Proxy (Internal)</h3>
+      <ul>
+        <li>Per-request token validation</li>
+        <li>Routes to Gateway, Terminal, or ports</li>
+        <li>Internal-only gateway token</li>
+        <li>Runs inside VM on :8080</li>
+      </ul>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ════════════════════════════════════════ 9 · ARTIFACT DELIVERY ════════════════════════════════════════ -->
+<section id="delivery">
+<div class="container">
+  <div class="section-head">
+    <div class="num">09</div>
+    <h2>Self-Update &amp; Artifact Delivery</h2>
+    <p>GCS-based artifact pipeline with manifest tracking, agent self-update, and rootfs staging.</p>
+  </div>
+
+  <div class="card card-green" style="margin-bottom:1.25rem">
+    <h3>Delivery Chain</h3>
+    <div class="flow-row">
+      <div class="flow-box" style="border-color:var(--yellow)">GCS Bucket</div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-box" style="border-color:var(--yellow)">manifest.json</div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-box" style="border-color:var(--blue)">Cloud Run env var</div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-box" style="border-color:var(--cyan)">Provisioner</div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-box" style="border-color:var(--cyan)">GCE metadata</div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-box highlight">Agent downloads</div>
+    </div>
+  </div>
+
+  <div class="grid-3">
+    <div class="card card-green">
+      <h3>Agent Self-Update</h3>
+      <ul>
+        <li>Polls GCS every 5 minutes</li>
+        <li>Only updates when idle (no VMs running)</li>
+        <li>Downloads new binary, restarts</li>
+        <li>Rootfs re-staged after restart</li>
+      </ul>
+    </div>
+    <div class="card card-yellow">
+      <h3>Artifacts</h3>
+      <ul>
+        <li><strong>Agent</strong> &mdash; Go binary, self-updating</li>
+        <li><strong>Rootfs</strong> &mdash; base Firecracker image</li>
+        <li><strong>CLI</strong> &mdash; multi-platform binaries</li>
+        <li>Each with SHA256 + manifest.json</li>
+      </ul>
+    </div>
+    <div class="card card-cyan">
+      <h3>Rollback</h3>
+      <ul>
+        <li><code>make list-agent</code> &mdash; view versions</li>
+        <li><code>make rollback-agent VERSION=x</code></li>
+        <li><code>make rollback-rootfs VERSION=x</code></li>
+        <li>Instant &mdash; update manifest pointer</li>
+      </ul>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ════════════════════════════════════════ 10 · SCHEDULING ════════════════════════════════════════ -->
+<section id="scheduling">
+<div class="container">
+  <div class="section-head">
+    <div class="num">10</div>
+    <h2>Capacity Scheduling</h2>
+    <p>Bin-pack algorithm fills the fullest host first. Auto-scales hosts up on demand and down when idle.</p>
+  </div>
+
+  <div class="grid-2">
+    <div class="card card-blue">
+      <h3>Bin-Pack Algorithm</h3>
+      <p>Selects the host with the <strong>most used resources</strong> that still has room. This maximizes density and minimizes wasted capacity.</p>
+      <h4>Selection Criteria</h4>
+      <ul>
+        <li>Host status = <code>ready</code></li>
+        <li>Available vCPUs &ge; requested</li>
+        <li>Available memory &ge; requested</li>
+        <li>Region preference match</li>
+        <li><code>ORDER BY used_memory DESC</code></li>
+        <li><code>FOR UPDATE SKIP LOCKED</code> (race-free)</li>
+      </ul>
+    </div>
+    <div class="card card-blue">
+      <h3>Auto-Scaling</h3>
+      <h4>Scale Up</h4>
+      <ul>
+        <li>No host has capacity &rarr; provision new GCP VM</li>
+        <li>Nested KVM enabled, Firecracker installed</li>
+        <li>Agent auto-starts, stages rootfs from GCS</li>
+      </ul>
+      <h4>Scale Down</h4>
+      <ul>
+        <li>Host idle &gt;15 min &rarr; mark <code>draining</code></li>
+        <li>No new VMs scheduled on draining hosts</li>
+        <li>Once empty &rarr; stop GCP VM</li>
+        <li>Data volumes persist on disk</li>
+      </ul>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ════════════════════════════════════════ 11 · CLI ════════════════════════════════════════ -->
+<section id="cli">
+<div class="container">
+  <div class="section-head">
+    <div class="num">11</div>
+    <h2>ocm CLI</h2>
+    <p>Full-featured command-line tool for managing Machines, credentials, channels, and config. Designed for both humans and LLM agents.</p>
+  </div>
+
+  <div class="grid-2">
+    <div class="card card-purple">
+      <h3>Commands</h3>
+      <table class="arch-table">
+        <tr><th>Command</th><th>Purpose</th></tr>
+        <tr><td><code>ocm login</code></td><td>Browser-based SSO via CF Access</td></tr>
+        <tr><td><code>ocm machines</code></td><td>Create, start, stop, delete, SSH</td></tr>
+        <tr><td><code>ocm providers</code></td><td>Manage LLM API credentials</td></tr>
+        <tr><td><code>ocm channels</code></td><td>Telegram, Discord, WhatsApp setup</td></tr>
+        <tr><td><code>ocm setup</code></td><td>All-in-one guided wizard</td></tr>
+        <tr><td><code>ocm skills</code></td><td>Enable/disable skills from registry</td></tr>
+        <tr><td><code>ocm tools</code></td><td>Enable/disable tools</td></tr>
+        <tr><td><code>ocm config push</code></td><td>Hot-reload config to running VM</td></tr>
+        <tr><td><code>ocm machines ssh</code></td><td>SSH via CF short-lived certs</td></tr>
+        <tr><td><code>ocm machines logs</code></td><td>Stream logs (--follow)</td></tr>
+      </table>
+    </div>
+    <div class="card card-purple">
+      <h3>Distribution &amp; Design</h3>
+      <h4>Platforms</h4>
+      <ul>
+        <li>Linux/amd64</li>
+        <li>macOS/amd64 (Intel)</li>
+        <li>macOS/arm64 (Apple Silicon)</li>
+      </ul>
+      <h4>Delivery</h4>
+      <ul>
+        <li>Static Go binaries uploaded to GCS</li>
+        <li>Per-platform manifest with SHA256</li>
+        <li>Single <code>curl</code> install command</li>
+      </ul>
+      <h4>LLM Agent Features</h4>
+      <ul>
+        <li><code>--json</code> output on all commands</li>
+        <li>Stdin piping (<code>--key-from-stdin</code>)</li>
+        <li>Non-interactive mode for automation</li>
+        <li>Machine auto-selection (if only one exists)</li>
+        <li>Credential linking across machines</li>
+      </ul>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ════════════════════════════════════════ COMPARISON ════════════════════════════════════════ -->
+<section id="comparison" style="padding-bottom:2rem">
+<div class="container">
+  <div class="section-head">
+    <div class="num">COMPARISON</div>
+    <h2>OpenClaw Machines vs. Alternatives</h2>
+  </div>
+  <div class="card card-orange">
+    <table class="arch-table">
+      <tr><th>Feature</th><th style="color:var(--accent)">OpenClaw Machines</th><th style="color:var(--text3)">Typical Alternative</th></tr>
+      <tr><td>Isolation</td><td>KVM MicroVM (hardware-level)</td><td>Containers (shared kernel)</td></tr>
+      <tr><td>Cold Start</td><td>~125ms Firecracker</td><td>1-2 min container boot</td></tr>
+      <tr><td>Multi-tenant</td><td>Multiple users share hosts safely</td><td>Single-tenant or soft isolation</td></tr>
+      <tr><td>Networking</td><td>Zero public IPs, per-VM CF Tunnels</td><td>Static IPs, exposed ports</td></tr>
+      <tr><td>LLM Keys</td><td>Proxy injection, keys never in VM</td><td>Keys in env vars inside container</td></tr>
+      <tr><td>Custom Domains</td><td>Auto-TLS, CNAME setup</td><td>Manual cert management</td></tr>
+      <tr><td>Memory</td><td>pgvector + tsvector hybrid search</td><td>Filesystem or basic vector DB</td></tr>
+      <tr><td>Multi-agent</td><td>Squads with agent-to-agent comms</td><td>Single agent per instance</td></tr>
+      <tr><td>Browser Automation</td><td>Full Playwright (not CDP shim)</td><td>CDP shim (incomplete)</td></tr>
+      <tr><td>Observability</td><td>Traces, cost tracking, analytics</td><td>Basic logging</td></tr>
+      <tr><td>CLI</td><td>Full CLI with JSON output &amp; LLM agent support</td><td>Dashboard only</td></tr>
+    </table>
+  </div>
+</div>
+</section>
+
+<!-- ════════════════════════════════════════ FOOTER ════════════════════════════════════════ -->
+<footer>
+  <div class="container">
+    <p>OpenClaw Machines Architecture &middot; <a href="https://openclawmachines.com">openclawmachines.com</a></p>
+  </div>
+</footer>
+
+<!-- ─── Scroll spy for nav ─── -->
+<script>
+(function(){
+  const links=document.querySelectorAll('nav a');
+  const sections=[];
+  links.forEach(a=>{const t=document.querySelector(a.getAttribute('href'));if(t)sections.push({el:t,link:a})});
+  function onScroll(){
+    const y=window.scrollY+120;
+    let cur=sections[0];
+    for(const s of sections){if(s.el.offsetTop<=y)cur=s}
+    links.forEach(a=>a.classList.remove('active'));
+    if(cur)cur.link.classList.add('active');
+  }
+  window.addEventListener('scroll',onScroll,{passive:true});
+  onScroll();
+})();
+</script>
+
+</body>
+</html>

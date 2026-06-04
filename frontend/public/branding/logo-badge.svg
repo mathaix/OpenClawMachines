@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg-grad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#991B1B"/>
+      <stop offset="100%" stop-color="#450A0A"/>
+    </linearGradient>
+    <linearGradient id="claw-grad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#FEE2E2"/>
+    </linearGradient>
+  </defs>
+  <!-- Deep red rounded square background -->
+  <rect width="512" height="512" rx="96" fill="url(#bg-grad)"/>
+  <!-- White lobster claw on dark background -->
+  <path d="
+    M 185 115
+    C 155 100, 108 108, 88 148
+    C 65 195, 60 258, 82 318
+    C 102 372, 158 410, 256 418
+    C 354 410, 410 372, 430 318
+    C 452 258, 447 195, 424 148
+    C 404 108, 357 100, 327 115
+    C 310 124, 308 145, 316 172
+    C 333 222, 352 278, 336 330
+    C 323 365, 292 385, 256 390
+    C 220 385, 189 365, 176 330
+    C 160 278, 179 222, 196 172
+    C 204 145, 202 124, 185 115
+    Z
+  " fill="url(#claw-grad)"/>
+</svg>

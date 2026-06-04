@@ -1,0 +1,445 @@
+# OpenClaw Machines — MicroVM Rootfs Image (Lean)
+# Builds the base filesystem for Firecracker VMs running the OpenClaw gateway.
+#
+# Features:
+# - Base image for Firecracker VMs (no OpenClaw baked in — delivered via artifact)
+# - PTY server for terminal access on port 7681 (agent binary injected at build time)
+# - runit supervision for guest daemons
+#
+# Usage: docker build -t ocm-rootfs -f rootfs/Dockerfile.openclaw rootfs/
+
+FROM node:24-slim
+
+# Production mode
+ENV NODE_ENV=production
+
+# Prevent interactive prompts
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Pinned versions (update these + checksums when upgrading)
+ARG CLOUDFLARED_VERSION=2026.2.0
+ARG CLOUDFLARED_SHA256=176746db3be7dc7bd48f3dd287c8930a4645ebb6e6700f883fddda5a4c307c16
+ARG GH_VERSION=2.87.3
+ARG PNPM_VERSION=10.32.1
+ARG GOG_VERSION=0.12.0
+ARG GOPLACES_VERSION=0.3.0
+ARG GIFGREP_VERSION=0.2.1
+ARG HIMALAYA_VERSION=1.1.0
+ARG OP_VERSION=2.32.1
+ARG GWS_VERSION=0.11.1
+ARG GWS_SHA256=769118e1aa1041bbdaa2e9ee5fe1ca0165d6675d2b931aaae40681a752d86064
+ARG FILEBROWSER_VERSION=2.62.1
+ARG FILEBROWSER_SHA256=fda39b79f5b5ce805820755eb0f28af92991f8fe8d9e10ebb73436f013d33c32
+ARG UV_VERSION=0.11.7
+ARG UV_SHA256=6681d691eb7f9c00ac6a3af54252f7ab29ae72f0c8f95bdc7f9d1401c23ea868
+# Bun — JavaScript runtime + package manager. Used by browser-harness-js and
+# growing parts of the broader JS agent tooling ecosystem. Baseline build
+# runs on older CPUs that lack AVX2.
+ARG BUN_VERSION=1.3.13
+ARG BUN_SHA256=9d8a24292a7068090205daac0a5a223f5f69736f5287e37bf88d3b4031edc750
+# Python tools pre-installed system-wide via uv. Pinned versions.
+# markitdown extras deliberately exclude audio-transcription / youtube-transcription
+# (would pull whisper + torch, hundreds of MB) and az-doc-intel (Azure-specific).
+ARG MARKITDOWN_VERSION=0.1.5
+ARG MARKITDOWN_EXTRAS=pdf,docx,pptx,xlsx,xls,outlook
+ARG SQLITE_UTILS_VERSION=3.39
+# browser-harness: thin Python wrapper around Chrome DevTools Protocol. Pinned
+# by commit SHA because the project has no PyPI release and its whole value
+# proposition is the helpers.py + SKILL.md that Claude edits mid-task.
+#
+ARG BROWSER_HARNESS_REPO=https://github.com/browser-use/browser-harness
+ARG BROWSER_HARNESS_SHA=6d20866664ea3d9691b27bbf64f42ae097437dc3
+
+# Structured-output CLI tools that agents parse well. All static single-file
+# binaries, pinned + SHA256-verified. Update version + checksum together.
+ARG RIPGREP_VERSION=15.1.0
+ARG RIPGREP_SHA256=1c9297be4a084eea7ecaedf93eb03d058d6faae29bbc57ecdaf5063921491599
+ARG FD_VERSION=v10.4.2
+ARG FD_SHA256=e3257d48e29a6be965187dbd24ce9af564e0fe67b3e73c9bdcd180f4ec11bdde
+ARG BAT_VERSION=v0.26.1
+ARG BAT_SHA256=0dcd8ac79732c0d5b136f11f4ee00e581440e16a44eab5b3105b611bbf2cf191
+ARG YQ_VERSION=v4.53.2
+ARG YQ_SHA256=44c3c6df6c58ef1460d98425954ca5e832926e0e8a1d75c5c8fd261691351510
+ARG XSV_VERSION=0.13.0
+ARG XSV_SHA256=d36b1be0f008d6597c2437e764fbe720eb7557f8980e0b03ca709e1020b5c52b
+ARG XH_VERSION=v0.25.3
+ARG XH_SHA256=fc738e616b327e7a10256e206c78073bfeed95d73af6ba9ced4c5eb20ac8d717
+ARG ASTGREP_VERSION=0.42.1
+ARG ASTGREP_SHA256=5de8b87cba67fc8dc3e239d54b6484802ad745a7ae3de76be4fe89661dc52657
+ARG DELTA_VERSION=0.19.2
+ARG DELTA_SHA256=f1ea01ca7728ce3462debc359f39dfc7cbbc1a63224b71fefabf92042864aa1b
+# clawhub — OpenClaw skill directory CLI (installed globally via npm). Pinned.
+# Longer-term this should move into the openclaw npm package as a bundled dep
+# so its version tracks openclaw. For now we bundle in the rootfs.
+ARG CLAWHUB_VERSION=0.9.0
+
+# Install build-time + runtime dependencies in one layer.
+# build-essential is needed for native Node modules and compiling seed-entropy,
+# then purged at the end of this layer to save ~250MB.
+COPY seed-entropy.c /tmp/seed-entropy.c
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    # Build tools (purged after use)
+    build-essential \
+    # Core tools
+    curl \
+    wget \
+    git \
+    jq \
+    ca-certificates \
+    # Editors
+    vim-tiny \
+    nano \
+    # File & text utilities
+    less \
+    tree \
+    file \
+    zip \
+    rsync \
+    # Process & system inspection
+    procps \
+    htop \
+    # SSH server for direct CF SSH access
+    openssh-server \
+    # Networking tools
+    iproute2 \
+    iputils-ping \
+    netcat-openbsd \
+    dnsutils \
+    # Terminal multiplexer
+    tmux \
+    # Python3: stdlib + pip + venv so users can `pip install --user` and `python -m venv`.
+    # uv is installed separately below for faster / lockfile-based workflows.
+    python3 \
+    python3-pip \
+    python3-venv \
+    runit \
+    sudo \
+    # Archive extraction (needed for pre-baked skill binaries)
+    unzip \
+    # Media processing (audio/video transcoding for voice notes, video clips)
+    ffmpeg \
+    # Compile seed-entropy (tiny static binary for Firecracker entropy seeding)
+    && gcc -O2 -static -o /usr/local/bin/seed-entropy /tmp/seed-entropy.c \
+    && rm /tmp/seed-entropy.c \
+    # Purge build tools — not needed at runtime
+    && apt-get purge -y --auto-remove build-essential \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/* /tmp/* \
+    # vim-tiny installs as vi.tiny — alias to vim
+    && ln -sf /usr/bin/vi.tiny /usr/local/bin/vim
+
+# Install cloudflared for per-VM tunnels (pinned + checksum verified)
+RUN curl -fsSL "https://github.com/cloudflare/cloudflared/releases/download/${CLOUDFLARED_VERSION}/cloudflared-linux-amd64" \
+    -o /usr/local/bin/cloudflared \
+    && echo "${CLOUDFLARED_SHA256}  /usr/local/bin/cloudflared" | sha256sum -c - \
+    && chmod +x /usr/local/bin/cloudflared
+
+# Install GitHub CLI (gh) — pinned version, direct deb download
+RUN curl -fsSL "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_amd64.deb" \
+    -o /tmp/gh.deb \
+    && dpkg -i /tmp/gh.deb \
+    && rm -f /tmp/gh.deb
+
+# Pre-bake selected skill binaries (pinned versions; checksum optional)
+# Add more entries by extending the block below. If a download fails, we log a
+# warning and continue so rootfs builds remain stable while versions update.
+# Need bash for pipefail and functions; restore default shell afterward.
+SHELL ["/bin/bash", "-c"]
+RUN set -euo pipefail; \
+  install_tgz() { \
+    name="$1"; version="$2"; url="$3"; bin="$4"; sha256="${5:-}"; \
+    echo "[prebake] Installing $name v$version"; \
+    tmp="/tmp/${name}.tgz"; \
+    if ! curl -fsSL "$url" -o "$tmp"; then \
+      echo "[prebake][warn] $name download failed, skipping"; return 0; \
+    fi; \
+    if [ -n "$sha256" ]; then \
+      echo "$sha256  $tmp" | sha256sum -c - || { echo "[prebake][FAIL] $name checksum mismatch"; return 1; }; \
+    fi; \
+    tar -xzf "$tmp" -C /usr/local/bin || { echo "[prebake][warn] extract failed for $name, skipping"; return 0; }; \
+    chmod +x "/usr/local/bin/$bin" || true; \
+    rm -f "$tmp"; \
+  }; \
+  install_tgz "gogcli" "$GOG_VERSION" \
+    "https://github.com/steipete/gogcli/releases/download/v${GOG_VERSION}/gogcli_${GOG_VERSION}_linux_amd64.tar.gz" "gog" \
+    "a03fccbd67ea2e59a26a56e92de8918577f4bebe4b2f946823419777827cdab2"; \
+  install_tgz "goplaces" "$GOPLACES_VERSION" \
+    "https://github.com/steipete/goplaces/releases/download/v${GOPLACES_VERSION}/goplaces_${GOPLACES_VERSION}_linux_amd64.tar.gz" "goplaces"; \
+  install_tgz "gifgrep" "$GIFGREP_VERSION" \
+    "https://github.com/steipete/gifgrep/releases/download/v${GIFGREP_VERSION}/gifgrep_${GIFGREP_VERSION}_linux_amd64.tar.gz" "gifgrep"; \
+  install_tgz "himalaya" "$HIMALAYA_VERSION" \
+    "https://github.com/pimalaya/himalaya/releases/download/v${HIMALAYA_VERSION}/himalaya.x86_64-linux.tgz" "himalaya"; \
+  install_tgz "filebrowser" "$FILEBROWSER_VERSION" \
+    "https://github.com/filebrowser/filebrowser/releases/download/v${FILEBROWSER_VERSION}/linux-amd64-filebrowser.tar.gz" "filebrowser" \
+    "$FILEBROWSER_SHA256"; \
+  # Google Workspace CLI (gws) — official Google tool for Drive, Gmail, Calendar, Sheets, Docs \
+  echo "[prebake] Installing gws v${GWS_VERSION}"; \
+  if curl -fsSL "https://github.com/googleworkspace/cli/releases/download/v${GWS_VERSION}/gws-x86_64-unknown-linux-gnu.tar.gz" -o /tmp/gws.tar.gz; then \
+    echo "${GWS_SHA256}  /tmp/gws.tar.gz" | sha256sum -c - \
+    && tar -xzf /tmp/gws.tar.gz -C /tmp \
+    && mv /tmp/gws-x86_64-unknown-linux-gnu/gws /usr/local/bin/gws \
+    && chmod +x /usr/local/bin/gws \
+    && rm -rf /tmp/gws.tar.gz /tmp/gws-x86_64-unknown-linux-gnu; \
+  else \
+    echo "[prebake][warn] gws download failed, skipping"; \
+  fi; \
+  # 1Password CLI (zip from CDN, not tar.gz) \
+  echo "[prebake] Installing op v${OP_VERSION}"; \
+  if curl -fsSL "https://cache.agilebits.com/dist/1P/op2/pkg/v${OP_VERSION}/op_linux_amd64_v${OP_VERSION}.zip" -o /tmp/op.zip; then \
+    unzip -o /tmp/op.zip -d /usr/local/bin op && chmod +x /usr/local/bin/op && rm -f /tmp/op.zip; \
+  else \
+    echo "[prebake][warn] op download failed, skipping"; \
+  fi
+SHELL ["/bin/sh", "-c"]
+
+# Structured-output CLI tools for agent use — rg, fd, bat, yq, xsv, xh, ast-grep + sg.
+# One RUN layer; each tool fails the build if download or checksum fails (these
+# are baseline agent tools, not optional skills). Binaries land in /usr/local/bin.
+# (No `# shell comments` inside the &&-chain: Docker line-joining collapses them.)
+RUN set -eux \
+    && echo "[prebake] Installing ripgrep ${RIPGREP_VERSION}" \
+    && curl -fsSL "https://github.com/BurntSushi/ripgrep/releases/download/${RIPGREP_VERSION}/ripgrep-${RIPGREP_VERSION}-x86_64-unknown-linux-musl.tar.gz" -o /tmp/rg.tgz \
+    && echo "${RIPGREP_SHA256}  /tmp/rg.tgz" | sha256sum -c - \
+    && tar -xzf /tmp/rg.tgz -C /tmp \
+    && mv "/tmp/ripgrep-${RIPGREP_VERSION}-x86_64-unknown-linux-musl/rg" /usr/local/bin/rg \
+    && chmod +x /usr/local/bin/rg \
+    && rm -rf /tmp/rg.tgz "/tmp/ripgrep-${RIPGREP_VERSION}-x86_64-unknown-linux-musl" \
+    && echo "[prebake] Installing fd ${FD_VERSION}" \
+    && curl -fsSL "https://github.com/sharkdp/fd/releases/download/${FD_VERSION}/fd-${FD_VERSION}-x86_64-unknown-linux-musl.tar.gz" -o /tmp/fd.tgz \
+    && echo "${FD_SHA256}  /tmp/fd.tgz" | sha256sum -c - \
+    && tar -xzf /tmp/fd.tgz -C /tmp \
+    && mv "/tmp/fd-${FD_VERSION}-x86_64-unknown-linux-musl/fd" /usr/local/bin/fd \
+    && chmod +x /usr/local/bin/fd \
+    && rm -rf /tmp/fd.tgz "/tmp/fd-${FD_VERSION}-x86_64-unknown-linux-musl" \
+    && echo "[prebake] Installing bat ${BAT_VERSION}" \
+    && curl -fsSL "https://github.com/sharkdp/bat/releases/download/${BAT_VERSION}/bat-${BAT_VERSION}-x86_64-unknown-linux-musl.tar.gz" -o /tmp/bat.tgz \
+    && echo "${BAT_SHA256}  /tmp/bat.tgz" | sha256sum -c - \
+    && tar -xzf /tmp/bat.tgz -C /tmp \
+    && mv "/tmp/bat-${BAT_VERSION}-x86_64-unknown-linux-musl/bat" /usr/local/bin/bat \
+    && chmod +x /usr/local/bin/bat \
+    && rm -rf /tmp/bat.tgz "/tmp/bat-${BAT_VERSION}-x86_64-unknown-linux-musl" \
+    && echo "[prebake] Installing yq ${YQ_VERSION}" \
+    && curl -fsSL "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64.tar.gz" -o /tmp/yq.tgz \
+    && echo "${YQ_SHA256}  /tmp/yq.tgz" | sha256sum -c - \
+    && tar -xzf /tmp/yq.tgz -C /tmp ./yq_linux_amd64 \
+    && mv /tmp/yq_linux_amd64 /usr/local/bin/yq \
+    && chmod +x /usr/local/bin/yq \
+    && rm -f /tmp/yq.tgz \
+    && echo "[prebake] Installing xsv ${XSV_VERSION}" \
+    && curl -fsSL "https://github.com/BurntSushi/xsv/releases/download/${XSV_VERSION}/xsv-${XSV_VERSION}-x86_64-unknown-linux-musl.tar.gz" -o /tmp/xsv.tgz \
+    && echo "${XSV_SHA256}  /tmp/xsv.tgz" | sha256sum -c - \
+    && tar -xzf /tmp/xsv.tgz -C /tmp xsv \
+    && mv /tmp/xsv /usr/local/bin/xsv \
+    && chmod +x /usr/local/bin/xsv \
+    && rm -f /tmp/xsv.tgz \
+    && echo "[prebake] Installing xh ${XH_VERSION}" \
+    && curl -fsSL "https://github.com/ducaale/xh/releases/download/${XH_VERSION}/xh-${XH_VERSION}-x86_64-unknown-linux-musl.tar.gz" -o /tmp/xh.tgz \
+    && echo "${XH_SHA256}  /tmp/xh.tgz" | sha256sum -c - \
+    && tar -xzf /tmp/xh.tgz -C /tmp \
+    && mv "/tmp/xh-${XH_VERSION}-x86_64-unknown-linux-musl/xh" /usr/local/bin/xh \
+    && chmod +x /usr/local/bin/xh \
+    && rm -rf /tmp/xh.tgz "/tmp/xh-${XH_VERSION}-x86_64-unknown-linux-musl" \
+    && echo "[prebake] Installing ast-grep ${ASTGREP_VERSION} (ships ast-grep + sg alias)" \
+    && curl -fsSL "https://github.com/ast-grep/ast-grep/releases/download/${ASTGREP_VERSION}/app-x86_64-unknown-linux-gnu.zip" -o /tmp/astgrep.zip \
+    && echo "${ASTGREP_SHA256}  /tmp/astgrep.zip" | sha256sum -c - \
+    && unzip -o /tmp/astgrep.zip -d /usr/local/bin ast-grep sg \
+    && chmod +x /usr/local/bin/ast-grep /usr/local/bin/sg \
+    && rm -f /tmp/astgrep.zip \
+    && echo "[prebake] Installing delta ${DELTA_VERSION}" \
+    && curl -fsSL "https://github.com/dandavison/delta/releases/download/${DELTA_VERSION}/delta-${DELTA_VERSION}-x86_64-unknown-linux-musl.tar.gz" -o /tmp/delta.tgz \
+    && echo "${DELTA_SHA256}  /tmp/delta.tgz" | sha256sum -c - \
+    && tar -xzf /tmp/delta.tgz -C /tmp \
+    && mv "/tmp/delta-${DELTA_VERSION}-x86_64-unknown-linux-musl/delta" /usr/local/bin/delta \
+    && chmod +x /usr/local/bin/delta \
+    && rm -rf /tmp/delta.tgz "/tmp/delta-${DELTA_VERSION}-x86_64-unknown-linux-musl"
+
+# Install uv (+ uvx) — Python package/tool manager. Static binary, pinned + SHA-verified.
+RUN curl -fsSL "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-x86_64-unknown-linux-gnu.tar.gz" \
+    -o /tmp/uv.tgz \
+    && echo "${UV_SHA256}  /tmp/uv.tgz" | sha256sum -c - \
+    && tar -xzf /tmp/uv.tgz -C /tmp \
+    && mv /tmp/uv-x86_64-unknown-linux-gnu/uv /usr/local/bin/uv \
+    && mv /tmp/uv-x86_64-unknown-linux-gnu/uvx /usr/local/bin/uvx \
+    && chmod +x /usr/local/bin/uv /usr/local/bin/uvx \
+    && rm -rf /tmp/uv.tgz /tmp/uv-x86_64-unknown-linux-gnu
+
+# Install Bun — JS runtime + package manager. Static single binary, pinned +
+# SHA-verified. Baseline build for broader CPU compat (no AVX2 requirement).
+# User-scope packages (`bun install`, `bun add`) go under $HOME/.bun by default;
+# the baked binary is system-wide so all shells get it without profile setup.
+RUN curl -fsSL "https://github.com/oven-sh/bun/releases/download/bun-v${BUN_VERSION}/bun-linux-x64-baseline.zip" \
+    -o /tmp/bun.zip \
+    && echo "${BUN_SHA256}  /tmp/bun.zip" | sha256sum -c - \
+    && unzip -q /tmp/bun.zip -d /tmp \
+    && mv /tmp/bun-linux-x64-baseline/bun /usr/local/bin/bun \
+    && chmod +x /usr/local/bin/bun \
+    && ln -sf /usr/local/bin/bun /usr/local/bin/bunx \
+    && rm -rf /tmp/bun.zip /tmp/bun-linux-x64-baseline
+
+# Pre-install Python tools system-wide via uv. Shims land in /usr/local/bin so
+# every user has them on PATH; venvs live in /usr/local/share/uv-tools so they
+# don't collide with per-user `uv tool install` targets (which go to
+# /home/openclaw/.local/share/uv/tools and persist on the data volume).
+RUN set -eu; \
+    export UV_TOOL_DIR=/usr/local/share/uv-tools; \
+    export UV_TOOL_BIN_DIR=/usr/local/bin; \
+    uv tool install "markitdown[${MARKITDOWN_EXTRAS}]==${MARKITDOWN_VERSION}"; \
+    uv tool install "sqlite-utils==${SQLITE_UTILS_VERSION}"; \
+    uv tool install "git+${BROWSER_HARNESS_REPO}@${BROWSER_HARNESS_SHA}"; \
+    rm -rf /root/.cache/uv
+
+# browser-harness source checkout at the same pinned commit. Lives at /opt
+# so the first-boot init script can copy it onto the persistent data volume
+# and run `uv tool install -e` there — agents are expected to edit helpers.py
+# mid-task, and the upstream SKILL.md is meant to ride along with the source.
+# The system-wide uv install above is a fallback for contexts where the
+# editable overlay can't be set up (e.g. missing data volume).
+#
+# .bh-rootfs-sha is written into the tree so the install script can detect
+# rootfs upgrades and refresh framework files without clobbering agent edits
+# to helpers.py / domain-skills/.
+RUN git clone "${BROWSER_HARNESS_REPO}" /opt/browser-harness \
+    && cd /opt/browser-harness \
+    && git checkout "${BROWSER_HARNESS_SHA}" \
+    && rm -rf /opt/browser-harness/.git \
+    && echo "${BROWSER_HARNESS_SHA}" > /opt/browser-harness/.bh-rootfs-sha
+
+# browser-harness rootfs package — wrapper + installer.
+#   bh          → /usr/local/bin/bh              (agent-facing wrapper)
+#   install.sh  → /usr/local/libexec/ocm/install-browser-harness
+#                                                 (first-boot + upgrade overlay,
+#                                                  invoked from scripts/init-openclaw.sh)
+COPY browser-harness/bh /usr/local/bin/bh
+COPY browser-harness/install.sh /usr/local/libexec/ocm/install-browser-harness
+RUN chmod +x /usr/local/bin/bh /usr/local/libexec/ocm/install-browser-harness
+
+# OCM companion skill — ships the operator-authored skill that teaches the
+# agent about the bridge, pairing, and readiness-check semantics. Synced
+# into the workspace skills dir at first boot by install-browser-harness.
+COPY skills/ocm-browser /opt/ocm-browser
+
+# Install pnpm via corepack (kept for user runtime — users may install npm packages).
+# PNPM_HOME points at the openclaw user's home (which the init script bind-mounts
+# from the data volume) so `pnpm add -g` persists across VM restarts.
+ENV PNPM_HOME="/home/openclaw/.local/share/pnpm"
+ENV PATH="${PNPM_HOME}:${PATH}"
+RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
+
+# Install clawhub CLI globally. Ships both `clawhub` and `clawdhub` shims in
+# /usr/local/bin. Pinned via ARG; update by bumping CLAWHUB_VERSION.
+RUN npm install -g --no-audit --no-fund "clawhub@${CLAWHUB_VERSION}"
+
+# Clean package manager caches
+# Note: agent binary for PTY server is injected by build-rootfs.sh, not bundled here
+RUN rm -rf /root/.npm /root/.cache/node /root/.cache/uv /tmp/* \
+    && rm -rf /usr/share/doc /usr/share/man /usr/share/locale
+
+COPY sv/ /etc/sv/
+COPY bin/ocm /usr/local/bin/ocm
+COPY bin/ocm-service-admin /usr/local/bin/ocm-service-admin
+RUN chmod +x /etc/sv/*/run /etc/sv/*/finish 2>/dev/null || true \
+    && chmod 0755 /usr/local/bin/ocm /usr/local/bin/ocm-service-admin \
+    && mkdir -p /var/service
+
+# runsv creates /etc/sv/<svc>/supervise as root mode 0700, so `sv` commands
+# from the unprivileged openclaw user would fail with EACCES on the control
+# FIFO. Grant NOPASSWD only for the supervised user-service paths we expose in
+# /var/service/u-*, plus the dedicated platform gateway restart helper. Also
+# preserve SVDIR so direct /usr/bin/sv status invocations resolve under sudo.
+RUN printf '%s\n' \
+      'Defaults:openclaw env_keep += "SVDIR"' \
+      'openclaw ALL=(root) NOPASSWD: /usr/bin/sv status /var/service/*, /usr/bin/sv restart /var/service/u-*, /usr/bin/sv start /var/service/u-*, /usr/bin/sv stop /var/service/u-*, /usr/bin/sv up /var/service/u-*, /usr/bin/sv down /var/service/u-*, /usr/local/bin/ocm-restart-gateway, /usr/local/bin/ocm-service-admin *' \
+      > /etc/sudoers.d/ocm-sv-restart \
+    && chmod 0440 /etc/sudoers.d/ocm-sv-restart \
+    && visudo -cf /etc/sudoers.d/ocm-sv-restart
+
+# Dedicated platform restart helper: preserve the existing gateway restart
+# control-plane path without reopening broad platform sv access to the user.
+RUN printf '%s\n' \
+      '#!/bin/sh' \
+      'exec /usr/bin/sv restart /var/service/gateway' \
+      > /usr/local/bin/ocm-restart-gateway \
+    && chmod 0755 /usr/local/bin/ocm-restart-gateway
+
+# Interactive shim: let openclaw run `sv <verb> <name>` (bare service name) by
+# rewriting user services to the /var/service/u-<name> layout and invoking
+# sudo. Placed in /usr/local/bin so it wins over /usr/bin/sv on the default
+# PATH.
+RUN printf '%s\n' \
+      '#!/bin/sh' \
+      '# Wrapper for the openclaw user so `sv` commands go through sudo and' \
+      '# default to the /var/service layout used by runsvdir on this VM.' \
+      'if [ "$(id -u)" -eq 0 ]; then' \
+      '    exec /usr/bin/sv "$@"' \
+      'fi' \
+      'if [ $# -ge 2 ]; then' \
+      '    verb=$1; svc=$2; shift 2' \
+      '    if [ "${svc#/var/service/}" != "$svc" ]; then' \
+      '        mapped="$svc"' \
+      '    else' \
+      '        case "$svc" in' \
+      '            *[!A-Za-z0-9._-]*|*..*) echo "sv: invalid service name" >&2; exit 2 ;;' \
+      '        esac' \
+      '        case "$verb" in' \
+      '            status)' \
+      '                case "$svc" in' \
+      '                    gateway|pty-server|cloudflared|authproxy|filebrowser|ocm-svcd) mapped="/var/service/$svc" ;;' \
+      '                    u-*) mapped="/var/service/$svc" ;;' \
+      '                    *) mapped="/var/service/u-$svc" ;;' \
+      '                esac' \
+      '                ;;' \
+      '            restart|start|stop|up|down)' \
+      '                case "$svc" in' \
+      '                    gateway|pty-server|cloudflared|authproxy|filebrowser|ocm-svcd)' \
+      '                        echo "sv: mutating platform services is not allowed" >&2' \
+      '                        exit 1' \
+      '                        ;;' \
+      '                    u-*) mapped="/var/service/$svc" ;;' \
+      '                    *) mapped="/var/service/u-$svc" ;;' \
+      '                esac' \
+      '                ;;' \
+      '            *) mapped="$svc" ;;' \
+      '        esac' \
+      '    fi' \
+      '    exec sudo -n /usr/bin/sv "$verb" "$mapped" "$@"' \
+      'fi' \
+      'exec sudo -n /usr/bin/sv "$@"' \
+      > /usr/local/bin/sv \
+    && chmod 0755 /usr/local/bin/sv
+
+# Make interactive shells default SVDIR to the runsvdir layout so any direct
+# invocation of /usr/bin/sv (bypassing the wrapper) still finds the services.
+RUN printf 'export SVDIR=/var/service\n' > /etc/profile.d/ocm-sv.sh \
+    && chmod 0644 /etc/profile.d/ocm-sv.sh
+
+# Create openclaw user
+RUN useradd -m -s /bin/bash openclaw \
+    && mkdir -p /home/openclaw/.openclaw /workspace \
+    && chown -R openclaw:openclaw /home/openclaw /workspace
+
+# Allow openclaw user to install global npm packages (skills) without making
+# /usr/local/bin writable.
+RUN mkdir -p /usr/local/lib/node_modules \
+    && chown -R openclaw:openclaw /usr/local/lib/node_modules \
+    && mkdir -p /home/openclaw/.local/bin /home/openclaw/.local/lib \
+    && chown -R openclaw:openclaw /home/openclaw/.local
+
+# Switch to openclaw user
+USER openclaw
+WORKDIR /home/openclaw
+
+# Environment
+ENV HOME=/home/openclaw
+ENV PATH="/home/openclaw/.local/bin:${PATH}"
+ENV WORKSPACE_DIR=/workspace
+
+# Expose gateway port and terminal
+EXPOSE 18789 7681
+
+# Labels
+LABEL org.opencontainers.image.title="OpenClaw Machines MicroVM"
+LABEL org.opencontainers.image.description="Firecracker MicroVM rootfs for OpenClaw AI agents"
+LABEL org.opencontainers.image.vendor="OpenClaw Machines"
+
+# Default command (init script overrides this in Firecracker VMs)
+CMD ["/bin/bash"]

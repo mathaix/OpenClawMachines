@@ -1,0 +1,154 @@
+#!/bin/sh
+set -eu
+
+SERVICES_DIR=/home/openclaw/.openclaw/services
+
+fail() {
+    echo "ocm: $*" >&2
+    exit 1
+}
+
+usage() {
+    cat >&2 <<'EOF'
+usage:
+  ocm service create <name> --cmd "..." [--cwd /home/openclaw/... ] [--port N] [--description "..."]
+  ocm service list
+  ocm service status <name>
+  ocm service logs <name> [-f]
+  ocm service restart <name>
+  ocm service remove <name>
+EOF
+    exit 2
+}
+
+validate_name() {
+    case "$1" in
+        ""|u-*|*/*|*..*|*[!A-Za-z0-9._-]*) return 1 ;;
+    esac
+}
+
+service_decl_dir() {
+    printf '%s/%s\n' "$SERVICES_DIR" "$1"
+}
+
+create_service() {
+    [ $# -ge 1 ] || usage
+    name="$1"
+    shift
+    validate_name "$name" || fail "invalid service name: $name"
+
+    cmd=""
+    cwd="/home/openclaw"
+    port=""
+    description=""
+
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --cmd)
+                [ $# -ge 2 ] || fail "--cmd requires a value"
+                cmd="$2"
+                shift 2
+                ;;
+            --cwd)
+                [ $# -ge 2 ] || fail "--cwd requires a value"
+                cwd="$2"
+                shift 2
+                ;;
+            --port)
+                [ $# -ge 2 ] || fail "--port requires a value"
+                port="$2"
+                shift 2
+                ;;
+            --description)
+                [ $# -ge 2 ] || fail "--description requires a value"
+                description="$2"
+                shift 2
+                ;;
+            *)
+                fail "unknown flag: $1"
+                ;;
+        esac
+    done
+
+    [ -n "$cmd" ] || fail "--cmd is required"
+    case "$cwd" in
+        /home/openclaw|/home/openclaw/*) ;;
+        *) fail "--cwd must stay under /home/openclaw" ;;
+    esac
+
+    mkdir -p "$SERVICES_DIR"
+    sudo -n /usr/local/bin/ocm-service-admin create-decl "$name" "$cmd" "$cwd" "$port" "$description" </dev/null
+    printf 'created service %s\n' "$name"
+}
+
+list_services() {
+    mkdir -p "$SERVICES_DIR"
+    printf '%-24s %s\n' NAME STATUS
+    found=0
+    for path in "$SERVICES_DIR"/*; do
+        [ -d "$path" ] || continue
+        found=1
+        name=$(basename "$path")
+        status=$(/usr/local/bin/sv status "$name" 2>/dev/null | awk 'NR==1{print $1}' || true)
+        [ -n "$status" ] || status="missing"
+        printf '%-24s %s\n' "$name" "$status"
+    done
+    [ "$found" -eq 1 ] || printf '%-24s %s\n' "-" "none"
+}
+
+status_service() {
+    [ $# -eq 1 ] || usage
+    validate_name "$1" || fail "invalid service name: $1"
+    exec /usr/local/bin/sv status "$1"
+}
+
+logs_service() {
+    [ $# -ge 1 ] || usage
+    name="$1"
+    shift
+    validate_name "$name" || fail "invalid service name: $name"
+    log_path="$(service_decl_dir "$name")/logs/current.log"
+    [ -f "$log_path" ] || fail "log file not found: $log_path"
+    if [ $# -eq 1 ] && [ "$1" = "-f" ]; then
+        exec tail -n 50 -f "$log_path"
+    fi
+    [ $# -eq 0 ] || usage
+    exec tail -n 50 "$log_path"
+}
+
+restart_service() {
+    [ $# -eq 1 ] || usage
+    validate_name "$1" || fail "invalid service name: $1"
+    exec /usr/local/bin/sv restart "$1"
+}
+
+remove_service() {
+    [ $# -eq 1 ] || usage
+    name="$1"
+    validate_name "$name" || fail "invalid service name: $name"
+    sudo -n /usr/local/bin/ocm-service-admin remove "$name" </dev/null
+    printf 'removed service %s\n' "$name"
+}
+
+[ $# -ge 1 ] || usage
+
+case "$1" in
+    service)
+        shift
+        [ $# -ge 1 ] || usage
+        subcmd="$1"
+        shift
+        case "$subcmd" in
+            create) create_service "$@" ;;
+            list) [ $# -eq 0 ] || usage; list_services ;;
+            status) status_service "$@" ;;
+            logs) logs_service "$@" ;;
+            restart) restart_service "$@" ;;
+            remove) remove_service "$@" ;;
+            *) usage ;;
+        esac
+        ;;
+    *)
+        usage
+        ;;
+esac

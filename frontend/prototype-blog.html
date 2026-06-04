@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OpenClaw Machines — Blog Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=JetBrains+Mono:wght@400;500;600&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;0,9..144,700;1,9..144,400&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+:root{
+  --bg:#050608;--bg-surface:#0a0c12;--bg-card:#12141e;--bg-card-hover:#181b28;
+  --border:#1a1d2a;--border-subtle:#141722;
+  --text-primary:#e8eaf0;--text-secondary:#9094ab;--text-muted:#5a5f76;--text-dim:#3a3f52;
+  --brand-orange:#f97316;--brand-teal:#2dd4bf;--brand-red:#ef4444;--success:#22c55e;
+  --font-display:'Fraunces',Georgia,serif;
+  --font-body:'DM Sans',system-ui,sans-serif;
+  --font-mono:'JetBrains Mono','SF Mono',monospace;
+  --radius:12px;
+}
+html{font-size:16px;scroll-behavior:smooth;}
+body{font-family:var(--font-body);background:var(--bg);color:var(--text-primary);-webkit-font-smoothing:antialiased;overflow-x:hidden;}
+a{color:inherit;text-decoration:none;}
+
+/* ── Header ── */
+.header{position:fixed;top:0;left:0;right:0;z-index:100;height:60px;display:flex;align-items:center;justify-content:center;background:rgba(5,6,8,0.75);backdrop-filter:blur(24px) saturate(1.4);border-bottom:1px solid rgba(26,29,42,0.6);padding:0 24px;}
+.header-inner{max-width:1120px;width:100%;display:flex;align-items:center;justify-content:space-between;}
+.logo{font-family:var(--font-mono);font-size:14px;font-weight:600;display:flex;align-items:center;gap:2px;}
+.logo-mark{width:28px;height:28px;background:var(--brand-red);border-radius:7px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;color:#fff;margin-right:8px;}
+.logo-open{color:var(--brand-red);}.logo-claw{color:var(--brand-teal);}.logo-machines{color:#a0a5bc;font-weight:400;margin-left:3px;}
+.header-nav{display:flex;align-items:center;gap:6px;}
+.nav-link{padding:6px 14px;font-size:13px;font-weight:500;color:var(--text-muted);border-radius:8px;transition:all .15s;}
+.nav-link:hover{color:var(--text-secondary);background:rgba(255,255,255,.04);}
+.nav-link.active{color:var(--text-primary);background:rgba(255,255,255,.06);}
+.btn-cta{padding:8px 20px;background:var(--brand-orange);color:#fff;font-size:13px;font-weight:600;border-radius:8px;border:none;cursor:pointer;font-family:var(--font-body);transition:all .2s;}
+.btn-cta:hover{background:#ea580c;box-shadow:0 4px 20px rgba(249,115,22,.3);}
+
+/* ── Layout ── */
+.container{max-width:1120px;margin:0 auto;padding:0 24px;}
+.container-narrow{max-width:720px;margin:0 auto;padding:0 24px;}
+
+/* ── Scroll reveal ── */
+.reveal{opacity:0;transform:translateY(24px);transition:opacity .6s cubic-bezier(.22,1,.36,1),transform .6s cubic-bezier(.22,1,.36,1);}
+.reveal.visible{opacity:1;transform:translateY(0);}
+.reveal-d1{transition-delay:.1s;}.reveal-d2{transition-delay:.2s;}.reveal-d3{transition-delay:.3s;}
+
+/* ── Reading progress ── */
+.reading-progress{position:fixed;top:60px;left:0;right:0;height:2px;z-index:99;background:transparent;}
+.reading-progress-bar{height:100%;width:0;background:var(--brand-orange);transition:width .1s linear;}
+
+/* ═══════════════════════════════ */
+/* ══ BLOG INDEX ══ */
+/* ═══════════════════════════════ */
+.blog-index{padding:100px 0 80px;}
+
+.blog-header{margin-bottom:48px;}
+.blog-title{font-family:var(--font-display);font-size:36px;font-weight:500;letter-spacing:-1px;margin-bottom:6px;}
+.blog-subtitle{font-size:15px;color:var(--text-muted);}
+
+/* Category filter pills */
+.cat-bar{display:flex;gap:6px;margin-bottom:40px;flex-wrap:wrap;}
+.cat-pill{padding:6px 16px;border-radius:20px;font-size:12px;font-weight:600;border:1px solid var(--border);color:var(--text-muted);cursor:pointer;transition:all .2s;background:transparent;}
+.cat-pill:hover{border-color:var(--text-dim);color:var(--text-secondary);}
+.cat-pill.active{background:rgba(249,115,22,.1);border-color:rgba(249,115,22,.25);color:var(--brand-orange);}
+
+/* Featured post hero */
+.featured-card{display:grid;grid-template-columns:1fr 1fr;gap:0;background:var(--bg-card);border:1px solid var(--border);border-radius:16px;overflow:hidden;margin-bottom:48px;cursor:pointer;transition:all .3s;}
+.featured-card:hover{border-color:#2a2e45;box-shadow:0 16px 48px rgba(0,0,0,.3);}
+.featured-img{background:linear-gradient(135deg,rgba(249,115,22,.12),rgba(45,212,191,.08));display:flex;align-items:center;justify-content:center;min-height:280px;position:relative;overflow:hidden;}
+.featured-img-pattern{position:absolute;inset:0;opacity:.15;}
+.featured-img-pattern svg{width:100%;height:100%;}
+.featured-img-label{position:relative;z-index:1;font-family:var(--font-display);font-size:48px;font-weight:700;color:var(--brand-orange);opacity:.2;letter-spacing:-2px;}
+.featured-body{padding:36px 32px;display:flex;flex-direction:column;justify-content:center;}
+.featured-badge{display:inline-flex;align-items:center;gap:5px;padding:4px 12px;border-radius:6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;background:rgba(249,115,22,.1);color:var(--brand-orange);margin-bottom:16px;align-self:flex-start;}
+.featured-title{font-family:var(--font-display);font-size:24px;font-weight:500;letter-spacing:-.5px;line-height:1.3;margin-bottom:10px;}
+.featured-excerpt{font-size:14px;line-height:1.7;color:var(--text-secondary);margin-bottom:16px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;}
+.featured-meta{display:flex;align-items:center;gap:12px;font-size:12px;color:var(--text-muted);}
+.featured-meta-sep{color:var(--text-dim);}
+
+/* Post grid */
+.post-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px;}
+.post-card{background:var(--bg-card);border:1px solid var(--border);border-radius:14px;overflow:hidden;cursor:pointer;transition:all .3s;}
+.post-card:hover{border-color:#2a2e45;transform:translateY(-3px);box-shadow:0 12px 36px rgba(0,0,0,.3);}
+
+.post-card-img{height:160px;background:linear-gradient(135deg,rgba(249,115,22,.06),rgba(45,212,191,.04));display:flex;align-items:center;justify-content:center;border-bottom:1px solid var(--border-subtle);position:relative;overflow:hidden;}
+.post-card-img-icon{font-family:var(--font-display);font-size:36px;font-weight:700;color:var(--brand-orange);opacity:.12;}
+.post-card-cat{position:absolute;top:12px;left:12px;padding:3px 10px;border-radius:6px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;background:rgba(0,0,0,.6);backdrop-filter:blur(8px);color:var(--text-secondary);}
+
+.post-card-body{padding:20px;}
+.post-card-title{font-size:16px;font-weight:600;line-height:1.4;margin-bottom:8px;color:var(--text-primary);}
+.post-card-excerpt{font-size:13px;line-height:1.6;color:var(--text-muted);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-bottom:14px;}
+.post-card-meta{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text-dim);}
+.post-card-meta-dot{width:3px;height:3px;border-radius:50%;background:var(--text-dim);}
+
+/* ═══════════════════════════════ */
+/* ══ BLOG POST ══ */
+/* ═══════════════════════════════ */
+.blog-post{padding:100px 0 60px;}
+.back-link{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--text-muted);margin-bottom:32px;transition:color .2s;}
+.back-link:hover{color:var(--brand-orange);}
+
+/* Post header */
+.post-header{margin-bottom:40px;padding-bottom:32px;border-bottom:1px solid var(--border);}
+.post-cat-badge{display:inline-flex;padding:4px 12px;border-radius:6px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;background:rgba(249,115,22,.1);color:var(--brand-orange);margin-bottom:16px;}
+.post-title{font-family:var(--font-display);font-size:38px;font-weight:500;line-height:1.2;letter-spacing:-1px;margin-bottom:12px;}
+.post-subtitle-text{font-size:18px;line-height:1.6;color:var(--text-secondary);margin-bottom:20px;}
+.post-meta-bar{display:flex;flex-wrap:wrap;align-items:center;gap:16px;font-size:13px;color:var(--text-muted);}
+.post-author{color:var(--brand-teal);font-weight:500;}
+.post-meta-item{display:flex;align-items:center;gap:4px;}
+
+/* Hero image */
+.post-hero{margin:-40px -60px 40px;border-radius:12px;overflow:hidden;border:1px solid var(--border);background:linear-gradient(135deg,rgba(249,115,22,.08),rgba(45,212,191,.05));min-height:300px;display:flex;align-items:center;justify-content:center;}
+.post-hero-placeholder{font-family:var(--font-display);font-size:72px;font-weight:700;color:var(--brand-orange);opacity:.08;}
+
+/* Article body */
+.article-body{font-size:17px;line-height:1.85;color:#c8ccd8;}
+.article-body h2{font-family:var(--font-display);font-size:26px;font-weight:500;letter-spacing:-.5px;color:var(--text-primary);margin:48px 0 16px;line-height:1.3;}
+.article-body h3{font-size:19px;font-weight:600;color:var(--text-primary);margin:36px 0 12px;}
+.article-body p{margin-bottom:20px;}
+.article-body a{color:var(--brand-teal);text-decoration:underline;text-decoration-color:rgba(45,212,191,.3);text-underline-offset:3px;transition:text-decoration-color .2s;}
+.article-body a:hover{text-decoration-color:var(--brand-teal);}
+.article-body strong{color:var(--text-primary);font-weight:600;}
+.article-body ul,.article-body ol{margin:0 0 20px 20px;color:#b0b5c6;}
+.article-body li{margin-bottom:8px;}
+.article-body blockquote{border-left:3px solid var(--brand-red);padding:2px 0 2px 20px;margin:28px 0;font-style:italic;color:var(--text-secondary);}
+.article-body code{font-family:var(--font-mono);font-size:.875em;padding:2px 7px;background:rgba(255,255,255,.06);border-radius:5px;color:#e2e4ea;}
+.article-body pre{background:#0a0f1e;border:1px solid var(--border);border-radius:10px;padding:18px 20px;margin:24px 0;overflow-x:auto;font-family:var(--font-mono);font-size:13px;line-height:1.7;color:#c8ccd8;}
+.article-body hr{border:none;border-top:1px solid var(--border);margin:40px 0;}
+
+/* Custom blog elements (improved) */
+.stat-row{display:flex;gap:12px;margin:28px 0;flex-wrap:wrap;}
+.stat-card{flex:1;min-width:140px;background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:20px;text-align:center;position:relative;overflow:hidden;}
+.stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--brand-red),var(--brand-orange));}
+.stat-number{font-family:var(--font-display);font-size:32px;font-weight:500;color:var(--text-primary);display:block;letter-spacing:-1px;margin-bottom:4px;}
+.stat-label{font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--text-muted);font-weight:600;}
+
+.figure-box{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:24px;margin:28px 0;}
+.fig-title{font-weight:600;font-size:14px;margin-bottom:16px;color:var(--text-primary);}
+.bar-row{display:flex;align-items:center;margin:8px 0;font-size:13px;}
+.bar-label{width:140px;text-align:right;padding-right:14px;color:var(--text-muted);font-size:12px;font-weight:500;}
+.bar-track{flex:1;background:var(--border);height:20px;border-radius:6px;overflow:hidden;}
+.bar-fill{height:100%;border-radius:6px;background:linear-gradient(90deg,var(--brand-red),var(--brand-orange));transition:width .6s ease;}
+.bar-value{width:55px;text-align:right;padding-left:10px;font-size:12px;color:var(--text-muted);font-family:var(--font-mono);}
+.source{font-size:11px;color:var(--text-dim);margin-top:8px;}
+.source a{color:var(--text-dim);text-decoration:underline;}
+
+.pullquote{font-family:var(--font-display);font-size:22px;line-height:1.4;color:var(--brand-red);border-top:2px solid rgba(239,68,68,.3);border-bottom:2px solid rgba(239,68,68,.3);padding:24px 0;margin:36px 0;text-align:center;font-style:italic;font-weight:400;letter-spacing:-.3px;}
+
+.sidebar{background:var(--bg-card);border:1px solid var(--border);border-left:3px solid var(--brand-teal);padding:20px 24px;margin:28px 0;border-radius:0 10px 10px 0;font-size:14px;line-height:1.65;color:var(--text-secondary);}
+.sidebar-title{font-family:var(--font-mono);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:1.5px;color:var(--brand-teal);margin-bottom:10px;}
+
+.lede{font-size:19px;line-height:1.8;margin-bottom:32px;color:#bcc1d2;}
+.lede::first-letter{font-family:var(--font-display);font-size:3.5rem;float:left;line-height:.85;margin:6px 12px 0 0;font-weight:700;color:var(--brand-red);}
+
+.footnotes{margin-top:48px;padding-top:24px;border-top:1px solid var(--border);font-size:13px;color:var(--text-muted);line-height:1.7;}
+
+/* Share row */
+.share-row{display:flex;align-items:center;gap:10px;padding:24px 0;margin-top:48px;border-top:1px solid var(--border);}
+.share-label{font-size:13px;color:var(--text-muted);font-weight:500;margin-right:4px;}
+.share-btn{width:36px;height:36px;border-radius:9px;border:1px solid var(--border);background:var(--bg-card);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .2s;color:var(--text-muted);}
+.share-btn:hover{border-color:var(--brand-orange);color:var(--brand-orange);background:rgba(249,115,22,.06);}
+
+/* More from blog */
+.more-section{padding:64px 0;border-top:1px solid var(--border);}
+.more-title{font-family:var(--font-display);font-size:22px;font-weight:500;margin-bottom:24px;}
+.more-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;}
+.more-card{background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:24px;cursor:pointer;transition:all .25s;}
+.more-card:hover{border-color:rgba(249,115,22,.25);transform:translateY(-3px);box-shadow:0 12px 36px rgba(0,0,0,.3);}
+.more-card-cat{display:inline-flex;padding:3px 10px;border-radius:6px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;background:rgba(249,115,22,.1);color:var(--brand-orange);margin-bottom:10px;}
+.more-card-title{font-size:15px;font-weight:600;line-height:1.4;margin-bottom:6px;color:var(--text-primary);}
+.more-card-excerpt{font-size:12px;line-height:1.6;color:var(--text-muted);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+
+/* ── Footer ── */
+.footer{border-top:1px solid var(--border);padding:48px 0 32px;}
+.footer-grid{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:40px;margin-bottom:40px;}
+.footer-brand-desc{font-size:13px;color:var(--text-dim);line-height:1.6;margin-top:12px;}
+.footer-col-title{font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:14px;}
+.footer-links{list-style:none;display:flex;flex-direction:column;gap:8px;}
+.footer-links li a{font-size:13px;color:var(--text-dim);transition:color .15s;}
+.footer-links li a:hover{color:var(--text-secondary);}
+.footer-bottom{display:flex;align-items:center;justify-content:space-between;padding-top:20px;border-top:1px solid var(--border-subtle);font-size:12px;color:var(--text-dim);}
+.footer-legal{display:flex;gap:20px;}
+
+/* ── Utility ── */
+.hidden{display:none!important;}
+.view{display:none;}.view.active{display:block;}
+
+@media(max-width:900px){
+  .featured-card{grid-template-columns:1fr;}
+  .featured-img{min-height:180px;}
+  .post-grid{grid-template-columns:1fr;}
+  .more-grid{grid-template-columns:1fr;}
+  .post-hero{margin:-20px -20px 30px;}
+  .footer-grid{grid-template-columns:1fr 1fr;}
+}
+@media(max-width:640px){
+  .hero-grid{grid-template-columns:1fr;}
+  .post-title{font-size:28px;}
+  .blog-title{font-size:28px;}
+  .footer-grid{grid-template-columns:1fr;}
+  .footer-bottom{flex-direction:column;gap:12px;text-align:center;}
+}
+</style>
+</head>
+<body>
+
+<!-- ══ Header ══ -->
+<header class="header">
+  <div class="header-inner">
+    <a class="logo" href="#">
+      <span class="logo-mark">O</span>
+      <span class="logo-open">Open</span><span class="logo-claw">Claw</span>
+      <span class="logo-machines">Machines</span>
+    </a>
+    <nav class="header-nav">
+      <a class="nav-link" href="#">Features</a>
+      <a class="nav-link" href="#">Pricing</a>
+      <a class="nav-link active" href="#">Blog</a>
+      <a class="btn-cta" href="#">Get Early Access</a>
+    </nav>
+  </div>
+</header>
+
+<!-- ══ Reading Progress (only visible on post view) ══ -->
+<div class="reading-progress hidden" id="readingProgress">
+  <div class="reading-progress-bar" id="progressBar"></div>
+</div>
+
+
+<!-- ═══════════════════════════════════ -->
+<!-- ══ BLOG INDEX VIEW ══ -->
+<!-- ═══════════════════════════════════ -->
+<div class="view active" id="view-index">
+  <div class="blog-index">
+    <div class="container">
+      <div class="blog-header reveal">
+        <h1 class="blog-title">Blog</h1>
+        <p class="blog-subtitle">Product updates, engineering deep-dives, and thoughts on AI infrastructure.</p>
+      </div>
+
+      <!-- Category pills -->
+      <div class="cat-bar reveal">
+        <span class="cat-pill active" onclick="filterCat(this)">All</span>
+        <span class="cat-pill" onclick="filterCat(this)">Product</span>
+        <span class="cat-pill" onclick="filterCat(this)">Engineering</span>
+        <span class="cat-pill" onclick="filterCat(this)">Security</span>
+        <span class="cat-pill" onclick="filterCat(this)">Community</span>
+      </div>
+
+      <!-- Featured post -->
+      <div class="featured-card reveal" onclick="showPost()">
+        <div class="featured-img">
+          <div class="featured-img-label">21</div>
+        </div>
+        <div class="featured-body">
+          <div class="featured-badge">Featured</div>
+          <h2 class="featured-title">21 Things You Can Build with OpenClaw Machines</h2>
+          <p class="featured-excerpt">From Telegram bots that manage your calendar to Discord agents that review pull requests &mdash; a practical guide to what's possible with managed AI agents.</p>
+          <div class="featured-meta">
+            <span>Mathew Mathew</span>
+            <span class="featured-meta-sep">&middot;</span>
+            <span>Feb 20, 2026</span>
+            <span class="featured-meta-sep">&middot;</span>
+            <span>22 min read</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Post grid -->
+      <div class="post-grid">
+        <div class="post-card reveal reveal-d1" onclick="showPost()">
+          <div class="post-card-img">
+            <div class="post-card-img-icon">OCM</div>
+            <span class="post-card-cat">Engineering</span>
+          </div>
+          <div class="post-card-body">
+            <h3 class="post-card-title">Claude Code and the Speed of Development</h3>
+            <p class="post-card-excerpt">How we shipped the entire OpenClaw Machines platform in 23 days using Claude Code as our primary development tool.</p>
+            <div class="post-card-meta">
+              <span>Mathew Mathew</span>
+              <span class="post-card-meta-dot"></span>
+              <span>Feb 25, 2026</span>
+              <span class="post-card-meta-dot"></span>
+              <span>8 min</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="post-card reveal reveal-d2" onclick="showPost()">
+          <div class="post-card-img">
+            <div class="post-card-img-icon">$</div>
+            <span class="post-card-cat">Product</span>
+          </div>
+          <div class="post-card-body">
+            <h3 class="post-card-title">The Claw Economy: Understanding AI Agent Costs</h3>
+            <p class="post-card-excerpt">A deep dive into token economics, budget controls, and why per-machine spending caps change how teams think about AI costs.</p>
+            <div class="post-card-meta">
+              <span>Mathew Mathew</span>
+              <span class="post-card-meta-dot"></span>
+              <span>Feb 22, 2026</span>
+              <span class="post-card-meta-dot"></span>
+              <span>18 min</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="post-card reveal reveal-d3">
+          <div class="post-card-img">
+            <div class="post-card-img-icon">VM</div>
+            <span class="post-card-cat">Security</span>
+          </div>
+          <div class="post-card-body">
+            <h3 class="post-card-title">Why Containers Aren't Enough for AI Agents</h3>
+            <p class="post-card-excerpt">Firecracker MicroVMs vs. Docker containers: the security tradeoffs that matter when your AI agent has access to credentials.</p>
+            <div class="post-card-meta">
+              <span>Mathew Mathew</span>
+              <span class="post-card-meta-dot"></span>
+              <span>Feb 18, 2026</span>
+              <span class="post-card-meta-dot"></span>
+              <span>12 min</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <div class="logo">
+            <span class="logo-mark">O</span>
+            <span class="logo-open">Open</span><span class="logo-claw">Claw</span>
+            <span class="logo-machines">Machines</span>
+          </div>
+          <p class="footer-brand-desc">The easiest and most secure way to run OpenClaw. Hardware-isolated VMs with zero-trust security.</p>
+        </div>
+        <div>
+          <div class="footer-col-title">Product</div>
+          <ul class="footer-links"><li><a href="#">Features</a></li><li><a href="#">Pricing</a></li><li><a href="#">Security</a></li><li><a href="#">Changelog</a></li></ul>
+        </div>
+        <div>
+          <div class="footer-col-title">Resources</div>
+          <ul class="footer-links"><li><a href="#">Docs</a></li><li><a href="#">Blog</a></li><li><a href="#">CLI Reference</a></li><li><a href="#">Status</a></li></ul>
+        </div>
+        <div>
+          <div class="footer-col-title">Company</div>
+          <ul class="footer-links"><li><a href="#">About</a></li><li><a href="#">Contact</a></li><li><a href="#">GitHub</a></li><li><a href="#">Twitter</a></li></ul>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <span>&copy; 2026 <span style="color:var(--brand-red)">Open</span><span style="color:var(--brand-teal)">Claw</span> Machines</span>
+        <div class="footer-legal"><a href="#">Privacy</a><a href="#">Terms</a></div>
+      </div>
+    </div>
+  </footer>
+</div>
+
+
+<!-- ═══════════════════════════════════ -->
+<!-- ══ BLOG POST VIEW ══ -->
+<!-- ═══════════════════════════════════ -->
+<div class="view" id="view-post">
+  <div class="blog-post">
+    <div class="container-narrow" id="articleContainer">
+      <a class="back-link" href="#" onclick="showIndex(); return false;">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9 2L4 7l5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        Back to Blog
+      </a>
+
+      <!-- Post header -->
+      <div class="post-header">
+        <span class="post-cat-badge">Product</span>
+        <h1 class="post-title">21 Things You Can Build with OpenClaw Machines</h1>
+        <p class="post-subtitle-text">From personal Telegram assistants to fleet-managed Discord bots &mdash; a practical catalog of what's possible with managed AI agents.</p>
+        <div class="post-meta-bar">
+          <a class="post-author" href="#">Mathew Mathew</a>
+          <span>Feb 20, 2026</span>
+          <span class="post-meta-item">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+            22 min read
+          </span>
+        </div>
+      </div>
+
+      <!-- Hero image area -->
+      <div class="post-hero">
+        <span class="post-hero-placeholder">21</span>
+      </div>
+
+      <!-- Article body -->
+      <div class="article-body">
+        <div class="lede">
+The best technology disappears into the background. You don't think about electricity when you flip a light switch, and you shouldn't think about infrastructure when you deploy an AI agent. OpenClaw Machines exists to make that possible.
+        </div>
+
+        <p>We've been watching what people build during our early access period, and the variety has been remarkable. From solo developers running personal assistants to teams deploying customer-facing bots, the patterns are clearer than we expected.</p>
+
+        <!-- Stat cards -->
+        <div class="stat-row">
+          <div class="stat-card">
+            <span class="stat-number">400+</span>
+            <span class="stat-label">Commits in 23 days</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-number">21</span>
+            <span class="stat-label">Documented use cases</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-number">30s</span>
+            <span class="stat-label">Average deploy time</span>
+          </div>
+        </div>
+
+        <h2>Personal AI Assistants</h2>
+
+        <p>The most common use case is a personal AI assistant connected to Telegram. Set it up once, and you have Claude in your pocket &mdash; with persistent memory, file access, and no rate limits beyond your subscription.</p>
+
+        <!-- Sidebar callout -->
+        <div class="sidebar">
+          <div class="sidebar-title">Why Telegram?</div>
+          Telegram's Bot API is the simplest integration point. Five minutes from "I have an API key" to "I'm chatting with my agent." Discord is a close second for team use cases.
+        </div>
+
+        <p>What makes this different from just using <a href="#">claude.ai</a> is persistence. Your agent remembers previous conversations. It has a workspace where it can save and retrieve files. It can run code, browse the web, and use tools &mdash; all inside a sandboxed VM that you control.</p>
+
+        <h2>Development & Automation</h2>
+
+        <p>The second most popular category is developer tooling. Teams are building agents that:</p>
+
+        <ul>
+          <li>Review pull requests and leave inline comments on GitHub</li>
+          <li>Monitor error logs and suggest fixes in Slack</li>
+          <li>Generate test suites from natural language specs</li>
+          <li>Manage deployment pipelines with natural language commands</li>
+        </ul>
+
+        <!-- Pull quote -->
+        <div class="pullquote">
+"The value isn't in any single feature &mdash; it's in having a persistent, always-on agent that knows your codebase."
+        </div>
+
+        <!-- Figure box with bars -->
+        <div class="figure-box">
+          <div class="fig-title">Use Cases by Category</div>
+          <div class="bar-chart">
+            <div class="bar-row">
+              <span class="bar-label">Personal AI</span>
+              <div class="bar-track"><div class="bar-fill" style="width:78%"></div></div>
+              <span class="bar-value">78%</span>
+            </div>
+            <div class="bar-row">
+              <span class="bar-label">Dev Tools</span>
+              <div class="bar-track"><div class="bar-fill" style="width:62%"></div></div>
+              <span class="bar-value">62%</span>
+            </div>
+            <div class="bar-row">
+              <span class="bar-label">Customer Support</span>
+              <div class="bar-track"><div class="bar-fill" style="width:45%"></div></div>
+              <span class="bar-value">45%</span>
+            </div>
+            <div class="bar-row">
+              <span class="bar-label">Data Analysis</span>
+              <div class="bar-track"><div class="bar-fill" style="width:31%"></div></div>
+              <span class="bar-value">31%</span>
+            </div>
+          </div>
+          <div class="source">Based on early access user survey, Feb 2026</div>
+        </div>
+
+        <h2>What's Next</h2>
+
+        <p>We're seeing early signals of more sophisticated use cases: agents that coordinate with each other via shared databases, fleet deployments where a single command updates dozens of agents, and custom tool integrations that extend what agents can do.</p>
+
+        <p>The infrastructure layer should be invisible. That's what we're building toward &mdash; a platform where the only limit on what your agent can do is your imagination, not your ops budget.</p>
+
+        <hr>
+
+        <div class="footnotes">
+          <p>All statistics from OpenClaw Machines early access program, February 2026. Use case categories are self-reported.</p>
+        </div>
+      </div>
+
+      <!-- Share row -->
+      <div class="share-row">
+        <span class="share-label">Share</span>
+        <button class="share-btn" title="Copy link">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
+        </button>
+        <button class="share-btn" title="Twitter">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+        </button>
+        <button class="share-btn" title="LinkedIn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- More from blog -->
+  <div class="more-section">
+    <div class="container">
+      <h2 class="more-title">More from the blog</h2>
+      <div class="more-grid">
+        <div class="more-card" onclick="showIndex()">
+          <span class="more-card-cat">Engineering</span>
+          <h3 class="more-card-title">Claude Code and the Speed of Development</h3>
+          <p class="more-card-excerpt">How we shipped the entire platform in 23 days using Claude Code.</p>
+        </div>
+        <div class="more-card" onclick="showIndex()">
+          <span class="more-card-cat">Product</span>
+          <h3 class="more-card-title">The Claw Economy: Understanding AI Agent Costs</h3>
+          <p class="more-card-excerpt">Token economics, budget controls, and per-machine spending caps.</p>
+        </div>
+        <div class="more-card" onclick="showIndex()">
+          <span class="more-card-cat">Security</span>
+          <h3 class="more-card-title">Why Containers Aren't Enough for AI Agents</h3>
+          <p class="more-card-excerpt">Firecracker MicroVMs vs Docker: the security tradeoffs.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <div class="logo">
+            <span class="logo-mark">O</span>
+            <span class="logo-open">Open</span><span class="logo-claw">Claw</span>
+            <span class="logo-machines">Machines</span>
+          </div>
+          <p class="footer-brand-desc">The easiest and most secure way to run OpenClaw.</p>
+        </div>
+        <div>
+          <div class="footer-col-title">Product</div>
+          <ul class="footer-links"><li><a href="#">Features</a></li><li><a href="#">Pricing</a></li><li><a href="#">Security</a></li></ul>
+        </div>
+        <div>
+          <div class="footer-col-title">Resources</div>
+          <ul class="footer-links"><li><a href="#">Docs</a></li><li><a href="#">Blog</a></li><li><a href="#">CLI Reference</a></li></ul>
+        </div>
+        <div>
+          <div class="footer-col-title">Company</div>
+          <ul class="footer-links"><li><a href="#">About</a></li><li><a href="#">GitHub</a></li><li><a href="#">Twitter</a></li></ul>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <span>&copy; 2026 <span style="color:var(--brand-red)">Open</span><span style="color:var(--brand-teal)">Claw</span> Machines</span>
+        <div class="footer-legal"><a href="#">Privacy</a><a href="#">Terms</a></div>
+      </div>
+    </div>
+  </footer>
+</div>
+
+
+<script>
+// View switching
+function showPost() {
+  document.getElementById('view-index').classList.remove('active');
+  document.getElementById('view-post').classList.add('active');
+  document.getElementById('readingProgress').classList.remove('hidden');
+  window.scrollTo(0, 0);
+}
+function showIndex() {
+  document.getElementById('view-post').classList.remove('active');
+  document.getElementById('view-index').classList.add('active');
+  document.getElementById('readingProgress').classList.add('hidden');
+  window.scrollTo(0, 0);
+}
+
+// Category filter
+function filterCat(el) {
+  document.querySelectorAll('.cat-pill').forEach(function(p) { p.classList.remove('active'); });
+  el.classList.add('active');
+}
+
+// Reading progress bar
+window.addEventListener('scroll', function() {
+  var bar = document.getElementById('progressBar');
+  var article = document.getElementById('articleContainer');
+  if (!article || document.getElementById('view-post').classList.contains('active') === false) return;
+  var rect = article.getBoundingClientRect();
+  var total = article.scrollHeight - window.innerHeight;
+  var scrolled = -rect.top + 60;
+  var pct = Math.max(0, Math.min(100, (scrolled / total) * 100));
+  bar.style.width = pct + '%';
+});
+
+// Scroll reveal
+var observer = new IntersectionObserver(function(entries) {
+  entries.forEach(function(entry) {
+    if (entry.isIntersecting) entry.target.classList.add('visible');
+  });
+}, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+document.querySelectorAll('.reveal').forEach(function(el) { observer.observe(el); });
+</script>
+</body>
+</html>

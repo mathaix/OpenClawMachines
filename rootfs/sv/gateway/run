@@ -1,0 +1,24 @@
+#!/bin/sh
+
+exec 2>&1
+
+mkdir -p /var/log
+
+if [ "$(cat /run/ocm-gateway-crash-loop 2>/dev/null || echo 0)" = "1" ]; then
+    echo "crash-loop" > /run/ocm-gateway-status
+    # Park here instead of exit-0 churn. An exit would make runsv respawn us
+    # every few seconds, re-invoke finish, and keep incrementing the crash
+    # counter. App status is exposed via /run/ocm-gateway-status; a manual
+    # restart clears the latch and replaces this sleep with a real run.
+    exec sleep infinity
+fi
+
+exec chpst -u openclaw -e /run/ocm-service-env/gateway \
+    /bin/sh -c '
+        cd "$HOME/.openclaw/workspace" || exit 1
+        rm -f /tmp/openclaw/*.lock /tmp/openclaw/*.pid 2>/dev/null
+        echo "running" > /run/ocm-gateway-status
+        exec "$OPENCLAW_BIN" gateway \
+            --port 18789 --bind loopback --verbose --allow-unconfigured \
+            >> /var/log/openclaw-gateway.log 2>&1
+    '

@@ -1,0 +1,17 @@
+{
+  "name": "ocm-worker-tests",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "vitest": "^4.0.18",
+    "wrangler": "^4.60.0",
+    "ws": "^8.19.0"
+  },
+  "dependencies": {
+    "@cloudflare/puppeteer": "^1.0.6"
+  }
+}

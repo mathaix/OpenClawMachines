@@ -1,0 +1,12 @@
+title = "OpenClaw Machines Gitleaks Config"
+
+[allowlist]
+  paths = [
+    '''\.svg$''',
+    '''\.png$''',
+    '''\.jpg$''',
+    '''\.gif$''',
+    '''pnpm-lock\.yaml''',
+    '''package-lock\.json''',
+    '''go\.sum''',
+  ]

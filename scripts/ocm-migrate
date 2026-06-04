@@ -1,0 +1,45 @@
+#!/bin/bash
+# OCM Data Volume Migration Runner
+# Usage: ocm-migrate <from_version> <to_version>
+# Runs numbered migration scripts from /usr/local/lib/ocm-migrations/
+set -euo pipefail
+
+FROM_VERSION="${1:-0}"
+TO_VERSION="${2:-0}"
+MIGRATIONS_DIR="/usr/local/lib/ocm-migrations"
+
+if [ "$FROM_VERSION" -ge "$TO_VERSION" ]; then
+    echo "[ocm-migrate] No migrations needed (current=$FROM_VERSION, target=$TO_VERSION)"
+    exit 0
+fi
+
+if [ ! -d "$MIGRATIONS_DIR" ]; then
+    echo "[ocm-migrate] No migrations directory found at $MIGRATIONS_DIR"
+    exit 0
+fi
+
+echo "[ocm-migrate] Running migrations from v${FROM_VERSION} to v${TO_VERSION}..."
+
+for script in "$MIGRATIONS_DIR"/*.sh; do
+    [ -f "$script" ] || continue
+
+    # Extract version number from filename (e.g., 001_initial.sh -> 1)
+    BASENAME=$(basename "$script")
+    SCRIPT_VERSION=$(echo "$BASENAME" | grep -oE '^[0-9]+' | sed 's/^0*//' || echo "0")
+    [ -z "$SCRIPT_VERSION" ] && SCRIPT_VERSION=0
+
+    # Skip if migration is not in our range
+    if [ "$SCRIPT_VERSION" -le "$FROM_VERSION" ] || [ "$SCRIPT_VERSION" -gt "$TO_VERSION" ]; then
+        continue
+    fi
+
+    echo "[ocm-migrate] Running: $BASENAME (v${SCRIPT_VERSION})..."
+    if timeout 60 bash "$script"; then
+        echo "[ocm-migrate] OK: $BASENAME"
+    else
+        echo "[ocm-migrate] FAILED: $BASENAME (exit=$?)"
+        exit 1
+    fi
+done
+
+echo "[ocm-migrate] All migrations complete (v${FROM_VERSION} -> v${TO_VERSION})"

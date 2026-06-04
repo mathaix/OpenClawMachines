@@ -1,0 +1,11 @@
+provider,sku,monthly_usd,setup_usd,cores,threads,ram_gb,storage,network,vm_profile_vcpu,vm_profile_ram_gb,cpu_fit,memory_fit,estimated_microvm_fit,cost_per_microvm_usd,limiting_factor,source_url,notes
+OVHcloud US,Advance-1 2024,90,0,6,12,32,"2 x 960 GB to 4 x 7.68 TB NVMe","Public 1-5 Gbps; Private 25 Gbps",2,2,12,16,12,7.50,cpu,https://us.ovhcloud.com/bare-metal/advance/,"Best small-host value if you want the cheapest production-capable US option"
+OVHcloud US,Advance-2 2024,130,0,8,16,64,"2 x 960 GB to 4 x 7.68 TB NVMe","Public 1-5 Gbps; Private 25 Gbps",2,2,16,32,16,8.13,cpu,https://us.ovhcloud.com/bare-metal/advance/,"Strong baseline OCM host"
+OVHcloud US,Advance-3 2024,197,0,12,24,64,"SSD NVMe","Public 1-5 Gbps; Private 25 Gbps",2,2,24,32,24,8.21,cpu,https://us.ovhcloud.com/bare-metal/advance/,"Cheapest per-fit step up from 16 to 24 microVMs"
+OVHcloud US,Scale-i1 2024,420,0,16,32,128,"SSD NVMe","Public 1-25 Gbps; Private 50 Gbps",2,2,32,64,32,13.13,cpu,https://us.ovhcloud.com/bare-metal/scale/,"Better network and higher-end platform; no longer the cheapest density play"
+Vultr,Intel E3-1270,120,0,4,8,32,"2 x 240 GB SSD","10 Gbps; 5 TB bandwidth",2,2,8,16,8,15.00,cpu,https://www.vultr.com/products/bare-metal/,"Lowest Vultr entry price"
+Vultr,Intel E-2286G,185,0,6,12,32,"2 x 960 GB SSD","10 Gbps; 5 TB bandwidth",2,2,12,16,12,15.42,cpu,https://www.vultr.com/products/bare-metal/,"Better storage than E3-1270; same fit class as OVH Advance-1"
+Vultr,Intel E-2388G,350,0,8,16,128,"2 x 1.92 TB NVMe","10 Gbps; 10 TB bandwidth",2,2,16,64,16,21.88,cpu,https://www.vultr.com/products/bare-metal/,"Memory-rich but still CPU-limited under current OCM sizing"
+Vultr,AMD EPYC 7443P,725,0,24,48,256,"2 x 480 GB SSD + 2 x 1.92 TB NVMe","25 Gbps; 10 TB bandwidth",2,2,48,128,48,15.10,cpu,https://www.vultr.com/products/bare-metal/,"Best Vultr density value among the larger boxes"
+Vultr,AMD EPYC 9254,825,0,24,48,384,"2 x 480 GB SSD + 2 x 1.92 TB NVMe","25 Gbps; 10 TB bandwidth",2,2,48,192,48,17.19,cpu,https://www.vultr.com/products/bare-metal/,"Extra RAM does not increase fit for the current 2 GB VM profile"
+Vultr,AMD EPYC 9354P,1450,0,32,64,768,"2 x 480 GB SSD + 4 x 6.4 TB NVMe","25 Gbps; 10 TB bandwidth",2,2,64,384,64,22.66,cpu,https://www.vultr.com/products/bare-metal/,"Premium headroom; more expensive per standard microVM than smaller boxes"

@@ -1,0 +1,27 @@
+{
+  "name": "openclaw-runtime-externals",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Pinned npm dependencies installed into the OpenClaw runtime artifact for undeclared upstream imports — packages that openclaw's dist/ or a bundled plugin imports at runtime but does not declare in its package.json. Keep this list minimal. Each entry should have a reason noted in the companion known-unresolved.txt or CHANGELOG. See scripts/build-openclaw-runtime.sh for how these are merged.",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@a2ui/markdown-it": "0.0.4",
+    "@anthropic-ai/vertex-sdk": "0.16.0",
+    "@aws-sdk/client-bedrock": "3.1037.0",
+    "@aws/bedrock-token-generator": "1.1.0",
+    "@grammyjs/runner": "2.0.3",
+    "@grammyjs/transformer-throttler": "1.2.1",
+    "@lancedb/lancedb": "0.27.2",
+    "@larksuiteoapi/node-sdk": "1.64.0",
+    "@matrix-org/matrix-sdk-crypto-nodejs": "0.5.1",
+    "@slack/bolt": "4.7.1",
+    "@slack/web-api": "7.15.1",
+    "grammy": "1.42.0",
+    "link-preview-js": "4.0.1",
+    "matrix-js-sdk": "41.4.0",
+    "opik": "2.0.42",
+    "opusscript": "0.1.1",
+    "playwright-core": "1.60.0",
+    "tokenjuice": "0.7.1"
+  }
+}

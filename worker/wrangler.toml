@@ -1,0 +1,36 @@
+name = "ocm-host-rewrite"
+main = "worker.js"
+compatibility_date = "2025-09-15"
+compatibility_flags = ["nodejs_compat"]
+
+# Routes for custom domains (Cloudflare-proxied DNS required)
+routes = [
+  { pattern = "openclawmachines.com/*", zone_name = "openclawmachines.com" },
+  { pattern = "api.openclawmachines.com/*", zone_name = "openclawmachines.com" },
+  { pattern = "*.openclawmachines.com/*", zone_name = "openclawmachines.com" },
+]
+
+# Version injected at deploy time via: wrangler deploy --var VERSION:abc123
+[vars]
+VERSION = "dev"
+
+# KV namespace for subdomain route lookups
+# Create with: wrangler kv namespace create OCM_ROUTES
+# Then update the id below with the returned namespace ID.
+[[kv_namespaces]]
+binding = "OCM_ROUTES"
+id = "7c9e3e7fb99e4a10afeaf581d2b9bd7f"
+
+# KV namespace for SEO pre-rendered HTML cache
+[[kv_namespaces]]
+binding = "SEO_CACHE"
+id = "bc5194576b1445b98e7be7231e0977c1"
+
+# Browser Rendering binding for bot pre-rendering
+[browser]
+binding = "BROWSER"
+
+# Secrets (set via wrangler secret put):
+# - JWT_SECRET: shared JWT signing secret for cookie verification
+# - CF_SERVICE_TOKEN_ID: Cloudflare Service Token for /internal/resolve
+# - CF_SERVICE_TOKEN_SECRET: Cloudflare Service Token secret

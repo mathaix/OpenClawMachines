@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "Stealth",
+  "version": "1.0",
+  "description": "Anti-detection patches for headless Chromium",
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["stealth.js"],
+      "run_at": "document_start",
+      "world": "MAIN",
+      "all_frames": true
+    }
+  ]
+}
