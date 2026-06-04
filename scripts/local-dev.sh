@@ -201,7 +201,11 @@ start_backend() {
 start_frontend() {
 	ensure_frontend_env
 	cd "$ROOT_DIR/frontend"
-	if [ ! -d node_modules ]; then
+	if [ ! -d node_modules ] ||
+		[ ! -f node_modules/.package-lock.json ] ||
+		[ package.json -nt node_modules/.package-lock.json ] ||
+		[ package-lock.json -nt node_modules/.package-lock.json ] ||
+		! npm ls recharts >/dev/null 2>&1; then
 		npm ci
 	fi
 	exec npm run dev
