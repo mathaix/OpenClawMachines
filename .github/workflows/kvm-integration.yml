@@ -1,0 +1,132 @@
+name: KVM Integration
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: Pull request number to test
+        required: true
+        type: number
+      sha:
+        description: Exact pull request head SHA to test
+        required: true
+        type: string
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kvm-integration
+  cancel-in-progress: false
+
+env:
+  OCM_KVM_RUNNER_LABEL: kvm
+
+jobs:
+  validate:
+    name: Validate Requested SHA
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+      statuses: write
+    steps:
+      - name: Validate PR head SHA
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          head_sha="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${{ inputs.pr }}" --jq .head.sha)"
+          test "${head_sha}" = "${{ inputs.sha }}"
+
+      - name: Mark KVM status pending
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/${GITHUB_REPOSITORY}/statuses/${{ inputs.sha }}" \
+            -f state=pending \
+            -f context=kvm-integration \
+            -f description="KVM integration tests queued"
+
+  start-runner:
+    name: Start KVM Runner
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start KVM runner VM
+        env:
+          OCM_KVM_RUNNER_START_COMMAND: ${{ secrets.OCM_KVM_RUNNER_START_COMMAND }}
+        run: ./ci/start-kvm-runner.sh "${{ github.run_id }}"
+
+      - name: Wait for KVM runner
+        env:
+          GH_TOKEN: ${{ secrets.OCM_KVM_RUNNER_GH_TOKEN || github.token }}
+        run: ./ci/wait-for-runner-online.sh "${OCM_KVM_RUNNER_LABEL}"
+
+  integration:
+    name: KVM Integration Tests
+    needs: start-runner
+    runs-on: [self-hosted, linux, x64, kvm]
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.sha || github.sha }}
+
+      - name: Run KVM integration tests
+        run: make integration-kvm
+
+  stop-runner:
+    name: Stop KVM Runner
+    needs: [start-runner, integration]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Stop KVM runner VM
+        env:
+          OCM_KVM_RUNNER_STOP_COMMAND: ${{ secrets.OCM_KVM_RUNNER_STOP_COMMAND }}
+        run: ./ci/stop-kvm-runner.sh "${{ github.run_id }}"
+
+  report:
+    name: Report KVM Status
+    needs: [validate, integration, stop-runner]
+    if: always() && github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      statuses: write
+    steps:
+      - name: Report commit status
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [ "${{ needs.integration.result }}" = "success" ]; then
+            state=success
+            desc="KVM integration tests passed"
+          else
+            state=failure
+            desc="KVM integration tests failed"
+          fi
+
+          gh api "repos/${GITHUB_REPOSITORY}/statuses/${{ inputs.sha }}" \
+            -f state="${state}" \
+            -f context=kvm-integration \
+            -f description="${desc}"

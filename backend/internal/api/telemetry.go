@@ -9,9 +9,9 @@ import (
 
 // TelemetryEvent represents a single telemetry event from frontend or worker.
 type TelemetryEvent struct {
-	Component string         `json:"component"`  // "frontend", "worker"
-	Event     string         `json:"event"`      // "ws.connect", "api.error", etc.
-	Fields    map[string]any `json:"fields"`     // arbitrary structured data
+	Component string         `json:"component"` // "frontend", "worker"
+	Event     string         `json:"event"`     // "ws.connect", "api.error", etc.
+	Fields    map[string]any `json:"fields"`    // arbitrary structured data
 	Timestamp time.Time      `json:"timestamp"`
 }
 

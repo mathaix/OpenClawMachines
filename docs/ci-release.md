@@ -4,10 +4,11 @@ This repo keeps public PR automation limited to checks that can run safely on a
 standard GitHub-hosted runner. Public PR jobs must not require KVM, root access,
 cloud credentials, deployment credentials, or hosted promotion permissions.
 
-## Public PR CI
+## Public CI
 
-The public PR lane is `.github/workflows/test.yml` plus static secret scanning in
-`.github/workflows/security.yml`.
+The public lane is `.github/workflows/test.yml` plus static secret scanning in
+`.github/workflows/security.yml`. It runs on pull requests and pushes to `main`
+using standard GitHub-hosted runners.
 
 Allowed public PR commands:
 
@@ -33,15 +34,15 @@ that checks out arbitrary public PR code.
 
 Trusted-only targets:
 
-- `make smoke-test`
-- `make test-integration-run TEST=...`
 - `make test-integration`
-- `make test-runtime-selection-integration`
 - `make test-integration-e2e`
+- `make test-integration-run TEST=...`
+- `make integration-kvm`
 
-Run these only from maintainer-reviewed branches, protected branches, scheduled
-trusted runs, or manual dispatches controlled by maintainers. Tunnel tests also
-need scoped Cloudflare credentials and must remain outside public PR CI.
+`.github/workflows/kvm-integration.yml` runs `make integration-kvm` on pushes to
+`main`. Maintainers may also run it manually for a pull request by entering the
+PR number and exact head SHA after reviewing the change. Tunnel tests also need
+scoped Cloudflare credentials and must remain outside public PR CI.
 
 ## Release Lane
 

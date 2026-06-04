@@ -16,6 +16,7 @@ after the split from the private hosted overlay.
 | `docs/local-setup.md` | Local and BYO-host setup expectations. |
 | `docs/cli.md` | Relationship to the separate `mathaix/ocm-cli` Apache-2.0 project. |
 | `docs/ci-release.md` | CI and release safety boundaries for public-core changes. |
+| `docs/kvm-integration-ci.md` | Maintainer-gated KVM integration lane for public PRs and `main` pushes. |
 | `docs/control-plane-profiles.md` | Local, operator, and hosted profile semantics without private defaults. |
 | `docs/overlay-boundary.md` | Public-core vs private-overlay ownership rule. |
 
