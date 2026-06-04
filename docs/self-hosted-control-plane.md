@@ -130,16 +130,16 @@ Generate and store these before deployment:
 - `CORS_ORIGINS`: expected browser origins.
 - `CONTROL_PLANE_PROFILE=operator`.
 
-The self-hosted target also needs configurable cookie/admin bootstrap values:
+The self-hosted target also needs operator bootstrap values:
 
 - `COOKIE_DOMAIN`: parent cookie domain for `ocm_token`, such as
-  `.example.com`.
+  `.example.com`. If unset, the backend derives this from
+  `DATA_PLANE_DOMAIN`; localhost domains are intentionally not set on cookies.
 - `OCM_ADMIN_EMAILS`: comma-separated bootstrap admin emails.
-
-Those values are called out explicitly because current public-core portability
-work still needs to wire all hard-coded hosted-domain and hard-coded-admin
-paths. Track that work in issue
-[`#7`](https://github.com/mathaix/OpenClawMachines/issues/7).
+- `VITE_COOKIE_DOMAIN`: frontend logout cleanup domain. Keep it aligned with
+  `COOKIE_DOMAIN`; if unset, the frontend falls back to `VITE_DATA_PLANE_DOMAIN`.
+- `VITE_OCM_ADMIN_EMAILS`: frontend admin UI hint. Keep it aligned with
+  `OCM_ADMIN_EMAILS`; backend authorization still comes from the server.
 
 ### KVM Worker Host
 
@@ -237,10 +237,8 @@ Before calling the deployment ready:
 The architecture is the target, but the public core still needs a portability
 pass before this is turn-key for arbitrary operator domains:
 
-- Replace hard-coded `openclawmachines.com` usages in backend, frontend,
-  Worker, enrollment, CORS, CSP, and tests.
-- Replace the hard-coded superuser email with bootstrap admin configuration.
-- Make `ocm_token` cookie domain configurable.
+- Continue auditing hosted-domain examples and test fixtures so runtime paths
+  always use operator configuration.
 - Provide operator-specific Worker route and KV templates.
 - Make host enrollment tunnel-first and service-token-aware.
 - Add Firebase Auth emulator support for integration tests.

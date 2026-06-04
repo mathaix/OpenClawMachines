@@ -31,8 +31,13 @@ const AuthContext = createContext<AuthState>({
   logout: () => {},
 });
 
-function configuredCookieDomains(): string[] {
-  const configured = (import.meta.env.VITE_DATA_PLANE_DOMAIN || "").trim().replace(/^\./, "");
+export function configuredCookieDomains(): string[] {
+  const configured = (import.meta.env.VITE_COOKIE_DOMAIN || import.meta.env.VITE_DATA_PLANE_DOMAIN || "")
+    .trim()
+    .replace(/^\.+|\.+$/g, "");
+  if (configured === "localhost" || configured === "127.0.0.1") {
+    return [""];
+  }
   return configured ? ["", `.${configured}`] : [""];
 }
 

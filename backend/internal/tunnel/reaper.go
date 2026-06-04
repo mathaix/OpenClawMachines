@@ -14,8 +14,13 @@ type MachineChecker interface {
 
 // StartReaper runs a background goroutine that periodically removes orphaned VM tunnels.
 // An orphaned tunnel is one with the "ocm-vm-" prefix that has no corresponding active machine.
-func StartReaper(ctx context.Context, mgr *Manager, checker MachineChecker, interval time.Duration) {
+func StartReaper(ctx context.Context, mgr *Manager, checker MachineChecker, interval time.Duration, dataPlaneDomain string) {
 	if mgr == nil {
+		return
+	}
+	dataPlaneDomain = strings.Trim(strings.TrimSpace(dataPlaneDomain), ".")
+	if dataPlaneDomain == "" {
+		slog.Error("tunnel.reaper.domain_missing", "error", "DATA_PLANE_DOMAIN is required for orphan tunnel cleanup")
 		return
 	}
 	go func() {
@@ -28,14 +33,20 @@ func StartReaper(ctx context.Context, mgr *Manager, checker MachineChecker, inte
 				slog.Info("tunnel.reaper.stopped")
 				return
 			case <-ticker.C:
-				reap(ctx, mgr, checker)
+				reapWithDomain(ctx, mgr, checker, dataPlaneDomain)
 			}
 		}
 	}()
 	slog.Info("tunnel.reaper.started", "interval", interval)
 }
 
-func reap(ctx context.Context, mgr *Manager, checker MachineChecker) {
+func reapWithDomain(ctx context.Context, mgr *Manager, checker MachineChecker, dataPlaneDomain string) {
+	dataPlaneDomain = strings.Trim(strings.TrimSpace(dataPlaneDomain), ".")
+	if dataPlaneDomain == "" {
+		slog.Error("tunnel.reaper.domain_missing", "error", "DATA_PLANE_DOMAIN is required for orphan tunnel cleanup")
+		return
+	}
+
 	tunnels, err := mgr.ListTunnels(ctx)
 	if err != nil {
 		slog.Error("tunnel.reaper.list_failed", "error", err)
@@ -64,8 +75,8 @@ func reap(ctx context.Context, mgr *Manager, checker MachineChecker) {
 		}
 
 		// Orphaned tunnel — delete it (both HTTP and SSH hostnames)
-		hostname := "m-" + slug + ".openclawmachines.com"
-		sshHostname := "ssh-" + slug + ".openclawmachines.com"
+		hostname := "m-" + slug + "." + dataPlaneDomain
+		sshHostname := "ssh-" + slug + "." + dataPlaneDomain
 		if err := mgr.DeleteTunnelAndDNS(ctx, t.ID, hostname, sshHostname); err != nil {
 			slog.Error("tunnel.reaper.delete_failed", "tunnel_id", t.ID, "tunnel_name", t.Name, "error", err)
 			continue

@@ -77,7 +77,7 @@ func TestReap_DeletesOrphans(t *testing.T) {
 		},
 	}
 
-	reap(context.Background(), mgr, checker)
+	reapWithDomain(context.Background(), mgr, checker, "example.com")
 
 	// Verify: orphan tunnel was deleted, active was not
 	mu.Lock()
@@ -85,6 +85,24 @@ func TestReap_DeletesOrphans(t *testing.T) {
 
 	if len(deletedTunnels) != 1 {
 		t.Fatalf("expected 1 tunnel deleted, got %d: %v", len(deletedTunnels), deletedTunnels)
+	}
+	if len(deletedDNS) != 2 {
+		t.Fatalf("expected 2 DNS lookups for orphan HTTP/SSH hostnames, got %d: %v", len(deletedDNS), deletedDNS)
+	}
+	wantDNS := map[string]bool{
+		"m-orphan-slug.example.com":   false,
+		"ssh-orphan-slug.example.com": false,
+	}
+	for _, name := range deletedDNS {
+		if _, ok := wantDNS[name]; !ok {
+			t.Fatalf("unexpected DNS lookup %q; got all lookups %v", name, deletedDNS)
+		}
+		wantDNS[name] = true
+	}
+	for name, seen := range wantDNS {
+		if !seen {
+			t.Fatalf("expected DNS lookup for %q, got %v", name, deletedDNS)
+		}
 	}
 }
 
@@ -109,5 +127,5 @@ func TestReap_KeepsActiveTunnels(t *testing.T) {
 	}
 
 	// Should not panic or attempt any deletes
-	reap(context.Background(), mgr, checker)
+	reapWithDomain(context.Background(), mgr, checker, "example.com")
 }

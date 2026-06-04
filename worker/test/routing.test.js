@@ -5,6 +5,7 @@ import { getWorkerInstance } from "./helpers/worker-instance.js";
 import { signJWT, validClaims } from "./helpers/jwt.js";
 import { setResolveHandler, resetHandlers } from "./helpers/mock-server.js";
 import {
+  frameAncestorsDirective,
   hermesDashboardBasePath,
   injectHermesDashboardPathShim,
   prefixHermesDashboardAssetPaths,
@@ -168,6 +169,23 @@ describe("Hermes dashboard routing", () => {
 
     expect(html).toContain('var OCM_BASE_PATH = "/my-machine/dashboard";');
     expect(html).toContain("window.__HERMES_BASE_PATH__ = OCM_BASE_PATH");
+  });
+
+  it("injects the operator base domain into the dashboard parent-origin allowlist", () => {
+    const html = injectHermesDashboardPathShim(
+      "<html><head></head><body></body></html>",
+      "/my-machine/dashboard",
+      "example.com"
+    );
+
+    expect(html).toContain('var OCM_BASE_DOMAIN = "example.com";');
+    expect(html).toContain('host === OCM_BASE_DOMAIN');
+    expect(html).toContain('host.endsWith("." + OCM_BASE_DOMAIN)');
+  });
+
+  it("builds frame-ancestor CSP for custom operator domains", () => {
+    expect(frameAncestorsDirective("example.com")).toBe("frame-ancestors 'self' example.com *.example.com");
+    expect(frameAncestorsDirective("localhost")).toBe("frame-ancestors 'self'");
   });
 
   it("only enables dashboard shim injection for dashboard HTML", () => {

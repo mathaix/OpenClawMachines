@@ -368,7 +368,9 @@ func main() {
 	}
 	srv.SetFrontendURL(cfg.FrontendURL)
 	srv.SetDataPlaneDomain(cfg.DataPlaneDomain)
+	srv.SetCookieDomain(cfg.CookieDomain)
 	srv.SetCfAccessAuthDomain(cfg.CfAccessTeamDomain)
+	tunnel.StartReaper(ctx, tunnelMgr, db, 10*time.Minute, cfg.DataPlaneDomain)
 	if cfg.SSHCAPrivateKey != "" {
 		srv.SetSSHCAPrivateKey(cfg.SSHCAPrivateKey)
 		slog.Info("ssh_ca.configured")

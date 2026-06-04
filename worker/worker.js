@@ -72,10 +72,11 @@ async function getSignedKV(env, key) {
   }
 }
 
-const BASE_DOMAIN = "openclawmachines.com";
+const DEFAULT_BASE_DOMAIN = "openclawmachines.com";
 
 function getBaseDomain(env = {}) {
-  return env.BASE_DOMAIN || BASE_DOMAIN;
+  const domain = (env.BASE_DOMAIN || "").trim().toLowerCase().replace(/^\.+|\.+$/g, "");
+  return domain || DEFAULT_BASE_DOMAIN;
 }
 
 function staticOriginForHost(env, hostname) {
@@ -93,16 +94,16 @@ function staticOriginForHost(env, hostname) {
 
 /**
  * Create CORS headers for subdomain routing.
- * Allows cross-origin requests between *.openclawmachines.com subdomains.
+ * Allows cross-origin requests between the operator data-plane subdomains.
  */
-function isAllowedOrigin(origin, baseDomain = BASE_DOMAIN) {
+function isAllowedOrigin(origin, baseDomain = DEFAULT_BASE_DOMAIN) {
   if (!origin) return false;
   if (origin === `https://${baseDomain}`) return true;
   if (origin === `https://www.${baseDomain}`) return true;
   return origin.startsWith("https://") && origin.endsWith(`.${baseDomain}`);
 }
 
-function getCorsHeaders(request, baseDomain = BASE_DOMAIN) {
+function getCorsHeaders(request, baseDomain = DEFAULT_BASE_DOMAIN) {
   const origin = request.headers.get("Origin");
   if (isAllowedOrigin(origin, baseDomain)) {
     return {
@@ -119,7 +120,7 @@ function getCorsHeaders(request, baseDomain = BASE_DOMAIN) {
 /**
  * Handle CORS preflight requests.
  */
-function handleOptions(request, baseDomain = BASE_DOMAIN) {
+function handleOptions(request, baseDomain = DEFAULT_BASE_DOMAIN) {
   const corsHeaders = getCorsHeaders(request, baseDomain);
   if (corsHeaders) {
     return new Response(null, { status: 204, headers: corsHeaders });
@@ -130,7 +131,7 @@ function handleOptions(request, baseDomain = BASE_DOMAIN) {
 /**
  * Add CORS headers to a response.
  */
-function addCorsHeaders(response, request, baseDomain = BASE_DOMAIN) {
+function addCorsHeaders(response, request, baseDomain = DEFAULT_BASE_DOMAIN) {
   const corsHeaders = getCorsHeaders(request, baseDomain);
   if (!corsHeaders) {
     return response;
@@ -148,10 +149,10 @@ function addCorsHeaders(response, request, baseDomain = BASE_DOMAIN) {
 
 /**
  * Extract account slug from hostname.
- * E.g. "myteam.openclawmachines.com" → "myteam"
+ * E.g. "myteam.example.com" → "myteam"
  * Returns null for bare domain or known subdomains (www, api, app).
  */
-function extractAccountSlug(hostname, baseDomain = BASE_DOMAIN) {
+function extractAccountSlug(hostname, baseDomain = DEFAULT_BASE_DOMAIN) {
   if (!hostname.endsWith("." + baseDomain)) return null;
   const sub = hostname.slice(0, -(baseDomain.length + 1));
   // Single-level subdomain only (no dots)
@@ -261,12 +262,13 @@ function jsonForInlineScript(value) {
   return JSON.stringify(value).replace(/</g, "\\u003c");
 }
 
-function hermesDashboardPathShim(basePath = "") {
+function hermesDashboardPathShim(basePath = "", baseDomain = DEFAULT_BASE_DOMAIN) {
   return `<script id="ocm-hermes-dashboard-path-shim">
 (function(){
   if (window.__OCM_HERMES_DASHBOARD_PATH_SHIM__) return;
   window.__OCM_HERMES_DASHBOARD_PATH_SHIM__ = true;
   var OCM_BASE_PATH = ${jsonForInlineScript(basePath || "")};
+  var OCM_BASE_DOMAIN = ${jsonForInlineScript(baseDomain || DEFAULT_BASE_DOMAIN)};
   if (OCM_BASE_PATH) window.__HERMES_BASE_PATH__ = OCM_BASE_PATH;
   var SESSION_POLL_MS = 3000;
   function basePath(){
@@ -319,7 +321,7 @@ function hermesDashboardPathShim(basePath = "") {
       var u = new URL(document.referrer);
       var host = u.hostname;
       if (u.protocol !== "https:" && host !== "localhost" && host !== "127.0.0.1") return null;
-      if (host === "openclawmachines.com" || host === "www.openclawmachines.com" || host === "app.openclawmachines.com" || host.endsWith(".openclawmachines.com") || host === "localhost" || host === "127.0.0.1") {
+      if (host === OCM_BASE_DOMAIN || host === "www." + OCM_BASE_DOMAIN || host === "app." + OCM_BASE_DOMAIN || host.endsWith("." + OCM_BASE_DOMAIN) || host === "localhost" || host === "127.0.0.1") {
         return u.origin;
       }
     } catch (_) {}
@@ -406,10 +408,10 @@ function prefixHermesDashboardAssetPaths(html, basePath = "") {
   return out;
 }
 
-function injectHermesDashboardPathShim(html, basePath = "") {
+function injectHermesDashboardPathShim(html, basePath = "", baseDomain = DEFAULT_BASE_DOMAIN) {
   const rewritten = prefixHermesDashboardAssetPaths(html, basePath);
   if (rewritten.includes("__OCM_HERMES_DASHBOARD_PATH_SHIM__")) return rewritten;
-  const shim = hermesDashboardPathShim(basePath);
+  const shim = hermesDashboardPathShim(basePath, baseDomain);
   const headClose = rewritten.indexOf("</head>");
   if (headClose >= 0) {
     return rewritten.slice(0, headClose) + shim + rewritten.slice(headClose);
@@ -423,10 +425,19 @@ function shouldInjectHermesDashboardPathShim(subPath, responseHeaders) {
   return contentType.toLowerCase().includes("text/html");
 }
 
+function frameAncestorsDirective(baseDomain = DEFAULT_BASE_DOMAIN) {
+  const domain = (baseDomain || DEFAULT_BASE_DOMAIN).trim().replace(/^\.+|\.+$/g, "");
+  if (!domain || domain === "localhost" || domain === "127.0.0.1") {
+    return "frame-ancestors 'self'";
+  }
+  return `frame-ancestors 'self' ${domain} *.${domain}`;
+}
+
 /**
  * Forward request to host agent proxy via Cloudflare Tunnel.
  */
 async function forwardToAgent(request, url, hostHostname, machineID, proxyToken, machineSlug, subPath, env) {
+  const baseDomain = getBaseDomain(env);
   const agentUrl = new URL(`https://${hostHostname}/proxy/${machineID}${subPath}`);
   agentUrl.search = url.search;
 
@@ -464,14 +475,14 @@ async function forwardToAgent(request, url, hostHostname, machineID, proxyToken,
   const csp = cleanHeaders.get("Content-Security-Policy");
   if (csp && csp.includes("frame-ancestors 'none'")) {
     cleanHeaders.set("Content-Security-Policy",
-      csp.replace("frame-ancestors 'none'", "frame-ancestors 'self' openclawmachines.com *.openclawmachines.com"));
+      csp.replace("frame-ancestors 'none'", frameAncestorsDirective(baseDomain)));
   }
 
   if (shouldInjectHermesDashboardPathShim(subPath, cleanHeaders)) {
     const html = await resp.text();
     cleanHeaders.delete("Content-Length");
     cleanHeaders.delete("Content-Encoding");
-    return new Response(injectHermesDashboardPathShim(html, dashboardBasePath), {
+    return new Response(injectHermesDashboardPathShim(html, dashboardBasePath, baseDomain), {
       status: resp.status,
       statusText: resp.statusText,
       headers: cleanHeaders,
@@ -778,6 +789,8 @@ export {
   hmacVerify,
   putSignedKV,
   getSignedKV,
+  getBaseDomain,
+  frameAncestorsDirective,
   hermesDashboardBasePath,
   hermesDashboardPathShim,
   injectHermesDashboardPathShim,
