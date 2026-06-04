@@ -359,7 +359,9 @@ func main() {
 	activityResolver := events.NewStoreResolver(db)
 	activityLogger := events.New(db, activityResolver)
 	srv.SetActivity(activityLogger)
-	prov.SetActivity(activityLogger)
+	if prov != nil {
+		prov.SetActivity(activityLogger)
+	}
 	slog.Info("activity.configured")
 
 	if cfg.ResendAPIKey != "" {
