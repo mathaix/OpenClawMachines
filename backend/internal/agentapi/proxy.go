@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -27,7 +28,7 @@ var wsUpgrader = websocket.Upgrader{
 }
 
 // checkWSOrigin validates WebSocket upgrade requests by origin.
-// Accepts: empty origin (non-browser clients), *.openclawmachines.com (HTTPS),
+// Accepts: empty origin (non-browser clients), the configured data-plane domain,
 // and localhost (any port, any scheme) for development.
 func checkWSOrigin(r *http.Request) bool {
 	origin := r.Header.Get("Origin")
@@ -58,15 +59,30 @@ func checkWSOrigin(r *http.Request) bool {
 		return true
 	}
 
-	// Allow *.openclawmachines.com over HTTPS only.
+	// Allow the configured data-plane domain over HTTPS only.
 	if scheme != "https" {
 		return false
 	}
-	if host == "openclawmachines.com" || strings.HasSuffix(host, ".openclawmachines.com") {
+	if domain := configuredDataPlaneDomain(); domain != "" && (host == domain || strings.HasSuffix(host, "."+domain)) {
 		return true
 	}
 
 	return false
+}
+
+func configuredDataPlaneDomain() string {
+	if d := strings.Trim(strings.TrimSpace(os.Getenv("OCM_DATA_PLANE_DOMAIN")), "."); d != "" {
+		return d
+	}
+	return strings.Trim(strings.TrimSpace(os.Getenv("DATA_PLANE_DOMAIN")), ".")
+}
+
+func frameAncestorsDirective() string {
+	domain := configuredDataPlaneDomain()
+	if domain == "" {
+		return "frame-ancestors 'self'"
+	}
+	return fmt.Sprintf("frame-ancestors 'self' %s *.%s", domain, domain)
 }
 
 // machineInfo holds resolved VM info for proxy handlers.
@@ -337,7 +353,7 @@ func proxyGatewayRoot(w http.ResponseWriter, r *http.Request, mi *machineInfo) {
 			continue
 		case "content-security-policy":
 			for _, value := range values {
-				cleaned := strings.Replace(value, "frame-ancestors 'none'", "frame-ancestors 'self' openclawmachines.com *.openclawmachines.com", 1)
+				cleaned := strings.Replace(value, "frame-ancestors 'none'", frameAncestorsDirective(), 1)
 				w.Header().Add(key, cleaned)
 			}
 			continue
@@ -586,7 +602,7 @@ func proxyHTTPWithMachineTokenOptions(w http.ResponseWriter, r *http.Request, mi
 			continue
 		case "content-security-policy":
 			for _, value := range values {
-				cleaned := strings.Replace(value, "frame-ancestors 'none'", "frame-ancestors 'self' openclawmachines.com *.openclawmachines.com", 1)
+				cleaned := strings.Replace(value, "frame-ancestors 'none'", frameAncestorsDirective(), 1)
 				w.Header().Add(key, cleaned)
 			}
 			continue
@@ -605,7 +621,7 @@ func proxyHTTPWithMachineTokenOptions(w http.ResponseWriter, r *http.Request, mi
 // This proxy route bypasses Cloudflare Access headers (X-Frame-Options, CSP)
 // so filebrowser can be embedded in an iframe in the frontend.
 //
-// In production, the iframe loads at https://{account}.openclawmachines.com/{machineSlug}/files/.
+// In production, the iframe loads at https://{account}.{DATA_PLANE_DOMAIN}/{machineSlug}/files/.
 // Filebrowser generates absolute asset paths like /files/static/assets/... which the browser
 // resolves without the machine slug prefix, causing 404s. For text responses (HTML, JS, CSS),
 // we rewrite /files/ paths to /{machineSlug}/files/ so assets load through the correct route.
@@ -658,7 +674,7 @@ func (s *Server) handleFilesProxy(w http.ResponseWriter, r *http.Request) {
 			continue
 		case "content-security-policy":
 			for _, value := range values {
-				cleaned := strings.Replace(value, "frame-ancestors 'none'", "frame-ancestors 'self' openclawmachines.com *.openclawmachines.com", 1)
+				cleaned := strings.Replace(value, "frame-ancestors 'none'", frameAncestorsDirective(), 1)
 				w.Header().Add(key, cleaned)
 			}
 			continue

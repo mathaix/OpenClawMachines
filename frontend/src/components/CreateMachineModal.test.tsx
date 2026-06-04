@@ -14,7 +14,7 @@ vi.mock('../lib/auth', async (importOriginal) => {
 
 vi.mock('../lib/useSizes', () => ({
   useSizes: () => [
-    { id: 'standard', label: 'Standard', description: '2 vCPU / 4GB', price_cents_mo: 2000, is_default: true, vcpus: 2, memory_mb: 4096, disk_gb: 20 },
+    { id: 'standard', label: 'Standard', description: '2 vCPU / 4GB', is_default: true, vcpus: 2, memory_mb: 4096, disk_gb: 20 },
   ],
 }));
 

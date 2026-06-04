@@ -6,8 +6,6 @@ CREATE TABLE token_usage (
   model TEXT NOT NULL,
   input_tokens INTEGER NOT NULL DEFAULT 0,
   output_tokens INTEGER NOT NULL DEFAULT 0,
-  cost_input_usd NUMERIC(12,8),
-  cost_output_usd NUMERIC(12,8),
   source TEXT NOT NULL DEFAULT 'byok',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

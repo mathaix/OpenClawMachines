@@ -1,9 +1,7 @@
 import { Link } from "react-router-dom";
 
-const navLinks = [
-  { label: "Docs", to: "/docs" },
-  { label: "Blog", to: "/blog" },
-];
+const repoURL = "https://github.com/mathaix/OpenClawMachines";
+const cliURL = "https://github.com/mathaix/ocm-cli";
 
 export function PublicHeader() {
   return (
@@ -22,23 +20,19 @@ export function PublicHeader() {
         <Link
           to="/"
           className="text-lg font-semibold"
-          style={{ letterSpacing: "-0.02em", color: "var(--l-text)" }}
+          style={{ letterSpacing: 0, color: "var(--l-text)" }}
         >
           <span style={{ color: "var(--l-accent)" }}>OpenClaw</span>
           <span style={{ color: "var(--l-teal)" }}>Machines</span>
         </Link>
 
         <div className="flex items-center" style={{ gap: 28 }}>
-          {navLinks.map((link) => (
-            <Link
-              key={link.to}
-              to={link.to}
-              className="hidden sm:block text-sm font-medium transition-colors"
-              style={{ color: "var(--l-text-muted)" }}
-            >
-              {link.label}
-            </Link>
-          ))}
+          <a className="hidden sm:block text-sm font-medium" href={repoURL} style={{ color: "var(--l-text-muted)" }}>
+            GitHub
+          </a>
+          <a className="hidden sm:block text-sm font-medium" href={cliURL} style={{ color: "var(--l-text-muted)" }}>
+            CLI
+          </a>
           <Link
             to="/login"
             className="inline-flex items-center font-semibold text-sm transition-all"

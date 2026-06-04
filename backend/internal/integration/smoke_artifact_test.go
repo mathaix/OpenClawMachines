@@ -24,7 +24,7 @@ func TestSmokeArtifactRuntime(t *testing.T) {
 	// Resolve the stable channel manifest to get the current version.
 	manifestURI := os.Getenv("TEST_OPENCLAW_MANIFEST_URI")
 	if strings.TrimSpace(manifestURI) == "" {
-		manifestURI = "gs://openclawmachines/openclaw/manifest-stable.json"
+		manifestURI = "gs://example-ocm-artifacts/openclaw/manifest-stable.json"
 	}
 
 	cfg := skipIfNoPrereqs(t)

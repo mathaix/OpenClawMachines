@@ -434,11 +434,11 @@ func TestHandleAgentRegister(t *testing.T) {
 				if resp["agent_token"] == nil || resp["agent_token"] == "" {
 					t.Fatal("expected agent_token in response")
 				}
-				if resp["browser_rootfs_gcs_manifest"] != config.ExperimentalKernelBrowserManifestURI {
-					t.Fatalf("expected browser_rootfs_gcs_manifest %q, got %v", config.ExperimentalKernelBrowserManifestURI, resp["browser_rootfs_gcs_manifest"])
+				if resp["browser_rootfs_gcs_manifest"] != "" {
+					t.Fatalf("expected empty browser_rootfs_gcs_manifest, got %v", resp["browser_rootfs_gcs_manifest"])
 				}
-				if resp["browser_rootfs_version"] != config.StableKernelBrowserRootfsVersion {
-					t.Fatalf("expected browser_rootfs_version %q, got %v", config.StableKernelBrowserRootfsVersion, resp["browser_rootfs_version"])
+				if resp["browser_rootfs_version"] != "" {
+					t.Fatalf("expected empty browser_rootfs_version, got %v", resp["browser_rootfs_version"])
 				}
 
 				// Verify the enrollment token was marked as used
@@ -574,6 +574,7 @@ func TestHandleAgentRegister_TunnelCreation(t *testing.T) {
 		ms := &mockEnrollmentStore{getTokenResult: validToken}
 		tm := &mockTunnelManager{tunnelID: "tun-123", tunnelToken: "cf-token-abc"}
 		srv := newTestEnrollmentServer(ms)
+		srv.SetDataPlaneDomain("openclawmachines.com")
 		srv.tunnelCreator = tm
 
 		body := `{"enrollment_token":"tunnel-test-token","agent_endpoint":"http://1.2.3.4:9090"}`
@@ -633,6 +634,7 @@ func TestHandleAgentRegister_TunnelCreation(t *testing.T) {
 		ms := &mockEnrollmentStore{getTokenResult: validToken}
 		tm := &mockTunnelManager{shouldFail: "create"}
 		srv := newTestEnrollmentServer(ms)
+		srv.SetDataPlaneDomain("openclawmachines.com")
 		srv.tunnelCreator = tm
 
 		body := `{"enrollment_token":"tunnel-test-token","agent_endpoint":"http://1.2.3.4:9090"}`
@@ -656,6 +658,7 @@ func TestHandleAgentRegister_TunnelCreation(t *testing.T) {
 		ms := &mockEnrollmentStore{getTokenResult: validToken}
 		tm := &mockTunnelManager{tunnelID: "tun-456", tunnelToken: "cf-token-def", shouldFail: "configure"}
 		srv := newTestEnrollmentServer(ms)
+		srv.SetDataPlaneDomain("openclawmachines.com")
 		srv.tunnelCreator = tm
 
 		body := `{"enrollment_token":"tunnel-test-token","agent_endpoint":"http://1.2.3.4:9090"}`
@@ -679,6 +682,7 @@ func TestHandleAgentRegister_TunnelCreation(t *testing.T) {
 		ms := &mockEnrollmentStore{getTokenResult: validToken}
 		tm := &mockTunnelManager{tunnelID: "tun-789", tunnelToken: "cf-token-ghi", shouldFail: "dns"}
 		srv := newTestEnrollmentServer(ms)
+		srv.SetDataPlaneDomain("openclawmachines.com")
 		srv.tunnelCreator = tm
 
 		body := `{"enrollment_token":"tunnel-test-token","agent_endpoint":"http://1.2.3.4:9090"}`
@@ -739,7 +743,7 @@ func TestHandleInstallScript(t *testing.T) {
 			wantContains: []string{
 				"#!/bin/bash",
 				"ENROLLMENT_TOKEN",
-				"https://api.openclawmachines.com",
+				"http://example.com",
 				"curl",
 				"TUNNEL_TOKEN",
 				"cloudflared",

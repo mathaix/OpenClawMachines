@@ -316,11 +316,11 @@ func (s *Server) machineHasOpenAIModelAccess(ctx context.Context, machineID stri
 // capabilities, registry entries, credentials, and identity.
 func (s *Server) assembleConfigForMachine(ctx context.Context, machineID string, accountID int, vmHostname string, browserVMIP ...string) ([]byte, int, []string, error) {
 	// Look up account slug for the account subdomain (used in allowedOrigins).
-	// Browsers access via {account-slug}.openclawmachines.com, so the gateway
+	// Browsers access via {account-slug}.{DATA_PLANE_DOMAIN}, so the gateway
 	// needs this origin in its allowlist alongside the per-VM tunnel hostname.
 	var accountHostname string
 	if account, err := s.store.GetAccount(ctx, accountID); err == nil {
-		accountHostname = account.Slug + ".openclawmachines.com"
+		accountHostname = s.accountDataPlaneHostname(account.Slug)
 	}
 
 	// 1. Load capabilities
@@ -814,7 +814,7 @@ func (s *Server) handleGetMachineAssembledConfig(w http.ResponseWriter, r *http.
 		writeError(w, http.StatusInternalServerError, "failed to resolve browser VM: "+err.Error())
 		return
 	}
-	data, _, warnings, err := s.assembleConfigForMachine(r.Context(), machineID, accountID, "m-"+machine.Slug+".openclawmachines.com", browserVMIP)
+	data, _, warnings, err := s.assembleConfigForMachine(r.Context(), machineID, accountID, s.dataPlaneHostname("m", machine.Slug), browserVMIP)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -936,7 +936,7 @@ func (s *Server) pushMachineConfig(ctx context.Context, machine *store.Machine) 
 	if err != nil {
 		return machineConfigPushResult{}, fmt.Errorf("failed to resolve browser VM: %w", err)
 	}
-	data, configVersion, warnings, err := s.assembleConfigForMachine(ctx, machineID, machine.AccountID, "m-"+machine.Slug+".openclawmachines.com", browserVMIP)
+	data, configVersion, warnings, err := s.assembleConfigForMachine(ctx, machineID, machine.AccountID, s.dataPlaneHostname("m", machine.Slug), browserVMIP)
 	if err != nil {
 		return machineConfigPushResult{}, err
 	}

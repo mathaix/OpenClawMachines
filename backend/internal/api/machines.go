@@ -2029,7 +2029,7 @@ func (s *Server) handleGetMachineToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	hostname := "m-" + machine.Slug + ".openclawmachines.com"
+	hostname := s.dataPlaneHostname("m", machine.Slug)
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"token":      token,

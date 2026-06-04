@@ -34,10 +34,12 @@ func browserVMMayExistOnAgent(bvm *store.BrowserVM) bool {
 	}
 }
 
-func browserRootfsSelection(image, manifest, version string) (*string, *string, error) {
+func browserRootfsSelection(image, manifest, version, defaultManifest, stableVersion string) (*string, *string, error) {
 	image = strings.TrimSpace(image)
 	manifest = strings.TrimSpace(manifest)
 	version = strings.TrimSpace(version)
+	defaultManifest = strings.TrimSpace(defaultManifest)
+	stableVersion = strings.TrimSpace(stableVersion)
 
 	if image != "" && manifest != "" {
 		return nil, nil, fmt.Errorf("browser_image cannot be combined with rootfs_manifest")
@@ -46,28 +48,34 @@ func browserRootfsSelection(image, manifest, version string) (*string, *string, 
 	switch image {
 	case "", "default":
 	case "kernel-stable", "kernel-rollback":
-		manifest = config.ExperimentalKernelBrowserManifestURI
+		if defaultManifest == "" {
+			return nil, nil, fmt.Errorf("BROWSER_ROOTFS_GCS_MANIFEST is required for browser_image presets")
+		}
+		manifest = defaultManifest
 		if version == "" {
-			version = config.StableKernelBrowserRootfsVersion
+			version = stableVersion
 		}
 	case "kernel-latest", "kernel-experimental":
-		manifest = config.ExperimentalKernelBrowserManifestURI
+		if defaultManifest == "" {
+			return nil, nil, fmt.Errorf("BROWSER_ROOTFS_GCS_MANIFEST is required for browser_image presets")
+		}
+		manifest = defaultManifest
 	default:
 		return nil, nil, fmt.Errorf("browser_image must be one of: default, kernel-stable, kernel-experimental")
 	}
 
-	if manifest == config.StableBrowserRootfsManifestURI {
+	if config.StableBrowserRootfsManifestURI != "" && manifest == config.StableBrowserRootfsManifestURI {
 		return nil, nil, fmt.Errorf("legacy CDP browser rootfs is disabled; use kernel-stable or kernel-experimental")
-	}
-	if manifest != "" && manifest != config.ExperimentalKernelBrowserManifestURI {
-		return nil, nil, fmt.Errorf("rootfs_manifest must be a known browser rootfs manifest")
 	}
 	if version != "" {
 		if err := validateRootfsVersion(version); err != nil {
 			return nil, nil, err
 		}
 		if manifest == "" {
-			manifest = config.ExperimentalKernelBrowserManifestURI
+			if defaultManifest == "" {
+				return nil, nil, fmt.Errorf("rootfs_manifest is required when rootfs_version is set")
+			}
+			manifest = defaultManifest
 		}
 	}
 	if manifest == "" && version == "" {
@@ -90,15 +98,26 @@ func browserVMRequiresReflink(bvm *store.BrowserVM) bool {
 	}
 	manifest := strPtrValue(bvm.DesiredRootfsManifest)
 	version := strPtrValue(bvm.DesiredRootfsVersion)
-	return manifest == config.ExperimentalKernelBrowserManifestURI &&
-		version != config.StableKernelBrowserRootfsVersion
+	if manifest == "" {
+		return false
+	}
+	stableVersion := stableVersionForBrowserVM()
+	if version == "" {
+		return true
+	}
+	return stableVersion != "" && version != stableVersion
 }
 
 func browserVMUsesDisabledLegacyRootfs(bvm *store.BrowserVM) bool {
 	if bvm == nil {
 		return false
 	}
-	return strPtrValue(bvm.DesiredRootfsManifest) == config.StableBrowserRootfsManifestURI
+	return config.StableBrowserRootfsManifestURI != "" &&
+		strPtrValue(bvm.DesiredRootfsManifest) == config.StableBrowserRootfsManifestURI
+}
+
+func stableVersionForBrowserVM() string {
+	return strings.TrimSpace(config.StableKernelBrowserRootfsVersion)
 }
 
 func (s *Server) handleListBrowserVMs(w http.ResponseWriter, r *http.Request) {
@@ -140,7 +159,7 @@ func (s *Server) handleCreateBrowserVM(w http.ResponseWriter, r *http.Request) {
 	if req.MemoryMB <= 0 {
 		req.MemoryMB = 4096
 	}
-	desiredManifest, desiredVersion, err := browserRootfsSelection(req.BrowserImage, req.RootfsManifest, req.RootfsVersion)
+	desiredManifest, desiredVersion, err := browserRootfsSelection(req.BrowserImage, req.RootfsManifest, req.RootfsVersion, s.browserRootfsGCSManifest, s.browserRootfsVersion)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return

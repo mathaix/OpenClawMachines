@@ -7,9 +7,17 @@ const TIER_STYLES: Record<string, { icon: string; color: string; bg: string }> =
   fast: { icon: "zap", color: "text-amber-600 dark:text-amber-400", bg: "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800" },
 };
 
-function formatPrice(price: number): string {
-  if (price < 0.1) return `$${price.toFixed(3)}`;
-  return `$${price.toFixed(2)}`;
+const PROVIDER_LABELS: Record<string, string> = {
+  nebius: "Nebius",
+  anthropic: "Anthropic",
+  openai: "OpenAI",
+  google: "Google AI",
+  openrouter: "OpenRouter",
+  "openai-codex": "OpenAI Codex",
+};
+
+function providerLabel(id: string): string {
+  return PROVIDER_LABELS[id] || id;
 }
 
 interface ModelPickerProps {
@@ -54,7 +62,7 @@ export function ModelPicker({ value, onChange, disabled, models }: ModelPickerPr
             ? selectedTier
               ? `${selected.label} — ${selected.description}`
               : selected.label
-            : "Balanced — Great quality at low cost"}
+            : "Balanced"}
         </span>
         <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -94,15 +102,9 @@ export function ModelPicker({ value, onChange, disabled, models }: ModelPickerPr
                         {tier.description}
                       </span>
                     </div>
-                    <span className="text-[11px] text-gray-400 dark:text-gray-500 tabular-nums">
-                      {formatPrice(tier.output_price_per_m)}/M out
-                    </span>
                   </div>
                   <div className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">
-                    {formatPrice(tier.input_price_per_m)}/M in · {formatPrice(tier.output_price_per_m)}/M out
-                    {tier.tier === "smart" && " · vs GPT-4o at $10.00/M out"}
-                    {tier.tier === "balanced" && " · vs GPT-4o at $10.00/M out"}
-                    {tier.tier === "fast" && " · vs GPT-4o Mini at $0.60/M out"}
+                    {providerLabel(tier.provider)}
                   </div>
                 </button>
               );
@@ -131,9 +133,6 @@ export function ModelPicker({ value, onChange, disabled, models }: ModelPickerPr
                       <span className="font-medium text-gray-900 dark:text-gray-100">{m.label}</span>
                       <span className="text-gray-400 dark:text-gray-500 ml-1.5 text-xs">{m.description}</span>
                     </div>
-                    <span className="text-[11px] text-gray-400 dark:text-gray-500 tabular-nums">
-                      {formatPrice(m.output_price_per_m)}/M out
-                    </span>
                   </div>
                 </button>
               ))}

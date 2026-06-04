@@ -25,11 +25,6 @@ import (
 	"github.com/mathaix/openclawmachines/backend/pkg/version"
 )
 
-const (
-	defaultHermesManifestURI       = "gs://openclawmachines/hermes/manifest-stable.json"
-	defaultHermesRootfsManifestURI = "gs://openclawmachines/hermes-rootfs/manifest.json"
-)
-
 // RuntimeStore is the subset of store interfaces the RuntimeService needs.
 type RuntimeStore interface {
 	store.MachineRepo
@@ -111,13 +106,7 @@ func NewRuntimeService(
 	routeSvc *routing.Service,
 ) *RuntimeService {
 	hermesManifestURI := strings.TrimSpace(cfg.HermesManifestURI)
-	if hermesManifestURI == "" {
-		hermesManifestURI = defaultHermesManifestURI
-	}
 	hermesRootfsManifestURI := strings.TrimSpace(cfg.HermesRootfsManifestURI)
-	if hermesRootfsManifestURI == "" {
-		hermesRootfsManifestURI = defaultHermesRootfsManifestURI
-	}
 
 	return &RuntimeService{
 		store:                        s,
@@ -1053,9 +1042,8 @@ func (rs *RuntimeService) start(ctx context.Context, accountID int, machine *sto
 			_ = rs.placement.Release(ctx, machine.ID, releaseMode)
 			// Clean up tunnel only for first boot placement failures. Restarts preserve the
 			// existing route because the machine is expected to retry on the same host.
-			if !isRestart && rs.tunnelMgr != nil && machine.TunnelID != nil {
-				vmHostname := "m-" + machine.Slug + ".openclawmachines.com"
-				sshHostname := "ssh-" + machine.Slug + ".openclawmachines.com"
+			if !isRestart && rs.tunnelMgr != nil && machine.TunnelID != nil && rs.routing != nil {
+				vmHostname, sshHostname := rs.routing.Hostnames(machine.Slug)
 				_ = rs.tunnelMgr.DeleteTunnelAndDNS(ctx, *machine.TunnelID, vmHostname, sshHostname)
 				_ = rs.store.ClearMachineTunnel(ctx, machine.ID)
 			}

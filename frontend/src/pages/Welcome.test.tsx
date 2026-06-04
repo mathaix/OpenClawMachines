@@ -11,7 +11,7 @@ vi.mock("react-router-dom", async () => {
 vi.mock("../lib/api", () => ({
   authMe: vi.fn(() => Promise.resolve({ user: { id: 1, email: "test@example.com", name: "", auth_provider: "cfaccess", created_at: "2024-01-01T00:00:00Z" } })),
   listAccounts: vi.fn(() => Promise.resolve([])),
-  createAccount: vi.fn(() => Promise.resolve({ id: 1, name: "Test", slug: "test", plan: "free", created_by: 1, created_at: "2024-01-01T00:00:00Z" })),
+  createAccount: vi.fn(() => Promise.resolve({ id: 1, name: "Test", slug: "test", created_by: 1, created_at: "2024-01-01T00:00:00Z" })),
 }));
 
 import { createAccount } from "../lib/api";
@@ -38,7 +38,7 @@ describe("Welcome page", () => {
       target: { value: "My Team" },
     });
 
-    expect(screen.getByText("my-team.openclawmachines.com")).toBeInTheDocument();
+    expect(screen.getByText("my-team.localhost")).toBeInTheDocument();
   });
 
   it("should allow custom slug override", () => {
@@ -51,7 +51,7 @@ describe("Welcome page", () => {
     const slugInput = screen.getByPlaceholderText("auto-generated from name");
     fireEvent.change(slugInput, { target: { value: "custom-slug" } });
 
-    expect(screen.getByText("custom-slug.openclawmachines.com")).toBeInTheDocument();
+    expect(screen.getByText("custom-slug.localhost")).toBeInTheDocument();
   });
 
   it("should submit and navigate to dashboard", async () => {

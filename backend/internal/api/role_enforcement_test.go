@@ -47,14 +47,6 @@ func (m *mockRoleStore) DeleteSecret(_ context.Context, machineID, key string) e
 	return nil
 }
 
-func (m *mockRoleStore) SetMachineBudget(_ context.Context, machineID string, budgetMicrocents int64) error {
-	return nil
-}
-
-func (m *mockRoleStore) ClearMachineBudget(_ context.Context, machineID string) error {
-	return nil
-}
-
 // roleReq creates a request with account context and member role set.
 func roleReq(method, path string, body interface{}, accountID int, member *store.AccountMember) *http.Request {
 	var buf bytes.Buffer
@@ -186,67 +178,6 @@ func TestRoleEnforcement_DeleteSecret(t *testing.T) {
 	}
 }
 
-func TestRoleEnforcement_SetBudget(t *testing.T) {
-	tests := []struct {
-		name     string
-		role     string
-		wantCode int
-	}{
-		{"owner allowed", "owner", http.StatusOK},
-		{"admin allowed", "admin", http.StatusOK},
-		{"member blocked", "member", http.StatusForbidden},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			member := &store.AccountMember{AccountID: 1, UserID: 1, Role: tt.role}
-			body := map[string]int64{"limit_cents": 1000}
-			req := roleReq("PUT", "/api/accounts/1/machines/m1/budget", body, 1, member)
-			req = withChiParams(req, map[string]string{"id": "m1"})
-			rr := httptest.NewRecorder()
-
-			handler := wrapWithRoleMiddleware(func(w http.ResponseWriter, r *http.Request) {
-				w.WriteHeader(http.StatusOK)
-			})
-			handler.ServeHTTP(rr, req)
-
-			if rr.Code != tt.wantCode {
-				t.Fatalf("status = %d, want %d. Body: %s", rr.Code, tt.wantCode, rr.Body.String())
-			}
-		})
-	}
-}
-
-func TestRoleEnforcement_DeleteBudget(t *testing.T) {
-	tests := []struct {
-		name     string
-		role     string
-		wantCode int
-	}{
-		{"owner allowed", "owner", http.StatusOK},
-		{"admin allowed", "admin", http.StatusOK},
-		{"member blocked", "member", http.StatusForbidden},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			member := &store.AccountMember{AccountID: 1, UserID: 1, Role: tt.role}
-			req := roleReq("DELETE", "/api/accounts/1/machines/m1/budget", nil, 1, member)
-			req = withChiParams(req, map[string]string{"id": "m1"})
-			rr := httptest.NewRecorder()
-
-			handler := wrapWithRoleMiddleware(func(w http.ResponseWriter, r *http.Request) {
-				w.WriteHeader(http.StatusOK)
-			})
-			handler.ServeHTTP(rr, req)
-
-			if rr.Code != tt.wantCode {
-				t.Fatalf("status = %d, want %d. Body: %s", rr.Code, tt.wantCode, rr.Body.String())
-			}
-		})
-	}
-}
-
 // Account-wide credential tests removed — credentials are now machine-scoped.
 
 // TestRoleEnforcement_FullRouter verifies role enforcement end-to-end through the
@@ -267,8 +198,6 @@ func TestRoleEnforcement_FullRouter(t *testing.T) {
 		{"DELETE", "/api/accounts/1/machines/m1", nil},
 		{"PUT", "/api/accounts/1/machines/m1/secrets/KEY1", map[string]string{"value": "v"}},
 		{"DELETE", "/api/accounts/1/machines/m1/secrets/KEY1", nil},
-		{"PUT", "/api/accounts/1/machines/m1/budget", map[string]int64{"limit_cents": 100}},
-		{"DELETE", "/api/accounts/1/machines/m1/budget", nil},
 	}
 
 	for _, ep := range allEndpoints {

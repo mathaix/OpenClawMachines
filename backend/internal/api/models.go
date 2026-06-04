@@ -11,15 +11,13 @@ import (
 )
 
 type modelResponse struct {
-	ID              string  `json:"id"`
-	Label           string  `json:"label"`
-	Description     string  `json:"description"`
-	Source          string  `json:"source"`
-	Tier            *string `json:"tier,omitempty"`
-	InputPricePerM  float64 `json:"input_price_per_m"`
-	OutputPricePerM float64 `json:"output_price_per_m"`
-	SortOrder       int     `json:"sort_order"`
-	Provider        string  `json:"provider"`
+	ID          string  `json:"id"`
+	Label       string  `json:"label"`
+	Description string  `json:"description"`
+	Source      string  `json:"source"`
+	Tier        *string `json:"tier,omitempty"`
+	SortOrder   int     `json:"sort_order"`
+	Provider    string  `json:"provider"`
 }
 
 func (s *Server) handleListModels(w http.ResponseWriter, r *http.Request) {
@@ -39,15 +37,13 @@ func (s *Server) handleListModels(w http.ResponseWriter, r *http.Request) {
 	resp := make([]modelResponse, len(models))
 	for i, m := range models {
 		resp[i] = modelResponse{
-			ID:              m.ID,
-			Label:           m.Label,
-			Description:     m.Description,
-			Source:          m.Source,
-			Tier:            m.Tier,
-			InputPricePerM:  m.InputPricePerM,
-			OutputPricePerM: m.OutputPricePerM,
-			SortOrder:       m.SortOrder,
-			Provider:        m.Provider,
+			ID:          m.ID,
+			Label:       m.Label,
+			Description: m.Description,
+			Source:      m.Source,
+			Tier:        m.Tier,
+			SortOrder:   m.SortOrder,
+			Provider:    m.Provider,
 		}
 	}
 	writeJSON(w, http.StatusOK, resp)
@@ -95,15 +91,13 @@ func (s *Server) handleListMachineModels(w http.ResponseWriter, r *http.Request)
 			continue
 		}
 		resp = append(resp, modelResponse{
-			ID:              m.ID,
-			Label:           m.Label,
-			Description:     m.Description,
-			Source:          m.Source,
-			Tier:            m.Tier,
-			InputPricePerM:  m.InputPricePerM,
-			OutputPricePerM: m.OutputPricePerM,
-			SortOrder:       m.SortOrder,
-			Provider:        m.Provider,
+			ID:          m.ID,
+			Label:       m.Label,
+			Description: m.Description,
+			Source:      m.Source,
+			Tier:        m.Tier,
+			SortOrder:   m.SortOrder,
+			Provider:    m.Provider,
 		})
 	}
 	if resp == nil {

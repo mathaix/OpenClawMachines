@@ -6,15 +6,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"time"
 
 	"cloud.google.com/go/storage"
 	"github.com/mathaix/openclawmachines/backend/pkg/gcsutil"
 )
-
-// TrustedBucket is the only GCS bucket the agent will download binaries from.
-const TrustedBucket = "openclawmachines"
 
 // Manifest describes an agent binary stored in GCS.
 type Manifest struct {
@@ -61,7 +59,7 @@ func validateSHA256(s string) error {
 	return nil
 }
 
-// validateTrustedURL ensures the manifest URL points to the trusted GCS bucket.
+// validateTrustedURL ensures the manifest URL points to an operator-trusted GCS bucket.
 func validateTrustedURL(url string) error {
 	if !strings.HasPrefix(url, "gs://") {
 		return fmt.Errorf("manifest url must be a gs:// URI: %s", url)
@@ -70,10 +68,31 @@ func validateTrustedURL(url string) error {
 	if err != nil {
 		return fmt.Errorf("manifest url invalid: %w", err)
 	}
-	if bucket != TrustedBucket {
-		return fmt.Errorf("manifest url points to untrusted bucket %q (expected %q)", bucket, TrustedBucket)
+	trusted := trustedArtifactBuckets()
+	if len(trusted) == 0 {
+		return fmt.Errorf("no trusted artifact buckets configured")
 	}
-	return nil
+	for _, trustedBucket := range trusted {
+		if bucket == trustedBucket {
+			return nil
+		}
+	}
+	return fmt.Errorf("manifest url points to untrusted bucket %q", bucket)
+}
+
+func trustedArtifactBuckets() []string {
+	raw := os.Getenv("OCM_TRUSTED_ARTIFACT_BUCKETS")
+	if raw == "" {
+		raw = os.Getenv("TRUSTED_ARTIFACT_BUCKETS")
+	}
+	var buckets []string
+	for _, bucket := range strings.Split(raw, ",") {
+		bucket = strings.TrimSpace(bucket)
+		if bucket != "" {
+			buckets = append(buckets, bucket)
+		}
+	}
+	return buckets
 }
 
 // FetchManifest downloads and parses a manifest from GCS.

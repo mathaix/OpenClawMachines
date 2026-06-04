@@ -41,7 +41,6 @@ async function mockAuthenticatedApi(page: import("@playwright/test").Page) {
           memory_mb: 4096,
           swap_mb: 1024,
           disk_gb: 20,
-          price_cents_mo: 2900,
           description: "2 vCPU",
           is_default: true,
         },

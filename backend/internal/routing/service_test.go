@@ -156,8 +156,8 @@ func TestSetupRoute_CreatesTunnelDNSAndStoresInDB(t *testing.T) {
 	}
 
 	// VMHostname and SSHHostname are set correctly
-	wantVM := "m-my-machine." + machineDomain
-	wantSSH := "ssh-my-machine." + machineDomain
+	wantVM := "m-my-machine." + defaultDataPlaneDomain
+	wantSSH := "ssh-my-machine." + defaultDataPlaneDomain
 	if result.VMHostname != wantVM {
 		t.Errorf("expected VMHostname=%q, got %q", wantVM, result.VMHostname)
 	}
@@ -289,7 +289,7 @@ func TestSetupRoute_NilTunnel(t *testing.T) {
 	}
 	if result == nil {
 		t.Fatal("expected non-nil result")
-	} else if wantVM := "m-my-machine." + machineDomain; result.VMHostname != wantVM {
+	} else if wantVM := "m-my-machine." + defaultDataPlaneDomain; result.VMHostname != wantVM {
 		t.Errorf("expected VMHostname=%q, got %q", wantVM, result.VMHostname)
 	}
 

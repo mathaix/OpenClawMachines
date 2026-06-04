@@ -17,8 +17,6 @@ import (
 //
 //	?from=<ISO>&to=<ISO>   — range, used by History view
 //	?since=<ISO>            — cursor, used by Live view (delta polling)
-//
-// See docs/plans/2026-04-29-vm-instrumentation-design.md (rev. 3).
 
 const (
 	metricsRangeMaxDuration = 7 * 24 * time.Hour // hard cap: 7 d

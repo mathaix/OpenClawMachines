@@ -8,8 +8,6 @@
 // We sample two files:
 //   - cpu.stat:        usage_usec is cumulative CPU time (microseconds, monotonic)
 //   - memory.current:  current resident bytes
-//
-// Design: docs/plans/2026-04-29-vm-instrumentation-design.md (rev. 3).
 package cgroup
 
 import (

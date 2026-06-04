@@ -110,7 +110,6 @@ type VMConfig struct {
 	Secrets          map[string]string
 	LLMKeys          map[string]metadata.CredentialEntry
 	AccountID        int
-	BudgetMicrocents *int64
 	KernelExtraArgs  string // additional kernel cmdline args (e.g. "ocm_quick_start=1")
 	DataVolumeGB     int
 	DataVersion      int

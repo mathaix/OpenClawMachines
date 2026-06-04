@@ -313,7 +313,7 @@ func TestE2E_Google(t *testing.T) {
 // Fails the test if the key cannot be fetched — no silent fallbacks.
 func fetchNebiusKey(t *testing.T) string {
 	t.Helper()
-	const secretName = "projects/clarateach/secrets/NEBIUS_API_KEY/versions/latest"
+	const secretName = "projects/example-project/secrets/NEBIUS_API_KEY/versions/latest"
 	key, err := secrets.FetchSecret(context.Background(), secretName)
 	if err != nil {
 		t.Fatalf("failed to fetch NEBIUS_API_KEY from Secret Manager: %v", err)
@@ -423,11 +423,11 @@ func TestE2E_NebiusPlatformTiers(t *testing.T) {
 				if rec.Provider != "nebius" {
 					t.Errorf("usage record provider = %q, want %q", rec.Provider, "nebius")
 				}
-				if rec.CostMicrocents == 0 {
-					t.Error("usage record cost should be > 0")
+				if rec.InputTokens == 0 || rec.OutputTokens == 0 {
+					t.Error("usage record should include input and output tokens")
 				}
-				t.Logf("usage: provider=%s model=%s input=%d output=%d cost=%d microcents",
-					rec.Provider, rec.Model, rec.InputTokens, rec.OutputTokens, rec.CostMicrocents)
+				t.Logf("usage: provider=%s model=%s input=%d output=%d",
+					rec.Provider, rec.Model, rec.InputTokens, rec.OutputTokens)
 			}
 
 			t.Logf("Nebius %s: model=%s prompt=%d completion=%d content=%q",
@@ -446,7 +446,7 @@ func truncateStr(s string, n int) string {
 // fetchExaKey retrieves the Exa Search API key from GCP Secret Manager.
 func fetchExaKey(t *testing.T) string {
 	t.Helper()
-	const secretName = "projects/clarateach/secrets/EXA_SEARCH/versions/latest"
+	const secretName = "projects/example-project/secrets/EXA_SEARCH/versions/latest"
 	key, err := secrets.FetchSecret(context.Background(), secretName)
 	if err != nil {
 		t.Fatalf("failed to fetch EXA_SEARCH from Secret Manager: %v", err)

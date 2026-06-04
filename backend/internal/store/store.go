@@ -23,14 +23,11 @@ type User struct {
 }
 
 type Account struct {
-	ID               int       `json:"id"`
-	Name             string    `json:"name"`
-	Slug             string    `json:"slug"`
-	Plan             string    `json:"plan"`
-	BillingEmail     *string   `json:"billing_email,omitempty"`
-	StripeCustomerID *string   `json:"stripe_customer_id,omitempty"`
-	CreatedBy        int       `json:"created_by"`
-	CreatedAt        time.Time `json:"created_at"`
+	ID        int       `json:"id"`
+	Name      string    `json:"name"`
+	Slug      string    `json:"slug"`
+	CreatedBy int       `json:"created_by"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 type AccountMember struct {
@@ -77,7 +74,6 @@ type Machine struct {
 	ProvisionStep           *string    `json:"provision_step,omitempty"`
 	ProvisioningStartedAt   *time.Time `json:"provisioning_started_at,omitempty"`
 	ProvisioningCompletedAt *time.Time `json:"provisioning_completed_at,omitempty"`
-	BudgetMicrocents        *int64     `json:"budget_microcents,omitempty"`
 	CreatedAt               time.Time  `json:"created_at"`
 	StartedAt               *time.Time `json:"started_at,omitempty"`
 	StoppedAt               *time.Time `json:"stopped_at,omitempty"`
@@ -242,27 +238,25 @@ type RouteData struct {
 }
 
 type LLMUsage struct {
-	ID             int64     `json:"id"`
-	AccountID      int       `json:"account_id"`
-	MachineID      string    `json:"machine_id"`
-	Provider       string    `json:"provider"`
-	Model          string    `json:"model"`
-	InputTokens    int       `json:"input_tokens"`
-	OutputTokens   int       `json:"output_tokens"`
-	CostMicrocents int64     `json:"cost_microcents"`
-	RequestID      *string   `json:"request_id,omitempty"`
-	Source         string    `json:"source"`
-	CreatedAt      time.Time `json:"created_at"`
+	ID           int64     `json:"id"`
+	AccountID    int       `json:"account_id"`
+	MachineID    string    `json:"machine_id"`
+	Provider     string    `json:"provider"`
+	Model        string    `json:"model"`
+	InputTokens  int       `json:"input_tokens"`
+	OutputTokens int       `json:"output_tokens"`
+	RequestID    *string   `json:"request_id,omitempty"`
+	Source       string    `json:"source"`
+	CreatedAt    time.Time `json:"created_at"`
 }
 
 type UsageBucketEntry struct {
-	Provider       string `json:"provider"`
-	Model          string `json:"model"`
-	Source         string `json:"source"`
-	InputTokens    int    `json:"input_tokens"`
-	OutputTokens   int    `json:"output_tokens"`
-	CostMicrocents int64  `json:"cost_microcents"`
-	RequestCount   int    `json:"request_count"`
+	Provider     string `json:"provider"`
+	Model        string `json:"model"`
+	Source       string `json:"source"`
+	InputTokens  int    `json:"input_tokens"`
+	OutputTokens int    `json:"output_tokens"`
+	RequestCount int    `json:"request_count"`
 }
 
 type UsageBucket struct {
@@ -739,16 +733,6 @@ type ActivityRepo interface {
 	ListActivitiesAdmin(ctx context.Context, filter ActivityFilter) ([]ActivityLog, error)
 }
 
-// BillingRepo handles usage and budgets.
-type BillingRepo interface {
-	SetMachineBudget(ctx context.Context, machineID string, budgetMicrocents int64) error
-	ClearMachineBudget(ctx context.Context, machineID string) error
-	// Opik-based billing (reads from opik_spans + model_pricing_history)
-	GetOpikSpendByMachine(ctx context.Context, accountID int, machineID string) (int64, error)
-	GetOpikUsageByMachine(ctx context.Context, accountID int, machineID string, since time.Time, limit int) ([]LLMUsage, error)
-	GetOpikUsageBreakdown(ctx context.Context, accountID int, machineID string, period string, since time.Time) ([]UsageBucket, error)
-}
-
 // RegistryRepo handles registry and capabilities.
 type RegistryRepo interface {
 	ListRegistryEntries(ctx context.Context, entryType string) ([]RegistryEntry, error)
@@ -832,12 +816,6 @@ type WorkflowRepo interface {
 	FindStalledWorkflows(ctx context.Context, staleThreshold time.Duration) ([]StalledWorkflow, error)
 }
 
-// WaitlistRepo handles waitlist entries.
-type WaitlistRepo interface {
-	AddToWaitlist(ctx context.Context, email, source string) error
-	UpdateWaitlistSurvey(ctx context.Context, email string, survey json.RawMessage) error
-}
-
 // EnrollmentRepo handles host enrollment tokens and registered host creation.
 type EnrollmentRepo interface {
 	CreateEnrollmentToken(ctx context.Context, token *EnrollmentToken) error
@@ -874,29 +852,16 @@ type MachineAgentRepo interface {
 
 // ModelCatalogEntry represents a single model in the platform model catalog.
 type ModelCatalogEntry struct {
-	ID              string
-	Label           string
-	Description     string
-	Source          string  // "platform", "byok", "subscription"
-	Tier            *string // nullable
-	InputPricePerM  float64
-	OutputPricePerM float64
-	GatewayModelID  *string // nullable
-	Provider        string
-	Enabled         bool
-	SortOrder       int
-	CreatedAt       time.Time
-}
-
-// ModelPricingHistory represents a versioned pricing entry for a model.
-type ModelPricingHistory struct {
-	ID                   int64
-	ModelID              string
-	CostInputMicrocents  int64
-	CostOutputMicrocents int64
-	Margin               float64
-	EffectiveFrom        time.Time
-	CreatedAt            time.Time
+	ID             string
+	Label          string
+	Description    string
+	Source         string  // "platform", "byok", "subscription"
+	Tier           *string // nullable
+	GatewayModelID *string // nullable
+	Provider       string
+	Enabled        bool
+	SortOrder      int
+	CreatedAt      time.Time
 }
 
 // ---- Integration types ----
@@ -968,8 +933,6 @@ type TokenUsageRepo interface {
 type ModelCatalogRepo interface {
 	ListModelCatalog(ctx context.Context) ([]ModelCatalogEntry, error)
 	GetModelCatalogEntry(ctx context.Context, modelID string) (*ModelCatalogEntry, error)
-	ListModelPricingHistory(ctx context.Context, modelID string) ([]ModelPricingHistory, error)
-	InsertModelPricing(ctx context.Context, entry *ModelPricingHistory) error
 }
 
 // ProviderCatalogEntry represents a provider in the data-driven provider catalog.
@@ -1163,7 +1126,6 @@ type OpikTraceSearchFilters struct {
 	Feedback      string
 	MaxFeedback   *float64
 	MinTokens     *int
-	MinCost       *float64
 	MinDurationMS *int64
 }
 
@@ -1251,11 +1213,9 @@ type Store interface {
 	RouteRepo
 	CredentialRepo
 	ActivityRepo
-	BillingRepo
 	RegistryRepo
 	ConfigRepo
 	OperationRepo
-	WaitlistRepo
 	EnrollmentRepo
 	BackupRepo
 	WorkflowRepo

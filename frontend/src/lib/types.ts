@@ -13,8 +13,6 @@ export interface Account {
   id: number;
   name: string;
   slug: string;
-  plan: string;
-  billing_email?: string;
   created_by: number;
   created_at: string;
 }
@@ -51,7 +49,6 @@ export interface MachineSize {
   memory_mb: number;
   swap_mb: number;
   disk_gb: number;
-  price_cents_mo: number;
   description: string;
   is_default?: boolean;
 }
@@ -110,8 +107,6 @@ export interface ModelEntry {
   description: string;
   source: "platform" | "byok" | "subscription";
   tier?: "smart" | "balanced" | "fast";
-  input_price_per_m: number;
-  output_price_per_m: number;
   sort_order: number;
   provider: string;
 }
@@ -248,67 +243,6 @@ export interface Backup {
   created_at: string;
 }
 
-// Usage & Billing types
-
-export interface MachineUsageSummary {
-  machine_id: string;
-  machine_name: string;
-  spend_microcents: number;
-  budget_microcents: number;
-}
-
-export interface AccountUsage {
-  account_id: number;
-  current_month_spend: number;
-  per_machine: MachineUsageSummary[];
-}
-
-export interface UsageRecord {
-  id: number;
-  provider: string;
-  model: string;
-  input_tokens: number;
-  output_tokens: number;
-  cost_microcents: number;
-  source: string;
-  created_at: string;
-}
-
-export interface UsageBucketEntry {
-  provider: string;
-  model: string;
-  source: string;
-  input_tokens: number;
-  output_tokens: number;
-  cost_microcents: number;
-  request_count: number;
-}
-
-export interface UsageBucket {
-  timestamp: string;
-  entries: UsageBucketEntry[];
-}
-
-export interface UsageBreakdown {
-  period: string;
-  since: string;
-  buckets: UsageBucket[];
-  totals: {
-    input_tokens: number;
-    output_tokens: number;
-    cost_microcents: number;
-    request_count: number;
-  };
-}
-
-export interface MachineUsageDetail {
-  machine_id: string;
-  current_month_spend: number;
-  budget_microcents: number;
-  since: string;
-  records: UsageRecord[];
-}
-
 export interface OpikTraceListItem {
   id: string;
   project_id?: string;
@@ -331,7 +265,6 @@ export interface OpikTraceListItem {
   error_count: number;
   duration_ms: number;
   total_tokens: number;
-  total_estimated_cost: number;
   feedback_count: number;
   avg_feedback_score?: number;
 }
@@ -357,7 +290,6 @@ export interface OpikTraceSpan {
   completion_tokens: number;
   total_tokens: number;
   error_info?: unknown;
-  total_estimated_cost: number;
   duration?: number;
   ttft?: number;
   source?: string;
@@ -389,12 +321,6 @@ export interface OpikTraceDetail {
   trace: OpikTraceListItem;
   spans: OpikTraceSpan[];
   feedback: OpikFeedbackScore[];
-}
-
-export interface MachineBudgetResponse {
-  machine_id: string;
-  budget_microcents: number;
-  limit_cents: number;
 }
 
 export interface ProviderCatalogEntry {

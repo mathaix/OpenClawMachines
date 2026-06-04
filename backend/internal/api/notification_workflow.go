@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/dbos-inc/dbos-transact-golang/dbos"
@@ -20,6 +22,13 @@ type invitationEmailInput struct {
 	Role            string `json:"role"`
 	FrontendURL     string `json:"frontend_url"`
 	ExpiryDays      int    `json:"expiry_days"`
+}
+
+func invitationEmailFrom() string {
+	if from := strings.TrimSpace(os.Getenv("OCM_EMAIL_FROM")); from != "" {
+		return from
+	}
+	return "OpenClaw Machines <noreply@example.com>"
 }
 
 type invitationEmailResult struct {
@@ -63,7 +72,7 @@ func (s *Server) runInvitationEmailWorkflow(ctx dbos.DBOSContext, input invitati
 	// Step 2: Deliver via Resend (with retry)
 	_, err = dbos.RunAsStep(ctx, func(stepCtx context.Context) (bool, error) {
 		return true, s.emailClient.SendEmail(stepCtx, email.Email{
-			From:    "OpenClaw Machines <noreply@openclawmachines.com>",
+			From:    invitationEmailFrom(),
 			To:      input.RecipientEmail,
 			Subject: fmt.Sprintf("%s invited you to %s", input.InviterEmail, input.AccountName),
 			HTML:    html,

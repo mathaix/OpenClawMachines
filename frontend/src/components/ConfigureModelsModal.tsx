@@ -54,13 +54,6 @@ function providerLabel(id: string): string {
   return PROVIDER_LABELS[id] || id;
 }
 
-function formatPrice(price: number): string {
-  if (price === 0) return "—";
-  if (price < 0.1) return `$${price.toFixed(3)}`;
-  if (price < 10) return `$${price.toFixed(2)}`;
-  return `$${price.toFixed(0)}`;
-}
-
 export interface ConfigureModelsState {
   defaultModel: string;
   fallbacks: string[];
@@ -429,9 +422,6 @@ function SelectionPanel({
             <div className="text-[11px] text-text-tertiary mt-0.5">
               {providerLabel(def.provider)}
             </div>
-            <div className="text-[11px] text-text-tertiary font-mono mt-1">
-              {formatPrice(def.input_price_per_m)} / {formatPrice(def.output_price_per_m)} per M
-            </div>
             <button
               onClick={onClearDefault}
               className="text-[11px] text-text-muted hover:text-red-400 mt-2"
@@ -593,10 +583,11 @@ function ModelRow({
           )}
         </div>
         <div className="text-[11px] text-text-tertiary mt-0.5 truncate">{model.description}</div>
-        <div className="text-[10px] text-text-muted font-mono mt-1">
-          {formatPrice(model.input_price_per_m)} / {formatPrice(model.output_price_per_m)} per M
-          {model.tier && <span className="ml-2 uppercase">{model.tier}</span>}
-        </div>
+        {model.tier && (
+          <div className="text-[10px] text-text-muted font-mono mt-1 uppercase">
+            {model.tier}
+          </div>
+        )}
       </div>
       <div className="flex flex-col items-end gap-1 flex-shrink-0">
         {hasRole ? (

@@ -213,7 +213,9 @@ func NewServer(ctx context.Context, s store.Store, a *auth.Auth, authMode string
 	// Initialize backup store for direct GCS downloads (when host is unavailable).
 	// Supports both explicit service account key and ADC (workload identity).
 	if backupMasterKey == "" {
-		slog.Warn("backup.disabled", "reason", "BACKUP_MASTER_KEY not configured — backups will not work")
+		slog.Warn("backup.disabled", "reason", "BACKUP_MASTER_KEY not configured; backups will not work")
+	} else if strings.TrimSpace(backupGCSBucket) == "" {
+		slog.Warn("backup.disabled", "reason", "BACKUP_GCS_BUCKET not configured; backups will not work")
 	} else {
 		slog.Info("backup.enabled", "bucket", backupGCSBucket, "prefix", backupGCSPrefix)
 		var gcsOpts []option.ClientOption
@@ -317,8 +319,6 @@ func NewServer(ctx context.Context, s store.Store, a *auth.Auth, authMode string
 	// Public routes
 	r.Get("/health", srv.handleHealth)
 	r.Post("/api/telemetry", srv.handleTelemetry)
-	r.Post("/api/waitlist", srv.handleJoinWaitlist)
-	r.Put("/api/waitlist", srv.handleUpdateWaitlistSurvey)
 	r.Get("/api/invitations/{token}/public", srv.handleGetInvitationPublic)
 	r.Get("/api/integrations/callback", srv.handleIntegrationCallback)
 	r.Get("/api/platform/config", srv.handlePlatformConfig)
@@ -420,8 +420,6 @@ func NewServer(ctx context.Context, s store.Store, a *auth.Auth, authMode string
 				r.Put("/registry/{entryId}", srv.handleAdminUpdateRegistryEntry)
 				r.Delete("/registry/{entryId}", srv.handleAdminDeleteRegistryEntry)
 
-				// Usage & Billing
-				r.Get("/usage", srv.handleGetAccountUsage)
 			})
 
 			// OpenClaw releases (for version picker dropdown)
@@ -452,8 +450,6 @@ func NewServer(ctx context.Context, s store.Store, a *auth.Auth, authMode string
 					r.Get("/files", srv.handleListFiles)
 					r.Get("/files/download", srv.handleDownloadFile)
 					r.Get("/files/download-zip", srv.handleDownloadZip)
-					r.Get("/usage", srv.handleGetMachineUsage)
-					r.Get("/usage/breakdown", srv.handleGetMachineUsageBreakdown)
 					r.Get("/metrics", srv.handleGetMachineMetrics)
 					r.Get("/traces", srv.handleListMachineTraces)
 					r.Get("/traces/{traceID}", srv.handleGetMachineTrace)
@@ -527,8 +523,6 @@ func NewServer(ctx context.Context, s store.Store, a *auth.Auth, authMode string
 						r.Delete("/", srv.handleDeleteMachine)
 						r.Put("/secrets/{key}", srv.handleSetSecret)
 						r.Delete("/secrets/{key}", srv.handleDeleteSecret)
-						r.Put("/budget", srv.handleSetBudget)
-						r.Delete("/budget", srv.handleDeleteBudget)
 						r.Post("/exec", srv.handleMachineExec)
 						r.Post("/agents", srv.handleCreateMachineAgent)
 						r.Put("/agents/{agentId}", srv.handleUpdateMachineAgent)
@@ -725,7 +719,7 @@ func (s *Server) signComposioProxyToken(machineID string) (string, error) {
 }
 
 func (s *Server) SetDataPlaneDomain(d string) {
-	s.dataPlaneDomain = d
+	s.dataPlaneDomain = normalizeDomain(d)
 }
 
 func (s *Server) SetCfAccessAuthDomain(d string) {
@@ -738,6 +732,41 @@ func (s *Server) SetSSHCAPrivateKey(key string) {
 
 func (s *Server) frontendURL() string {
 	return s.frontendBaseURL
+}
+
+func normalizeDomain(d string) string {
+	return strings.Trim(strings.TrimSpace(d), ".")
+}
+
+func (s *Server) dataPlaneDomainOrLocal() string {
+	if d := normalizeDomain(s.dataPlaneDomain); d != "" {
+		return d
+	}
+	return "localhost"
+}
+
+func (s *Server) dataPlaneHostname(prefix, slug string) string {
+	return prefix + "-" + slug + "." + s.dataPlaneDomainOrLocal()
+}
+
+func (s *Server) accountDataPlaneHostname(slug string) string {
+	return slug + "." + s.dataPlaneDomainOrLocal()
+}
+
+func (s *Server) cookieDomain() string {
+	domain := s.dataPlaneDomainOrLocal()
+	if domain == "localhost" || domain == "127.0.0.1" {
+		return ""
+	}
+	return "." + domain
+}
+
+func (s *Server) frameAncestorsDirective() string {
+	domain := s.dataPlaneDomainOrLocal()
+	if domain == "localhost" || domain == "127.0.0.1" {
+		return "frame-ancestors 'self'"
+	}
+	return fmt.Sprintf("frame-ancestors 'self' %s *.%s", domain, domain)
 }
 
 // reconcileHostCapacity recalculates capacity_vcpus for all active hosts
@@ -848,7 +877,22 @@ func (s *Server) requireSuperuser(next http.Handler) http.Handler {
 // routes.
 func isSuperuser(ctx context.Context) bool {
 	claims := auth.UserFromContext(ctx)
-	return claims != nil && claims.Email == "mathewma@gmail.com"
+	return claims != nil && emailInEnvList(claims.Email, "OCM_SUPERUSER_EMAILS", "OCM_ADMIN_EMAILS")
+}
+
+func emailInEnvList(email string, keys ...string) bool {
+	email = strings.ToLower(strings.TrimSpace(email))
+	if email == "" {
+		return false
+	}
+	for _, key := range keys {
+		for _, candidate := range strings.Split(os.Getenv(key), ",") {
+			if strings.ToLower(strings.TrimSpace(candidate)) == email {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // accountIDFromContext returns the account ID set by AccountMiddleware.

@@ -414,21 +414,6 @@ func (m *mockStore) UpdateHostVersions(context.Context, int, string, string) err
 func (m *mockStore) UpdateHostHeartbeat(_ context.Context, _ int, _ string, _ string, _ string, _ string, _ string, _ json.RawMessage) (bool, error) {
 	panic("not implemented")
 }
-func (m *mockStore) SetMachineBudget(context.Context, string, int64) error {
-	panic("not implemented")
-}
-func (m *mockStore) ClearMachineBudget(context.Context, string) error {
-	panic("not implemented")
-}
-func (m *mockStore) GetOpikSpendByMachine(context.Context, int, string) (int64, error) {
-	return 0, nil
-}
-func (m *mockStore) GetOpikUsageByMachine(context.Context, int, string, time.Time, int) ([]store.LLMUsage, error) {
-	return nil, nil
-}
-func (m *mockStore) GetOpikUsageBreakdown(context.Context, int, string, string, time.Time) ([]store.UsageBucket, error) {
-	return nil, nil
-}
 func (m *mockStore) SetSecret(context.Context, string, string, string) error {
 	panic("not implemented")
 }
@@ -460,12 +445,6 @@ func (m *mockStore) ResolveRoute(context.Context, string, string) (*store.Resolv
 	panic("not implemented")
 }
 func (m *mockStore) IsMachineActive(context.Context, string) (bool, error) {
-	panic("not implemented")
-}
-func (m *mockStore) AddToWaitlist(context.Context, string, string) error {
-	panic("not implemented")
-}
-func (m *mockStore) UpdateWaitlistSurvey(context.Context, string, json.RawMessage) error {
 	panic("not implemented")
 }
 func (m *mockStore) ListRegistryEntries(context.Context, string) ([]store.RegistryEntry, error) {
@@ -1163,7 +1142,7 @@ func TestUpgradeWithOperation_RefreshesTransientTunnelToken(t *testing.T) {
 			if !strings.Contains(payload, `"tunnel_token":"new-tunnel-token"`) {
 				t.Fatalf("expected refreshed tunnel_token in payload, got %s", payload)
 			}
-			if !strings.Contains(payload, `"vm_hostname":"m-test-upgrade.openclawmachines.com"`) {
+			if !strings.Contains(payload, `"vm_hostname":"m-test-upgrade.localhost"`) {
 				t.Fatalf("expected refreshed vm_hostname in payload, got %s", payload)
 			}
 			return &http.Response{
@@ -1828,14 +1807,6 @@ func (m *mockStore) GetModelCatalogEntry(_ context.Context, modelID string) (*st
 	return nil, nil
 }
 
-func (m *mockStore) ListModelPricingHistory(_ context.Context, _ string) ([]store.ModelPricingHistory, error) {
-	return nil, nil
-}
-
-func (m *mockStore) InsertModelPricing(_ context.Context, _ *store.ModelPricingHistory) error {
-	return nil
-}
-
 // BrowserVMRepo stubs
 func (m *mockStore) CreateBrowserVM(context.Context, *store.BrowserVM) error { return nil }
 func (m *mockStore) GetBrowserVM(_ context.Context, _ string) (*store.BrowserVM, error) {
@@ -2327,8 +2298,13 @@ func TestStart_NebiusKeyAlwaysIncluded(t *testing.T) {
 	}
 }
 
-func TestResolveRuntimeSelection_HermesUsesDefaultManifests(t *testing.T) {
-	rs := NewRuntimeService(&mockStore{}, nil, nil, nil, nil, RuntimeConfig{}, nil)
+func TestResolveRuntimeSelection_HermesUsesConfiguredManifests(t *testing.T) {
+	const hermesRootfsManifest = "gs://example-ocm-artifacts/hermes-rootfs/manifest.json"
+	const hermesManifest = "gs://example-ocm-artifacts/hermes/manifest-stable.json"
+	rs := NewRuntimeService(&mockStore{}, nil, nil, nil, nil, RuntimeConfig{
+		HermesRootfsManifestURI: hermesRootfsManifest,
+		HermesManifestURI:       hermesManifest,
+	}, nil)
 
 	rootfsVersion := "hermes-rootfs-v1"
 	hermesVersion := "hermes-runtime-v1"
@@ -2343,11 +2319,11 @@ func TestResolveRuntimeSelection_HermesUsesDefaultManifests(t *testing.T) {
 	if selection.Kind != store.MachineKindHermes {
 		t.Fatalf("expected Hermes kind, got %q", selection.Kind)
 	}
-	if selection.RootfsManifestURI != defaultHermesRootfsManifestURI {
-		t.Fatalf("expected Hermes rootfs manifest %q, got %q", defaultHermesRootfsManifestURI, selection.RootfsManifestURI)
+	if selection.RootfsManifestURI != hermesRootfsManifest {
+		t.Fatalf("expected Hermes rootfs manifest %q, got %q", hermesRootfsManifest, selection.RootfsManifestURI)
 	}
-	if selection.HermesManifestURI != defaultHermesManifestURI {
-		t.Fatalf("expected Hermes runtime manifest %q, got %q", defaultHermesManifestURI, selection.HermesManifestURI)
+	if selection.HermesManifestURI != hermesManifest {
+		t.Fatalf("expected Hermes runtime manifest %q, got %q", hermesManifest, selection.HermesManifestURI)
 	}
 	if selection.ResolvedHermesVersion != hermesVersion {
 		t.Fatalf("expected Hermes version %q, got %q", hermesVersion, selection.ResolvedHermesVersion)

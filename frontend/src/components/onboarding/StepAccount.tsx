@@ -2,6 +2,8 @@ import type { Dispatch } from "react";
 import type { OnboardingState, OnboardingAction } from "../../pages/OnboardingWizard";
 import { toSlug } from "../../lib/utils";
 
+const DATA_PLANE_DOMAIN = (import.meta.env.VITE_DATA_PLANE_DOMAIN || "localhost").trim().replace(/^\./, "");
+
 interface StepAccountProps {
   state: OnboardingState;
   dispatch: Dispatch<OnboardingAction>;
@@ -40,7 +42,7 @@ export function StepAccount({ state, dispatch, onContinue, submitting }: StepAcc
             <span className="text-gray-500 font-normal ml-1">(optional)</span>
           </label>
           <div className="text-xs text-gray-500 mb-1.5 font-mono">
-            {effectiveSlug || "your-slug"}.openclawmachines.com
+            {effectiveSlug || "your-slug"}.{DATA_PLANE_DOMAIN}
           </div>
           <input
             id="accountSlug"

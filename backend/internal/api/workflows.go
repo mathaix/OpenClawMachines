@@ -168,7 +168,7 @@ func (s *Server) canReadWorkflow(r *http.Request, accountID *int) bool {
 	if claims == nil {
 		return false
 	}
-	if claims.Email == "mathewma@gmail.com" {
+	if isSuperuser(r.Context()) {
 		return true
 	}
 	if accountID == nil {

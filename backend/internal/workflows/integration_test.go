@@ -91,9 +91,6 @@ func runMinimalMigrations(ctx context.Context, pool *pgxpool.Pool) error {
 			id              SERIAL PRIMARY KEY,
 			name            TEXT NOT NULL,
 			slug            TEXT NOT NULL UNIQUE,
-			plan            TEXT NOT NULL DEFAULT 'free',
-			billing_email   TEXT,
-			stripe_customer_id TEXT,
 			created_by      INT NOT NULL REFERENCES users(id),
 			created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 		)`,
@@ -221,7 +218,6 @@ func ensureTestAccount(t *testing.T, ctx context.Context) (userID int, accountID
 	account := &store.Account{
 		Name:      "Workflow Test Account",
 		Slug:      slug,
-		Plan:      "free",
 		CreatedBy: user.ID,
 	}
 	if err := testDB.CreateAccount(ctx, account); err != nil {

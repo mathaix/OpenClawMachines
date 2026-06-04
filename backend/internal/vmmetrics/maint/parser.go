@@ -4,8 +4,6 @@
 // Each job is wrapped in a transaction-scoped advisory lock
 // (pg_try_advisory_xact_lock) so multiple Cloud Run instances can run the
 // scheduler safely — only one instance runs each job at a time.
-//
-// Design: docs/plans/2026-04-29-vm-instrumentation-design.md (rev. 3).
 package maint
 
 import (

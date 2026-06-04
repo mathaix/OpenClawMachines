@@ -47,9 +47,6 @@ import (
 //	TEST_OPENCLAW_MANIFEST_URI=file:///tmp/r2-channel-manifest.json \
 //	  go test -v -count=1 -tags integration -timeout 10m \
 //	  -run TestColdBootCandidate ./internal/integration/...
-//
-// See docs/plans/2026-04-28-cold-boot-extension-scrub-design.md launch
-// gates 4-6.
 func TestColdBootCandidate(t *testing.T) {
 	if os.Getenv("TEST_OPENCLAW_MANIFEST_URI") == "" {
 		t.Skip("TEST_OPENCLAW_MANIFEST_URI not set; this test only runs against a staged candidate")
@@ -57,7 +54,7 @@ func TestColdBootCandidate(t *testing.T) {
 
 	cfg := skipIfNoPrereqs(t)
 	setupTestDirs(t, cfg)
-	cfg.OpenClawManifestURI = "gs://openclawmachines/openclaw/manifest-stable.json"
+	cfg.OpenClawManifestURI = "gs://example-ocm-artifacts/openclaw/manifest-stable.json"
 
 	version := discoverStableOpenClawVersion(t)
 	t.Logf("Candidate openclaw version: %s", version)

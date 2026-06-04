@@ -133,7 +133,7 @@ func (s *Server) assembleHermesSeedConfigForMachine(ctx context.Context, machine
 	if machine.TunnelHostname != nil {
 		vmHostname = *machine.TunnelHostname
 	} else if machine.Slug != "" {
-		vmHostname = "m-" + machine.Slug + ".openclawmachines.com"
+		vmHostname = s.dataPlaneHostname("m", machine.Slug)
 	}
 
 	soul := ""

@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"cloud.google.com/go/storage"
-	"github.com/mathaix/openclawmachines/backend/internal/config"
 	"github.com/mathaix/openclawmachines/backend/internal/selfupdate"
 )
 
@@ -49,6 +48,14 @@ func (s *Server) handleLatestVersions(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
+	result := &LatestVersionsResponse{}
+	if s.agentGCSManifest == "" && s.rootfsGCSManifest == "" && s.browserRootfsGCSManifest == "" {
+		versionsCache.result = result
+		versionsCache.fetchedAt = time.Now()
+		writeJSON(w, http.StatusOK, result)
+		return
+	}
+
 	client, err := storage.NewClient(ctx)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to create GCS client: "+err.Error())
@@ -56,48 +63,53 @@ func (s *Server) handleLatestVersions(w http.ResponseWriter, r *http.Request) {
 	}
 	defer func() { _ = client.Close() }()
 
-	result := &LatestVersionsResponse{}
-
 	// Fetch agent manifest
-	agentManifest, err := selfupdate.FetchManifest(ctx, client, "gs://openclawmachines/agent/manifest.json")
-	if err != nil {
-		slog.Warn("latest_versions.agent_manifest_failed", "error", err)
-	} else {
-		result.Agent = &ManifestInfo{
-			Version: agentManifest.Version,
-			BuiltAt: agentManifest.BuiltAt.Format(time.RFC3339),
+	if s.agentGCSManifest != "" {
+		agentManifest, err := selfupdate.FetchManifest(ctx, client, s.agentGCSManifest)
+		if err != nil {
+			slog.Warn("latest_versions.agent_manifest_failed", "error", err)
+		} else {
+			result.Agent = &ManifestInfo{
+				Version:     agentManifest.Version,
+				BuiltAt:     agentManifest.BuiltAt.Format(time.RFC3339),
+				ManifestURI: s.agentGCSManifest,
+			}
 		}
 	}
 
 	// Fetch rootfs manifest
-	rootfsManifest, err := selfupdate.FetchManifest(ctx, client, "gs://openclawmachines/rootfs/manifest.json")
-	if err != nil {
-		slog.Warn("latest_versions.rootfs_manifest_failed", "error", err)
-	} else {
-		result.Rootfs = &ManifestInfo{
-			Version:         rootfsManifest.Version,
-			BuiltAt:         rootfsManifest.BuiltAt.Format(time.RFC3339),
-			OpenClawVersion: rootfsManifest.OpenClawVersion,
+	if s.rootfsGCSManifest != "" {
+		rootfsManifest, err := selfupdate.FetchManifest(ctx, client, s.rootfsGCSManifest)
+		if err != nil {
+			slog.Warn("latest_versions.rootfs_manifest_failed", "error", err)
+		} else {
+			result.Rootfs = &ManifestInfo{
+				Version:         rootfsManifest.Version,
+				BuiltAt:         rootfsManifest.BuiltAt.Format(time.RFC3339),
+				OpenClawVersion: rootfsManifest.OpenClawVersion,
+				ManifestURI:     s.rootfsGCSManifest,
+			}
 		}
 	}
 
-	result.BrowserRootfs = &ManifestInfo{
-		Version:     config.StableKernelBrowserRootfsVersion,
-		Lineage:     "kernel-images",
-		Stability:   "stable",
-		ManifestURI: config.ExperimentalKernelBrowserManifestURI,
-	}
-
-	kernelBrowserManifest, err := selfupdate.FetchManifest(ctx, client, config.ExperimentalKernelBrowserManifestURI)
-	if err != nil {
-		slog.Debug("latest_versions.experimental_browser_rootfs_manifest_failed", "error", err)
-	} else {
-		result.ExperimentalBrowserRootfs = &ManifestInfo{
-			Version:     kernelBrowserManifest.Version,
-			BuiltAt:     kernelBrowserManifest.BuiltAt.Format(time.RFC3339),
-			Lineage:     "kernel-images",
-			Stability:   "experimental",
-			ManifestURI: config.ExperimentalKernelBrowserManifestURI,
+	if s.browserRootfsGCSManifest != "" {
+		browserManifest, err := selfupdate.FetchManifest(ctx, client, s.browserRootfsGCSManifest)
+		if err != nil {
+			slog.Debug("latest_versions.browser_rootfs_manifest_failed", "error", err)
+			result.BrowserRootfs = &ManifestInfo{
+				Version:     s.browserRootfsVersion,
+				Lineage:     "operator",
+				Stability:   "configured",
+				ManifestURI: s.browserRootfsGCSManifest,
+			}
+		} else {
+			result.BrowserRootfs = &ManifestInfo{
+				Version:     browserManifest.Version,
+				BuiltAt:     browserManifest.BuiltAt.Format(time.RFC3339),
+				Lineage:     "operator",
+				Stability:   "configured",
+				ManifestURI: s.browserRootfsGCSManifest,
+			}
 		}
 	}
 

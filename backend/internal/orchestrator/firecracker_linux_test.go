@@ -66,11 +66,11 @@ func TestCopyRootfsFallsBackWhenReflinkUnavailable(t *testing.T) {
 }
 
 func TestBrowserRootfsRequiresReflinkForKernelImagesUnlessAllowed(t *testing.T) {
-	if !browserRootfsRequiresReflink("kernel-images-experimental", "new-version", false) {
-		t.Fatal("expected unpinned/new Kernel Images browser rootfs to require reflink by default")
+	if !browserRootfsRequiresReflink("kernel-images-experimental", "", false) {
+		t.Fatal("expected latest Kernel Images browser rootfs to require reflink by default")
 	}
-	if browserRootfsRequiresReflink("kernel-images-experimental", "9a80fb2-20260411T202541Z", false) {
-		t.Fatal("expected known-good Kernel Images browser rootfs to allow fallback copy")
+	if browserRootfsRequiresReflink("kernel-images-experimental", "operator-pinned-version", false) {
+		t.Fatal("expected pinned Kernel Images browser rootfs to allow fallback copy")
 	}
 	if browserRootfsRequiresReflink("kernel-images-experimental", "new-version", true) {
 		t.Fatal("expected explicit full-copy allowance to disable strict reflink requirement")

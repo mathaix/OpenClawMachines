@@ -18,7 +18,6 @@ import (
 	"time"
 
 	"github.com/mathaix/openclawmachines/backend/internal/backup"
-	"github.com/mathaix/openclawmachines/backend/internal/config"
 	"github.com/mathaix/openclawmachines/backend/internal/metadata"
 	"github.com/mathaix/openclawmachines/backend/internal/orchestrator"
 )
@@ -1149,13 +1148,15 @@ func TestProxyAPI_NonExistentVMReturns404(t *testing.T) {
 }
 
 func TestControlAPI_CreateBrowserVM_PassesSizing(t *testing.T) {
+	const rootfsManifest = "gs://example-ocm-artifacts/kernel-browser-rootfs/manifest.json"
+	const rootfsVersion = "kernel-browser-rootfs-v1"
 	mock := newMockOrchestrator()
 	srv := NewServer("agent-tok", mock, "", nil, "", nil, nil, nil, false, nil, "")
 	router := srv.ControlRouter()
 
 	body := strings.NewReader(fmt.Sprintf(`{"browser_vm_id":"bvm-001","vm_ip":"192.168.100.42","vcpus":2,"memory_mb":4096,"rootfs_manifest":%q,"rootfs_version":%q}`,
-		config.ExperimentalKernelBrowserManifestURI,
-		config.StableKernelBrowserRootfsVersion))
+		rootfsManifest,
+		rootfsVersion))
 	req := httptest.NewRequest("POST", "/browser-vms", body)
 	req.Header.Set("Authorization", "Bearer agent-tok")
 	w := httptest.NewRecorder()
@@ -1175,7 +1176,7 @@ func TestControlAPI_CreateBrowserVM_PassesSizing(t *testing.T) {
 	if cfg.BrowserVMID != "bvm-001" || cfg.VMIP != "192.168.100.42" || cfg.VCPUs != 2 || cfg.MemoryMB != 4096 {
 		t.Fatalf("unexpected browser config: %+v", cfg)
 	}
-	if cfg.RootfsManifest != config.ExperimentalKernelBrowserManifestURI || cfg.RootfsVersion != config.StableKernelBrowserRootfsVersion {
+	if cfg.RootfsManifest != rootfsManifest || cfg.RootfsVersion != rootfsVersion {
 		t.Fatalf("unexpected browser rootfs selection: %+v", cfg)
 	}
 }

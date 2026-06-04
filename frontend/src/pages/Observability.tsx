@@ -134,12 +134,6 @@ function formatTokens(tokens: number): string {
   return tokens.toLocaleString();
 }
 
-function formatCost(cost: number): string {
-  if (!Number.isFinite(cost) || cost <= 0) return "$0";
-  if (cost < 0.01) return `$${cost.toFixed(6)}`;
-  return `$${cost.toFixed(4)}`;
-}
-
 function formatFeedbackScore(value?: number): string {
   if (value === undefined || value === null || !Number.isFinite(value)) return "unreviewed";
   return `${Math.round(value * 100)}% score`;
@@ -269,7 +263,6 @@ export function Observability() {
   const [tags, setTags] = useState("");
   const [minDuration, setMinDuration] = useState("");
   const [minTokens, setMinTokens] = useState("");
-  const [minCost, setMinCost] = useState("");
   const [traces, setTraces] = useState<OpikTraceListItem[]>([]);
   const [selectedTraceId, setSelectedTraceId] = useState<string | null>(null);
   const [detail, setDetail] = useState<OpikTraceDetail | null>(null);
@@ -316,7 +309,6 @@ export function Observability() {
       thread_id: threadId.trim() || undefined,
       tags: parseTags(tags),
       min_tokens: parseOptionalNumber(minTokens),
-      min_cost: parseOptionalNumber(minCost),
       min_duration_ms: minDurationSeconds === undefined ? undefined : Math.round(minDurationSeconds * 1000),
     };
 
@@ -337,7 +329,7 @@ export function Observability() {
     } finally {
       if (requestID === traceRequestRef.current) setLoading(false);
     }
-  }, [account, feedbackFilter, machineId, minCost, minDuration, minTokens, project, query, range, status, tags, threadId]);
+  }, [account, feedbackFilter, machineId, minDuration, minTokens, project, query, range, status, tags, threadId]);
 
   useEffect(() => {
     loadMachines();
@@ -419,7 +411,6 @@ export function Observability() {
       spans: traces.reduce((sum, trace) => sum + trace.span_count, 0),
       errors: traces.reduce((sum, trace) => sum + trace.error_count, 0),
       tokens: traces.reduce((sum, trace) => sum + trace.total_tokens, 0),
-      cost: traces.reduce((sum, trace) => sum + trace.total_estimated_cost, 0),
       p95: percentile(durationValues, 95),
     };
   }, [traces]);
@@ -434,7 +425,6 @@ export function Observability() {
     setTags("");
     setMinDuration("");
     setMinTokens("");
-    setMinCost("");
   };
 
   if (!account) {
@@ -535,13 +525,12 @@ export function Observability() {
             </select>
           </label>
         </div>
-        <div className="grid md:grid-cols-6 gap-3">
+        <div className="grid md:grid-cols-5 gap-3">
           <FilterInput label="Project" value={project} onChange={setProject} placeholder="default" />
           <FilterInput label="Thread" value={threadId} onChange={setThreadId} placeholder="thread id" />
           <FilterInput label="Tags" value={tags} onChange={setTags} placeholder="eval,prod" />
           <FilterInput label="Min seconds" value={minDuration} onChange={setMinDuration} placeholder="2" type="number" />
           <FilterInput label="Min tokens" value={minTokens} onChange={setMinTokens} placeholder="1000" type="number" />
-          <FilterInput label="Min cost" value={minCost} onChange={setMinCost} placeholder="0.01" type="number" />
         </div>
         <button
           onClick={clearFilters}
@@ -558,13 +547,12 @@ export function Observability() {
         </div>
       )}
 
-      <section className="grid grid-cols-2 md:grid-cols-6 gap-3">
+      <section className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <Metric label="Traces" value={stats.traces.toLocaleString()} />
         <Metric label="Spans" value={stats.spans.toLocaleString()} />
         <Metric label="Errors" value={stats.errors.toLocaleString()} danger={stats.errors > 0} />
         <Metric label="P95 latency" value={formatDurationMS(stats.p95)} />
         <Metric label="Tokens" value={formatTokens(stats.tokens)} />
-        <Metric label="Cost" value={formatCost(stats.cost)} />
       </section>
 
       <div className="grid lg:grid-cols-[minmax(300px,420px)_minmax(0,1fr)] gap-4">
@@ -699,7 +687,6 @@ function TraceList({
                   <span>{trace.span_count} spans</span>
                   <span>{formatDurationMS(trace.duration_ms)}</span>
                   <span>{formatTokens(trace.total_tokens)} tokens</span>
-                  <span>{formatCost(trace.total_estimated_cost)}</span>
                   <span className={trace.feedback_count > 0 && (trace.avg_feedback_score ?? 1) < 0.5 ? "text-red-100" : ""}>
                     {formatFeedbackScore(trace.avg_feedback_score)}
                   </span>
@@ -772,12 +759,11 @@ function TraceDetail({
             <span>{formatDuration(trace.start_time, trace.end_time)}</span>
           </div>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mt-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
           <TinyMetric label="Machine" value={trace.machine_name || trace.machine_id || "unknown"} />
           <TinyMetric label="Project" value={trace.project_name || trace.project_id || "default"} />
           <TinyMetric label="Spans" value={trace.span_count.toLocaleString()} />
           <TinyMetric label="Tokens" value={formatTokens(trace.total_tokens)} />
-          <TinyMetric label="Cost" value={formatCost(trace.total_estimated_cost)} />
         </div>
       </div>
 
@@ -1010,7 +996,6 @@ function SpanInspector({ span }: { span: OpikTraceSpan | null }) {
           <div className="flex flex-wrap items-center gap-2 text-xs text-text-tertiary">
             <span>{span.type || "span"}</span>
             <span>{formatDuration(span.start_time, span.end_time)}</span>
-            <span>{formatCost(span.total_estimated_cost)}</span>
           </div>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

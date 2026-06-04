@@ -2,8 +2,7 @@
 # cleanup-stale-dnat.sh — remove pre-chain DNAT sediment for browser VMs.
 #
 # Backup path for operators who need to unblock live-preview NOW, before
-# the new chain-based agent lands on a host. See
-# docs/superpowers/specs/2026-04-20-browser-vm-dnat-cleanup-plan.md Step 4.
+# the new chain-based agent lands on a host.
 #
 # Deletes:
 #   * nat/PREROUTING DNAT rules whose --to-destination is inside the

@@ -46,7 +46,6 @@ func (s *Server) handleCreateAccount(w http.ResponseWriter, r *http.Request) {
 	account := &store.Account{
 		Name:      req.Name,
 		Slug:      req.Slug,
-		Plan:      "free",
 		CreatedBy: claims.UserID,
 	}
 	if err := s.store.CreateAccountWithOwner(r.Context(), account, claims.UserID); err != nil {

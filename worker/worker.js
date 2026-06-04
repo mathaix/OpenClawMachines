@@ -72,30 +72,39 @@ async function getSignedKV(env, key) {
   }
 }
 
-// Static host routing for known domains → Cloud Run origins.
-const HOST_MAP = {
-  "openclawmachines.com": "ocm-frontend-864969804676.us-central1.run.app",
-  "www.openclawmachines.com": "ocm-frontend-864969804676.us-central1.run.app",
-  "app.openclawmachines.com": "ocm-frontend-864969804676.us-central1.run.app",
-  "api.openclawmachines.com": "ocm-backend-864969804676.us-central1.run.app",
-};
-
 const BASE_DOMAIN = "openclawmachines.com";
+
+function getBaseDomain(env = {}) {
+  return env.BASE_DOMAIN || BASE_DOMAIN;
+}
+
+function staticOriginForHost(env, hostname) {
+  const baseDomain = getBaseDomain(env);
+  const frontendOrigin = env.FRONTEND_ORIGIN_HOST || "";
+  const backendOrigin = env.BACKEND_ORIGIN_HOST || "";
+  if (frontendOrigin && (hostname === baseDomain || hostname === `www.${baseDomain}` || hostname === `app.${baseDomain}`)) {
+    return frontendOrigin;
+  }
+  if (backendOrigin && hostname === `api.${baseDomain}`) {
+    return backendOrigin;
+  }
+  return null;
+}
 
 /**
  * Create CORS headers for subdomain routing.
  * Allows cross-origin requests between *.openclawmachines.com subdomains.
  */
-function isAllowedOrigin(origin) {
+function isAllowedOrigin(origin, baseDomain = BASE_DOMAIN) {
   if (!origin) return false;
-  if (origin === `https://${BASE_DOMAIN}`) return true;
-  if (origin === `https://www.${BASE_DOMAIN}`) return true;
-  return origin.startsWith("https://") && origin.endsWith(`.${BASE_DOMAIN}`);
+  if (origin === `https://${baseDomain}`) return true;
+  if (origin === `https://www.${baseDomain}`) return true;
+  return origin.startsWith("https://") && origin.endsWith(`.${baseDomain}`);
 }
 
-function getCorsHeaders(request) {
+function getCorsHeaders(request, baseDomain = BASE_DOMAIN) {
   const origin = request.headers.get("Origin");
-  if (isAllowedOrigin(origin)) {
+  if (isAllowedOrigin(origin, baseDomain)) {
     return {
       "Access-Control-Allow-Origin": origin,
       "Access-Control-Allow-Credentials": "true",
@@ -110,8 +119,8 @@ function getCorsHeaders(request) {
 /**
  * Handle CORS preflight requests.
  */
-function handleOptions(request) {
-  const corsHeaders = getCorsHeaders(request);
+function handleOptions(request, baseDomain = BASE_DOMAIN) {
+  const corsHeaders = getCorsHeaders(request, baseDomain);
   if (corsHeaders) {
     return new Response(null, { status: 204, headers: corsHeaders });
   }
@@ -121,8 +130,8 @@ function handleOptions(request) {
 /**
  * Add CORS headers to a response.
  */
-function addCorsHeaders(response, request) {
-  const corsHeaders = getCorsHeaders(request);
+function addCorsHeaders(response, request, baseDomain = BASE_DOMAIN) {
+  const corsHeaders = getCorsHeaders(request, baseDomain);
   if (!corsHeaders) {
     return response;
   }
@@ -140,15 +149,15 @@ function addCorsHeaders(response, request) {
 /**
  * Extract account slug from hostname.
  * E.g. "myteam.openclawmachines.com" → "myteam"
- * Returns null for bare domain or known subdomains (www, api).
+ * Returns null for bare domain or known subdomains (www, api, app).
  */
-function extractAccountSlug(hostname) {
-  if (!hostname.endsWith("." + BASE_DOMAIN)) return null;
-  const sub = hostname.slice(0, -(BASE_DOMAIN.length + 1));
+function extractAccountSlug(hostname, baseDomain = BASE_DOMAIN) {
+  if (!hostname.endsWith("." + baseDomain)) return null;
+  const sub = hostname.slice(0, -(baseDomain.length + 1));
   // Single-level subdomain only (no dots)
   if (!sub || sub.includes(".")) return null;
   // Exclude known subdomains and host tunnel hostnames
-  if (sub === "www" || sub === "api") return null;
+  if (sub === "www" || sub === "api" || sub === "app") return null;
   if (sub.startsWith("ocm-host-")) return null;
   // Per-VM tunnel hostnames — let the tunnel handle these
   if (sub.startsWith("m-") || sub.startsWith("ssh-")) return null;
@@ -487,7 +496,7 @@ async function resolveViaBackend(env, accountSlug, machineSlug) {
     resolveUrl = `${env.RESOLVE_ORIGIN}/api/internal/resolve`;
     hostHeader = new URL(env.RESOLVE_ORIGIN).host;
   } else {
-    const backendOrigin = HOST_MAP["api.openclawmachines.com"];
+    const backendOrigin = staticOriginForHost(env, `api.${getBaseDomain(env)}`);
     if (!backendOrigin) return null;
     resolveUrl = `https://${backendOrigin}/api/internal/resolve`;
     hostHeader = backendOrigin;
@@ -521,11 +530,11 @@ async function resolveViaBackend(env, accountSlug, machineSlug) {
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+    const baseDomain = getBaseDomain(env);
 
-    // Redirect www to bare domain so CF Access protection applies consistently.
-    // CF Access is configured on openclawmachines.com, not www.openclawmachines.com.
-    if (url.hostname === "www." + BASE_DOMAIN) {
-      url.hostname = BASE_DOMAIN;
+    // Redirect www to bare domain so edge auth protection applies consistently.
+    if (url.hostname === "www." + baseDomain) {
+      url.hostname = baseDomain;
       return Response.redirect(url.toString(), 301);
     }
 
@@ -571,7 +580,7 @@ export default {
     const userAgent = request.headers.get("User-Agent") || "";
     if (
       isBot(userAgent) &&
-      (url.hostname === BASE_DOMAIN || url.hostname === "www." + BASE_DOMAIN) &&
+      (url.hostname === baseDomain || url.hostname === "www." + baseDomain) &&
       shouldPrerender(url.pathname)
     ) {
       try {
@@ -591,17 +600,17 @@ export default {
     }
 
     // --- Static host routing (existing behavior) ---
-    let staticOrigin = HOST_MAP[url.hostname];
+    let staticOrigin = staticOriginForHost(env, url.hostname);
 
     // Route /api/* on any frontend domain to the backend origin.
     // This keeps API requests same-origin so CF Access handles auth at the edge
     // and the browser sends CF_Authorization cookie automatically — no JS cookie
     // reading needed (fixes Safari ITP blocking cross-origin cookie access).
-    const isFrontendHost = url.hostname === BASE_DOMAIN
-      || url.hostname === "www." + BASE_DOMAIN
-      || url.hostname === "app." + BASE_DOMAIN;
+    const isFrontendHost = url.hostname === baseDomain
+      || url.hostname === "www." + baseDomain
+      || url.hostname === "app." + baseDomain;
     if (staticOrigin && isFrontendHost && url.pathname.startsWith("/api/")) {
-      staticOrigin = HOST_MAP["api." + BASE_DOMAIN];
+      staticOrigin = staticOriginForHost(env, "api." + baseDomain);
     }
 
     if (staticOrigin) {
@@ -646,11 +655,11 @@ export default {
     }
 
     // --- Subdomain routing ---
-    const accountSlug = extractAccountSlug(url.hostname);
+    const accountSlug = extractAccountSlug(url.hostname, baseDomain);
     if (!accountSlug) {
       // Per-VM tunnel hostnames (m-*, ssh-*) — pass through to Cloudflare Tunnel
-      const sub = url.hostname.endsWith("." + BASE_DOMAIN)
-        ? url.hostname.slice(0, -(BASE_DOMAIN.length + 1))
+      const sub = url.hostname.endsWith("." + baseDomain)
+        ? url.hostname.slice(0, -(baseDomain.length + 1))
         : null;
       if (sub && (sub.startsWith("m-") || sub.startsWith("ssh-"))) {
         return fetch(request);
@@ -660,24 +669,24 @@ export default {
 
     // Handle CORS preflight
     if (request.method === "OPTIONS") {
-      return handleOptions(request);
+      return handleOptions(request, baseDomain);
     }
 
     const machineInfo = extractMachinePath(url.pathname);
     if (!machineInfo) {
-      return addCorsHeaders(new Response("Not found — specify a machine path", { status: 404 }), request);
+      return addCorsHeaders(new Response("Not found — specify a machine path", { status: 404 }), request, baseDomain);
     }
 
     const { machineSlug, subPath } = machineInfo;
 
     // Verify JWT from cookie
     if (!env.JWT_SECRET) {
-      return addCorsHeaders(new Response("Server misconfiguration", { status: 500 }), request);
+      return addCorsHeaders(new Response("Server misconfiguration", { status: 500 }), request, baseDomain);
     }
 
     const claims = await verifyRequestJWT(request, env.JWT_SECRET);
     if (!claims) {
-      return addCorsHeaders(new Response("Unauthorized", { status: 401 }), request);
+      return addCorsHeaders(new Response("Unauthorized", { status: 401 }), request, baseDomain);
     }
 
     // Look up account in KV (with HMAC verification if signing key is set)
@@ -687,7 +696,7 @@ export default {
       if (accountEntry) {
         // Verify user has access to this account
         if (accountEntry.user_ids && !accountEntry.user_ids.includes(claims.user_id)) {
-          return addCorsHeaders(new Response("Forbidden", { status: 403 }), request);
+          return addCorsHeaders(new Response("Forbidden", { status: 403 }), request, baseDomain);
         }
       }
     }
@@ -702,12 +711,12 @@ export default {
     if (!route) {
       const resolved = await resolveViaBackend(env, accountSlug, machineSlug);
       if (!resolved) {
-        return addCorsHeaders(new Response("Machine not found or not running", { status: 404 }), request);
+        return addCorsHeaders(new Response("Machine not found or not running", { status: 404 }), request, baseDomain);
       }
 
       // Verify user access from resolved data
       if (resolved.user_ids && !resolved.user_ids.includes(claims.user_id)) {
-        return addCorsHeaders(new Response("Forbidden", { status: 403 }), request);
+        return addCorsHeaders(new Response("Forbidden", { status: 403 }), request, baseDomain);
       }
 
       route = resolved;
@@ -738,7 +747,7 @@ export default {
 
     // Forward to host agent
     if (!route.host_hostname || !route.machine_id) {
-      return addCorsHeaders(new Response("Machine not running", { status: 502 }), request);
+      return addCorsHeaders(new Response("Machine not running", { status: 502 }), request, baseDomain);
     }
 
     // WebSocket: use explicit bidirectional proxy via WebSocketPair
@@ -752,9 +761,9 @@ export default {
 
     try {
       const agentResponse = await forwardToAgent(request, url, route.host_hostname, route.machine_id, route.proxy_token, machineSlug, subPath, env);
-      return addCorsHeaders(agentResponse, request);
+      return addCorsHeaders(agentResponse, request, baseDomain);
     } catch (err) {
-      return addCorsHeaders(new Response("Upstream unreachable", { status: 502 }), request);
+      return addCorsHeaders(new Response("Upstream unreachable", { status: 502 }), request, baseDomain);
     }
   },
 };

@@ -229,7 +229,6 @@ export function CreateMachineModal({ open, onOpenChange, accountId, onCreated }:
                     >
                       <p className="text-[13px] font-semibold text-text">{size.label}</p>
                       <p className="text-[11px] text-text-tertiary mt-0.5">{size.description}</p>
-                      <p className="text-[11px] font-medium text-brand-400 mt-1">${size.price_cents_mo / 100}/mo</p>
                     </button>
                   );
                 })}

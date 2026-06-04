@@ -91,8 +91,8 @@ Tests can be configured via environment variables:
 ## Auto-Download
 
 If kernel or rootfs images are missing, tests will automatically download them from GCS:
-- `gs://openclawmachines/vmlinux`
-- `gs://openclawmachines/rootfs.ext4`
+- `gs://example-ocm-artifacts/vmlinux`
+- `gs://example-ocm-artifacts/rootfs.ext4`
 
 This requires `gsutil` to be installed and authenticated.
 

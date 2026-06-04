@@ -19,17 +19,15 @@ import { BrowserTab } from "./machine-tabs/BrowserTab";
 import { BackupsTab } from "./machine-tabs/BackupsTab";
 import { FilesTab } from "./machine-tabs/FilesTab";
 import { LogConsole } from "../components/LogConsole";
-import { UsageTab } from "./machine-tabs/UsageTab";
 import { WebSearchTab } from "./machine-tabs/WebSearchTab";
 import { TracesTab } from "./machine-tabs/TracesTab";
 
-type TabId = "overview" | "dashboard" | "resources" | "usage" | "traces" | "model" | "search" | "channels" | "integrations" | "browser" | "files" | "logs" | "backups";
+type TabId = "overview" | "dashboard" | "resources" | "traces" | "model" | "search" | "channels" | "integrations" | "browser" | "files" | "logs" | "backups";
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "overview", label: "Overview" },
   { id: "dashboard", label: "Dashboard" },
   { id: "resources", label: "Resources" },
-  { id: "usage", label: "Usage" },
   { id: "traces", label: "Traces" },
   { id: "model", label: "Model" },
   { id: "search", label: "Web Search" },
@@ -504,9 +502,6 @@ export function MachineView() {
       )}
       {activeTab === "resources" && accountId && (
         <ResourcesTab kind="machine" vm={machine} accountId={accountId} />
-      )}
-      {activeTab === "usage" && accountId && (
-        <UsageTab machine={machine} accountId={accountId} />
       )}
       {activeTab === "traces" && accountId && (
         <TracesTab machine={machine} accountId={accountId} />

@@ -1979,7 +1979,7 @@ func TestGatewayE2E_FileConfig(t *testing.T) {
 // userId set to the machine ID.
 func TestGatewayE2E_ComposioConfigAssembly(t *testing.T) {
 	const testMachineID = "e2e-composio-machine-123"
-	const testAPIURL = "https://api.openclawmachines.com/api/composio"
+	const testAPIURL = "https://api.example.com/api/composio"
 
 	params := configassembly.AssemblyParams{
 		MachineID: testMachineID,
@@ -2498,7 +2498,7 @@ func TestNativeMode_ProxyAnthropicApiKey(t *testing.T) {
 // which skips when creds are absent rather than red-failing CI on env drift.
 func fetchNebiusKey(t *testing.T) string {
 	t.Helper()
-	const secretName = "projects/clarateach/secrets/NEBIUS_API_KEY/versions/latest"
+	const secretName = "projects/example-project/secrets/NEBIUS_API_KEY/versions/latest"
 	key, err := secrets.FetchSecret(context.Background(), secretName)
 	if err != nil {
 		t.Skipf("NEBIUS_API_KEY unavailable from Secret Manager: %v", err)
@@ -2548,7 +2548,7 @@ func TestNativeMode_ProxyNebiusApiKey(t *testing.T) {
 // Skips the test if the key cannot be fetched (see fetchNebiusKey).
 func fetchOpenRouterKey(t *testing.T) string {
 	t.Helper()
-	const secretName = "projects/clarateach/secrets/GCP_OPEN_ROUTER_KEY/versions/latest"
+	const secretName = "projects/example-project/secrets/GCP_OPEN_ROUTER_KEY/versions/latest"
 	key, err := secrets.FetchSecret(context.Background(), secretName)
 	if err != nil {
 		t.Skipf("GCP_OPEN_ROUTER_KEY unavailable from Secret Manager: %v", err)
@@ -3454,7 +3454,7 @@ func TestNativeMode_SearchProviderConfig(t *testing.T) {
 // Skips the test if the key cannot be fetched (see fetchNebiusKey).
 func fetchExaKey(t *testing.T) string {
 	t.Helper()
-	const secretName = "projects/clarateach/secrets/EXA_SEARCH/versions/latest"
+	const secretName = "projects/example-project/secrets/EXA_SEARCH/versions/latest"
 	key, err := secrets.FetchSecret(context.Background(), secretName)
 	if err != nil {
 		t.Skipf("EXA_SEARCH unavailable from Secret Manager: %v", err)

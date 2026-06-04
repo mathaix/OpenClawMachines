@@ -153,10 +153,6 @@ func parseTraceSearchFilters(r *http.Request) (store.OpikTraceSearchFilters, boo
 	if !ok {
 		return store.OpikTraceSearchFilters{}, false, "invalid min_tokens parameter: use a non-negative integer"
 	}
-	minCost, ok := parseOptionalTraceFloat(r, "min_cost")
-	if !ok {
-		return store.OpikTraceSearchFilters{}, false, "invalid min_cost parameter: use a non-negative number"
-	}
 	minDurationMS, ok := parseOptionalTraceInt64(r, "min_duration_ms")
 	if !ok {
 		return store.OpikTraceSearchFilters{}, false, "invalid min_duration_ms parameter: use a non-negative integer"
@@ -191,7 +187,6 @@ func parseTraceSearchFilters(r *http.Request) (store.OpikTraceSearchFilters, boo
 		Feedback:      feedback,
 		MaxFeedback:   maxFeedback,
 		MinTokens:     minTokens,
-		MinCost:       minCost,
 		MinDurationMS: minDurationMS,
 	}, true, ""
 }

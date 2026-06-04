@@ -10,6 +10,8 @@ import { CopyButton } from "../components/CopyButton";
 import { useKeyboardShortcuts } from "../lib/useKeyboardShortcuts";
 import type { Machine } from "../lib/types";
 
+const DATA_PLANE_DOMAIN = (import.meta.env.VITE_DATA_PLANE_DOMAIN || "").trim().replace(/^\./, "");
+
 function hermesAwareTabs(kind?: Machine["kind"]) {
   const isHermes = kind === "hermes";
   return [
@@ -300,11 +302,11 @@ export function MachineWorkspace() {
       </div>
 
       {/* SSH Access info panel */}
-      {showSshInfo && isRunning && (
+      {showSshInfo && isRunning && DATA_PLANE_DOMAIN && (
         <div className="px-4 py-2 bg-gray-800 border-b border-gray-700 flex items-center gap-4">
           <span className="text-xs text-gray-400 font-medium uppercase tracking-wide shrink-0">SSH</span>
           <a
-            href={`https://ssh-${machine.slug}.openclawmachines.com`}
+            href={`https://ssh-${machine.slug}.${DATA_PLANE_DOMAIN}`}
             target="_blank"
             rel="noreferrer"
             className="text-xs text-blue-400 hover:text-blue-300 hover:underline shrink-0"

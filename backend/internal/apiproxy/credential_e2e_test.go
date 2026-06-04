@@ -4,9 +4,6 @@ package apiproxy
 
 // Credential Redesign E2E Tests
 //
-// These tests validate the model & credential redesign described in:
-//   docs/superpowers/specs/2026-03-25-model-and-credential-redesign.md
-//
 // Interactive test (runs full OAuth flow):
 //
 //   cd backend && go test -tags e2e -run TestE2E_CodexOAuth -v -timeout 5m ./internal/apiproxy/

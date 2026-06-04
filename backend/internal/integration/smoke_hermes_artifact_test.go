@@ -18,8 +18,8 @@ import (
 //
 // Run:
 //
-//	TEST_HERMES_MANIFEST_URI=gs://openclawmachines/hermes/manifest-stable.json \
-//	TEST_HERMES_ROOTFS_MANIFEST_URI=gs://openclawmachines/hermes-rootfs/manifest.json \
+//	TEST_HERMES_MANIFEST_URI=gs://example-ocm-artifacts/hermes/manifest-stable.json \
+//	TEST_HERMES_ROOTFS_MANIFEST_URI=gs://example-ocm-artifacts/hermes-rootfs/manifest.json \
 //	go test -tags=integration ./internal/integration -run TestSmokeHermesArtifactRuntime -v
 func TestSmokeHermesArtifactRuntime(t *testing.T) {
 	cfg := skipIfNoPrereqs(t)

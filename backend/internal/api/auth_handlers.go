@@ -88,7 +88,6 @@ func (s *Server) handleAuthMe(w http.ResponseWriter, r *http.Request) {
 				account := &store.Account{
 					Name:      user.Name + "'s Account",
 					Slug:      slug,
-					Plan:      "free",
 					CreatedBy: user.ID,
 				}
 				if err := s.store.CreateAccountWithOwner(r.Context(), account, user.ID); err != nil {
@@ -122,7 +121,7 @@ func (s *Server) handleAuthMe(w http.ResponseWriter, r *http.Request) {
 					Name:     "ocm_token",
 					Value:    token,
 					Path:     "/",
-					Domain:   ".openclawmachines.com",
+					Domain:   s.cookieDomain(),
 					MaxAge:   86400,
 					HttpOnly: true,
 					Secure:   true,
@@ -247,7 +246,6 @@ func (s *Server) handleSessionExchange(w http.ResponseWriter, r *http.Request) {
 			account := &store.Account{
 				Name:      name + "'s Account",
 				Slug:      slug,
-				Plan:      "free",
 				CreatedBy: user.ID,
 			}
 			if err := s.store.CreateAccountWithOwner(r.Context(), account, user.ID); err != nil {
@@ -289,7 +287,7 @@ func (s *Server) handleSessionExchange(w http.ResponseWriter, r *http.Request) {
 		Name:     "ocm_token",
 		Value:    token,
 		Path:     "/",
-		Domain:   ".openclawmachines.com",
+		Domain:   s.cookieDomain(),
 		MaxAge:   86400,
 		HttpOnly: true,
 		Secure:   true,
@@ -315,7 +313,7 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 		Name:     "ocm_token",
 		Value:    "",
 		Path:     "/",
-		Domain:   ".openclawmachines.com",
+		Domain:   s.cookieDomain(),
 		MaxAge:   -1,
 		HttpOnly: true,
 		Secure:   true,

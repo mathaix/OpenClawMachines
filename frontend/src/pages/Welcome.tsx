@@ -4,6 +4,8 @@ import { useAuth } from "../lib/auth";
 import { createAccount } from "../lib/api";
 import { toSlug } from "../lib/utils";
 
+const DATA_PLANE_DOMAIN = (import.meta.env.VITE_DATA_PLANE_DOMAIN || "localhost").trim().replace(/^\./, "");
+
 export function Welcome() {
   const { user, setAccount, refreshAccounts } = useAuth();
   const navigate = useNavigate();
@@ -71,7 +73,7 @@ export function Welcome() {
               <span className="text-gray-400 dark:text-gray-500 font-normal ml-1">(optional)</span>
             </label>
             <div className="flex items-center gap-1 text-sm text-gray-400 dark:text-gray-500 mb-1">
-              <span>{effectiveSlug || "your-slug"}.openclawmachines.com</span>
+              <span>{effectiveSlug || "your-slug"}.{DATA_PLANE_DOMAIN}</span>
             </div>
             <input
               id="slug"

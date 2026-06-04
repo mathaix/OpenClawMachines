@@ -15,7 +15,6 @@ import (
 
 	"github.com/mathaix/openclawmachines/backend/internal/agentclient"
 	"github.com/mathaix/openclawmachines/backend/internal/auth"
-	"github.com/mathaix/openclawmachines/backend/internal/config"
 	"github.com/mathaix/openclawmachines/backend/internal/fleet"
 	"github.com/mathaix/openclawmachines/backend/internal/store"
 )
@@ -162,6 +161,8 @@ func newStartBrowserVMRequest(t *testing.T, email string, body map[string]any) *
 }
 
 func TestBrowserRootfsSelectionPresets(t *testing.T) {
+	const browserManifest = "gs://example-ocm-artifacts/kernel-browser-rootfs/manifest.json"
+	const browserVersion = "kernel-browser-rootfs-v1"
 	cases := []struct {
 		name         string
 		image        string
@@ -175,24 +176,24 @@ func TestBrowserRootfsSelectionPresets(t *testing.T) {
 		{
 			name:         "kernel stable pins known-good kernel image",
 			image:        "kernel-stable",
-			wantManifest: ptr(config.ExperimentalKernelBrowserManifestURI),
-			wantVersion:  ptr(config.StableKernelBrowserRootfsVersion),
+			wantManifest: ptr(browserManifest),
+			wantVersion:  ptr(browserVersion),
 		},
 		{
 			name:         "kernel experimental uses latest kernel manifest release",
 			image:        "kernel-experimental",
-			wantManifest: ptr(config.ExperimentalKernelBrowserManifestURI),
+			wantManifest: ptr(browserManifest),
 		},
 		{
 			name:         "version without manifest targets kernel manifest",
-			version:      config.StableKernelBrowserRootfsVersion,
-			wantManifest: ptr(config.ExperimentalKernelBrowserManifestURI),
-			wantVersion:  ptr(config.StableKernelBrowserRootfsVersion),
+			version:      browserVersion,
+			wantManifest: ptr(browserManifest),
+			wantVersion:  ptr(browserVersion),
 		},
 		{
 			name:     "image and manifest are mutually exclusive",
 			image:    "kernel-stable",
-			manifest: config.ExperimentalKernelBrowserManifestURI,
+			manifest: browserManifest,
 			wantErr:  "browser_image cannot be combined",
 		},
 		{
@@ -201,19 +202,14 @@ func TestBrowserRootfsSelectionPresets(t *testing.T) {
 			wantErr: "browser_image must be one of",
 		},
 		{
-			name:     "legacy manifest rejected",
-			manifest: config.StableBrowserRootfsManifestURI,
-			wantErr:  "legacy CDP browser rootfs is disabled",
-		},
-		{
 			name:    "unknown image rejected",
 			image:   "custom",
 			wantErr: "browser_image must be one of",
 		},
 		{
-			name:     "unknown manifest rejected",
-			manifest: "gs://example/browser-rootfs/manifest.json",
-			wantErr:  "rootfs_manifest must be a known",
+			name:         "custom manifest accepted",
+			manifest:     "gs://example/browser-rootfs/manifest.json",
+			wantManifest: ptr("gs://example/browser-rootfs/manifest.json"),
 		},
 		{
 			name:    "bad version rejected",
@@ -225,7 +221,7 @@ func TestBrowserRootfsSelectionPresets(t *testing.T) {
 	for _, tc := range cases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			gotManifest, gotVersion, err := browserRootfsSelection(tc.image, tc.manifest, tc.version)
+			gotManifest, gotVersion, err := browserRootfsSelection(tc.image, tc.manifest, tc.version, browserManifest, browserVersion)
 			if tc.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
 					t.Fatalf("error = %v, want substring %q", err, tc.wantErr)
@@ -246,6 +242,8 @@ func TestBrowserRootfsSelectionPresets(t *testing.T) {
 }
 
 func TestBrowserVMRequiresReflink(t *testing.T) {
+	const browserManifest = "gs://example-ocm-artifacts/kernel-browser-rootfs/manifest.json"
+	const browserVersion = "kernel-browser-rootfs-v1"
 	cases := []struct {
 		name    string
 		bvm     *store.BrowserVM
@@ -256,22 +254,16 @@ func TestBrowserVMRequiresReflink(t *testing.T) {
 		{
 			name: "kernel stable version allows fallback copy",
 			bvm: &store.BrowserVM{
-				DesiredRootfsManifest: ptr(config.ExperimentalKernelBrowserManifestURI),
-				DesiredRootfsVersion:  ptr(config.StableKernelBrowserRootfsVersion),
+				DesiredRootfsManifest: ptr(browserManifest),
+				DesiredRootfsVersion:  ptr(browserVersion),
 			},
 		},
 		{
 			name: "kernel latest requires reflink",
 			bvm: &store.BrowserVM{
-				DesiredRootfsManifest: ptr(config.ExperimentalKernelBrowserManifestURI),
+				DesiredRootfsManifest: ptr(browserManifest),
 			},
 			wantReq: true,
-		},
-		{
-			name: "legacy browser rootfs does not require reflink",
-			bvm: &store.BrowserVM{
-				DesiredRootfsManifest: ptr(config.StableBrowserRootfsManifestURI),
-			},
 		},
 	}
 
@@ -293,8 +285,7 @@ func TestBrowserVMUsesDisabledLegacyRootfs(t *testing.T) {
 	}{
 		{name: "nil browser VM"},
 		{name: "host default", bvm: &store.BrowserVM{}},
-		{name: "kernel browser rootfs", bvm: &store.BrowserVM{DesiredRootfsManifest: ptr(config.ExperimentalKernelBrowserManifestURI)}},
-		{name: "legacy browser rootfs", bvm: &store.BrowserVM{DesiredRootfsManifest: ptr(config.StableBrowserRootfsManifestURI)}, want: true},
+		{name: "kernel browser rootfs", bvm: &store.BrowserVM{DesiredRootfsManifest: ptr("gs://example-ocm-artifacts/kernel-browser-rootfs/manifest.json")}},
 	}
 
 	for _, tc := range cases {
@@ -675,6 +666,8 @@ func TestHandleStartBrowserVM_ReadinessTimeoutPreservesAgentOwnership(t *testing
 }
 
 func TestHandleStartBrowserVM_ForwardsDesiredRootfsSelection(t *testing.T) {
+	const desiredManifest = "gs://example-ocm-artifacts/kernel-browser-rootfs/manifest.json"
+	const desiredVersion = "kernel-browser-rootfs-v1"
 	createSeen := false
 	agentServer, host, httpClient := newBrowserVMTestAgent(t, func(w http.ResponseWriter, r *http.Request) {
 		switch {
@@ -684,11 +677,11 @@ func TestHandleStartBrowserVM_ForwardsDesiredRootfsSelection(t *testing.T) {
 			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 				t.Fatalf("decode request: %v", err)
 			}
-			if req["rootfs_manifest"] != config.ExperimentalKernelBrowserManifestURI {
-				t.Fatalf("rootfs_manifest = %v, want %q", req["rootfs_manifest"], config.ExperimentalKernelBrowserManifestURI)
+			if req["rootfs_manifest"] != desiredManifest {
+				t.Fatalf("rootfs_manifest = %v, want %q", req["rootfs_manifest"], desiredManifest)
 			}
-			if req["rootfs_version"] != config.StableKernelBrowserRootfsVersion {
-				t.Fatalf("rootfs_version = %v, want %q", req["rootfs_version"], config.StableKernelBrowserRootfsVersion)
+			if req["rootfs_version"] != desiredVersion {
+				t.Fatalf("rootfs_version = %v, want %q", req["rootfs_version"], desiredVersion)
 			}
 			w.WriteHeader(http.StatusAccepted)
 			_, _ = w.Write([]byte(`{"status":"creating"}`))
@@ -701,8 +694,6 @@ func TestHandleStartBrowserVM_ForwardsDesiredRootfsSelection(t *testing.T) {
 	})
 	defer agentServer.Close()
 
-	desiredManifest := config.ExperimentalKernelBrowserManifestURI
-	desiredVersion := config.StableKernelBrowserRootfsVersion
 	ms := &mockBrowserVMStore{
 		bvm: &store.BrowserVM{
 			ID:                    "bvm-1",
@@ -710,8 +701,8 @@ func TestHandleStartBrowserVM_ForwardsDesiredRootfsSelection(t *testing.T) {
 			Status:                "stopped",
 			VCPUs:                 2,
 			MemoryMB:              4096,
-			DesiredRootfsManifest: &desiredManifest,
-			DesiredRootfsVersion:  &desiredVersion,
+			DesiredRootfsManifest: ptr(desiredManifest),
+			DesiredRootfsVersion:  ptr(desiredVersion),
 		},
 		host:              host,
 		listEligibleHosts: []store.Host{*host},

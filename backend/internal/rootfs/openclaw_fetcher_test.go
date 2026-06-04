@@ -20,7 +20,7 @@ import (
 func TestParseOpenClawReleaseManifest_Valid(t *testing.T) {
 	input := `{
 		"version": "v2026.4.5",
-		"artifact_url": "gs://openclawmachines/openclaw/releases/v2026.4.5/openclaw-v2026.4.5-linux-amd64.tar.zst",
+		"artifact_url": "gs://example-ocm-artifacts/openclaw/releases/v2026.4.5/openclaw-v2026.4.5-linux-amd64.tar.zst",
 		"sha256": "abc123",
 		"runtime": {
 			"entrypoint_relpath": "bin/openclaw",

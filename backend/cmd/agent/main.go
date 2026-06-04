@@ -398,16 +398,17 @@ func main() {
 }
 
 func browserRootfsLineage(manifestURI string) string {
-	switch strings.TrimSpace(manifestURI) {
-	case "":
+	manifestURI = strings.TrimSpace(manifestURI)
+	if manifestURI == "" {
 		return "disabled"
-	case config.StableBrowserRootfsManifestURI:
-		return "legacy"
-	case config.ExperimentalKernelBrowserManifestURI:
-		return "kernel-images-experimental"
-	default:
-		return "custom"
 	}
+	if config.StableBrowserRootfsManifestURI != "" && manifestURI == config.StableBrowserRootfsManifestURI {
+		return "legacy"
+	}
+	if config.ExperimentalKernelBrowserManifestURI != "" && manifestURI == config.ExperimentalKernelBrowserManifestURI {
+		return "kernel-images-experimental"
+	}
+	return "custom"
 }
 
 func buildHostCapabilities(cfg *config.AgentConfig) map[string]interface{} {
@@ -823,7 +824,9 @@ func sendHeartbeat(ctx context.Context, cfg *config.AgentConfig, srv *agentapi.S
 			backupStoreInitMu.Unlock()
 		} else {
 			if cfg.BackupGCSBucket == "" {
-				cfg.BackupGCSBucket = "openclawmachines"
+				slog.Warn("backup.heartbeat_init.skipped", "reason", "BACKUP_GCS_BUCKET not configured")
+				backupStoreInitMu.Unlock()
+				return
 			}
 			if cfg.BackupGCSPrefix == "" {
 				cfg.BackupGCSPrefix = "backups"

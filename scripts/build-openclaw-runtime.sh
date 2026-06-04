@@ -254,8 +254,6 @@ tar -xzf "${COMPOSIO_TGZ}" -C "${EXT_DIR}/composio" --strip-components=1
 # If ChannelTokenFields gains a new entry, this list must be updated in
 # the same change (the Go invariant test enforces this).
 #
-# See docs/CurrentFeature.md (this branch's design doc).
-# Supersedes docs/plans/2026-04-28-cold-boot-extension-scrub-design.md.
 OCM_KEEP_CHANNELS_DEFAULT="telegram slack discord whatsapp"
 OCM_KEEP_CHANNELS="${OCM_KEEP_CHANNELS:-${OCM_KEEP_CHANNELS_DEFAULT}}"
 

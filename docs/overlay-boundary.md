@@ -8,9 +8,9 @@ Public core owns:
 
 - Local setup, operator-run control-plane paths, and API surfaces consumed by the companion `ocm` CLI.
 - Firecracker and microVM runtime code needed to run machines.
-- Provider-neutral account, machine, credential, observability, and usage telemetry primitives.
+- Provider-neutral account, machine, credential, observability, and runtime telemetry primitives.
 - Documentation for self-hosting, local development, security posture, and extension points.
-- Neutral usage and cost telemetry when it helps operators understand resource or model consumption without enforcing a commercial hosted plan.
+- Neutral resource and runtime telemetry when it helps operators operate their own deployment without enforcing a commercial hosted plan.
 
 ## Private Overlay
 

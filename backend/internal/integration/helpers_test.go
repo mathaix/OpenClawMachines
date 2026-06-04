@@ -815,9 +815,9 @@ func generateTestSigningKey() string {
 }
 
 // defaultOpenClawManifestURI is the GCS manifest used for all integration tests.
-const defaultOpenClawManifestURI = "gs://openclawmachines/openclaw/manifest-stable.json"
-const defaultHermesManifestURI = "gs://openclawmachines/hermes/manifest-stable.json"
-const defaultHermesRootfsManifestURI = "gs://openclawmachines/hermes-rootfs/manifest.json"
+const defaultOpenClawManifestURI = "gs://example-ocm-artifacts/openclaw/manifest-stable.json"
+const defaultHermesManifestURI = "gs://example-ocm-artifacts/hermes/manifest-stable.json"
+const defaultHermesRootfsManifestURI = "gs://example-ocm-artifacts/hermes-rootfs/manifest.json"
 
 // cachedStableVersion caches the stable OpenClaw version across tests.
 var (

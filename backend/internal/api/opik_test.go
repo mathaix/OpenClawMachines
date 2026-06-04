@@ -303,7 +303,7 @@ func TestHandleListAccountTraces_ParsesFilters(t *testing.T) {
 
 	path := "/api/accounts/7/traces?since=" + since.Format(time.RFC3339) +
 		"&limit=25&machine_id=m-1&project=default&status=error&q=payload&thread_id=thread-1" +
-		"&tag=prod,Needs+Review&tag=Eval-Fail&feedback=low&max_feedback_score=0.4&min_tokens=100&min_cost=0.01&min_duration_ms=2000"
+		"&tag=prod,Needs+Review&tag=Eval-Fail&feedback=low&max_feedback_score=0.4&min_tokens=100&min_duration_ms=2000"
 	req := opikDashboardRequest(http.MethodGet, path, 7, map[string]string{})
 	w := httptest.NewRecorder()
 
@@ -332,9 +332,6 @@ func TestHandleListAccountTraces_ParsesFilters(t *testing.T) {
 	}
 	if filters.MinTokens == nil || *filters.MinTokens != 100 {
 		t.Fatalf("unexpected min tokens: %#v", filters.MinTokens)
-	}
-	if filters.MinCost == nil || *filters.MinCost != 0.01 {
-		t.Fatalf("unexpected min cost: %#v", filters.MinCost)
 	}
 	if filters.MinDurationMS == nil || *filters.MinDurationMS != 2000 {
 		t.Fatalf("unexpected min duration: %#v", filters.MinDurationMS)

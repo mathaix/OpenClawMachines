@@ -2,16 +2,14 @@ import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import { updateAccount } from "../lib/api";
-import { UsageDashboard } from "../components/UsageDashboard";
 import { MembersTab } from "../components/MembersTab";
 import { ThemeToggle } from "../components/ThemeToggle";
 
-type SettingsTab = "profile" | "members" | "usage";
+type SettingsTab = "profile" | "members";
 
 const TABS: { id: SettingsTab; label: string }[] = [
   { id: "profile", label: "Profile" },
   { id: "members", label: "Members" },
-  { id: "usage", label: "Usage" },
 ];
 
 export function Settings() {
@@ -106,10 +104,6 @@ export function Settings() {
                 <p className="text-[11px] text-text-tertiary uppercase tracking-wider mb-0.5 field-label">Slug</p>
                 <p className="text-[14px] font-medium text-text-primary">{account?.slug}</p>
               </div>
-              <div>
-                <p className="text-[11px] text-text-tertiary uppercase tracking-wider mb-0.5">Plan</p>
-                <p className="text-[14px] font-medium text-text-primary capitalize">{account?.plan}</p>
-              </div>
             </div>
 
             {/* User section */}
@@ -148,14 +142,6 @@ export function Settings() {
         )}
 
         {activeTab === "members" && !account && (
-          <p className="text-[13px] text-text-secondary">Loading account...</p>
-        )}
-
-        {activeTab === "usage" && account && (
-          <UsageDashboard accountId={account.id} />
-        )}
-
-        {activeTab === "usage" && !account && (
           <p className="text-[13px] text-text-secondary">Loading account...</p>
         )}
 

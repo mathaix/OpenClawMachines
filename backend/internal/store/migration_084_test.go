@@ -8,8 +8,7 @@ import (
 )
 
 // TestMigration084VMMetricsHasRequiredShape locks in the schema invariants
-// for the VM resource instrumentation feature (design rev. 3,
-// docs/plans/2026-04-29-vm-instrumentation-design.md).
+// for the VM resource instrumentation feature.
 //
 // These checks run without a database so every CI invocation catches
 // regressions in the migration file itself. Behavioral round-trip tests

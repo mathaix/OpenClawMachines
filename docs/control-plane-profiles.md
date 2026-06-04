@@ -61,12 +61,11 @@ CLOUDFLARE_KV_NAMESPACE_ID=...
 
 ## `hosted`
 
-For the OpenClaw hosted deployment profile.
+For a hosted deployment operated by the repository owner or another operator.
 
 - Defaults `AUTH_MODE=cfaccess`.
-- Defaults hosted values such as `GCP_PROJECT=clarateach`,
-  `DATA_PLANE_DOMAIN=openclawmachines.com`, the hosted backup bucket, and hosted
-  browser/Hermes GCS manifests.
+- Does not default GCP project, data-plane domain, backup bucket, or artifact
+  manifests. Operators must set those values explicitly.
 - Requires complete Cloudflare Tunnel and KV configuration.
 - Requires either `SECRET_ENCRYPTION_KEY` or `GCP_SECRET_NAME`.
 

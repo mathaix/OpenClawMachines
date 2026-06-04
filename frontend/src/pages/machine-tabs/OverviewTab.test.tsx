@@ -11,7 +11,6 @@ vi.mock("../../lib/api", async (importOriginal) => {
     authMe: vi.fn(() => Promise.reject(new Error("Unauthorized"))),
     listAccounts: vi.fn(() => Promise.resolve([])),
     listPendingInvitations: vi.fn(() => Promise.resolve([])),
-    getMachineUsage: vi.fn(() => Promise.resolve({ records: [] })),
     listMachineCapabilities: vi.fn(() => Promise.resolve([])),
     listOpenClawReleases: vi.fn(() => Promise.resolve([
       { version: "openclaw-2026.05.01", exact_version: "openclaw-2026.05.01", channel: "stable", created_at: "2026-05-01" },

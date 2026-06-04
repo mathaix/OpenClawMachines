@@ -6,8 +6,6 @@
 //     whose unit no longer exists.
 //   - Batch tick (10 s): drain the buffer and POST to the backend; on
 //     non-2xx, requeue with exponential backoff (cap 60 s).
-//
-// Design: docs/plans/2026-04-29-vm-instrumentation-design.md (rev. 3).
 package sampler
 
 import (

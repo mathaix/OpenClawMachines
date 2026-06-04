@@ -7,7 +7,7 @@
 // Why a patch and not a CLI flag: openclaw exposes `deferStartupSidecars` as
 // a programmatic option to startGatewayServer() but not as a CLI argument.
 // We can't reach it from init-openclaw.sh without modifying upstream's
-// compiled JS. See docs/plans/2026-04-28-cold-boot-extension-scrub-design.md.
+// compiled JS.
 //
 // Behavior: locates the unique line
 //   deferSidecars: opts.deferStartupSidecars === true

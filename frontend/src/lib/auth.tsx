@@ -31,6 +31,21 @@ const AuthContext = createContext<AuthState>({
   logout: () => {},
 });
 
+function configuredCookieDomains(): string[] {
+  const configured = (import.meta.env.VITE_DATA_PLANE_DOMAIN || "").trim().replace(/^\./, "");
+  return configured ? ["", `.${configured}`] : [""];
+}
+
+function isConfiguredAdmin(email?: string | null): boolean {
+  if (!email) return false;
+  const normalized = email.trim().toLowerCase();
+  return (import.meta.env.VITE_OCM_ADMIN_EMAILS || "")
+    .split(",")
+    .map((candidate: string) => candidate.trim().toLowerCase())
+    .filter(Boolean)
+    .includes(normalized);
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [account, setAccount] = useState<Account | null>(null);
@@ -102,8 +117,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     // Clear ocm_token cookie client-side as fallback
-    const domains = ["", ".openclawmachines.com"];
-    for (const domain of domains) {
+    for (const domain of configuredCookieDomains()) {
       const domainPart = domain ? `; domain=${domain}` : "";
       document.cookie = `ocm_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/${domainPart}`;
     }
@@ -118,7 +132,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     window.location.href = "/signed-out";
   };
 
-  const isAdmin = user?.email === "mathewma@gmail.com";
+  const isAdmin = isConfiguredAdmin(user?.email);
 
   return (
     <AuthContext.Provider value={{

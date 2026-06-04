@@ -230,7 +230,7 @@ describe('API client', () => {
   describe('accounts', () => {
     it('should list accounts', async () => {
       const mockAccounts = [
-        { id: 1, name: 'Acme', slug: 'acme', plan: 'free', created_by: 1, created_at: '2024-01-01T00:00:00Z' },
+        { id: 1, name: 'Acme', slug: 'acme', created_by: 1, created_at: '2024-01-01T00:00:00Z' },
       ];
 
       mockFetch.mockResolvedValueOnce({
@@ -250,7 +250,6 @@ describe('API client', () => {
         id: 2,
         name: 'New Account',
         slug: 'new-account',
-        plan: 'free',
         created_by: 1,
         created_at: '2024-01-01T00:00:00Z',
       };
@@ -278,7 +277,6 @@ describe('API client', () => {
         id: 1,
         name: 'Acme',
         slug: 'acme',
-        plan: 'free',
         created_by: 1,
         created_at: '2024-01-01T00:00:00Z',
       };

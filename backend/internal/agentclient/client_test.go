@@ -12,7 +12,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mathaix/openclawmachines/backend/internal/config"
 	"github.com/mathaix/openclawmachines/backend/internal/metadata"
 	"github.com/mathaix/openclawmachines/backend/internal/store"
 )
@@ -141,6 +140,8 @@ func TestCreateBrowserVMTimeoutIsOutcomeUnknown(t *testing.T) {
 }
 
 func TestCreateBrowserVMAcceptsAcceptedStatus(t *testing.T) {
+	const rootfsManifest = "gs://example-ocm-artifacts/kernel-browser-rootfs/manifest.json"
+	const rootfsVersion = "kernel-browser-rootfs-v1"
 	server, host := newTestAgentServer(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost || r.URL.Path != "/browser-vms" {
 			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
@@ -149,11 +150,11 @@ func TestCreateBrowserVMAcceptsAcceptedStatus(t *testing.T) {
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			t.Fatalf("decode request: %v", err)
 		}
-		if req["rootfs_manifest"] != config.ExperimentalKernelBrowserManifestURI {
-			t.Fatalf("rootfs_manifest = %v, want %q", req["rootfs_manifest"], config.ExperimentalKernelBrowserManifestURI)
+		if req["rootfs_manifest"] != rootfsManifest {
+			t.Fatalf("rootfs_manifest = %v, want %q", req["rootfs_manifest"], rootfsManifest)
 		}
-		if req["rootfs_version"] != config.StableKernelBrowserRootfsVersion {
-			t.Fatalf("rootfs_version = %v, want %q", req["rootfs_version"], config.StableKernelBrowserRootfsVersion)
+		if req["rootfs_version"] != rootfsVersion {
+			t.Fatalf("rootfs_version = %v, want %q", req["rootfs_version"], rootfsVersion)
 		}
 		w.WriteHeader(http.StatusAccepted)
 	})
@@ -162,7 +163,7 @@ func TestCreateBrowserVMAcceptsAcceptedStatus(t *testing.T) {
 	client := New("fleet-token")
 	client.httpClient = hostClientForAlias(t, server)
 
-	if err := client.CreateBrowserVM(context.Background(), host, "bvm-1", "192.168.100.2", 2, 4096, config.ExperimentalKernelBrowserManifestURI, config.StableKernelBrowserRootfsVersion); err != nil {
+	if err := client.CreateBrowserVM(context.Background(), host, "bvm-1", "192.168.100.2", 2, 4096, rootfsManifest, rootfsVersion); err != nil {
 		t.Fatalf("CreateBrowserVM returned error for 202 Accepted: %v", err)
 	}
 }

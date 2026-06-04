@@ -49,7 +49,7 @@ func TestLoadDefaultsToLocalProfileWithoutHostedDefaults(t *testing.T) {
 	}
 }
 
-func TestLoadHostedProfileUsesHostedDefaults(t *testing.T) {
+func TestLoadHostedProfileDoesNotInjectPrivateDefaults(t *testing.T) {
 	t.Setenv("CONTROL_PLANE_PROFILE", ProfileHosted)
 	unsetEnv(t, "AUTH_MODE")
 	unsetEnv(t, "GCP_PROJECT")
@@ -72,26 +72,26 @@ func TestLoadHostedProfileUsesHostedDefaults(t *testing.T) {
 	if cfg.AuthMode != "cfaccess" {
 		t.Fatalf("expected hosted auth mode cfaccess, got %q", cfg.AuthMode)
 	}
-	if cfg.GCPProject != "clarateach" || cfg.GCPZone != "us-central1-b" || cfg.GCPRegion != "us-central1" {
-		t.Fatalf("unexpected hosted GCP defaults: project=%q zone=%q region=%q", cfg.GCPProject, cfg.GCPZone, cfg.GCPRegion)
+	if cfg.GCPProject != "" || cfg.GCPZone != "" || cfg.GCPRegion != "" {
+		t.Fatalf("expected no hosted GCP defaults, got project=%q zone=%q region=%q", cfg.GCPProject, cfg.GCPZone, cfg.GCPRegion)
 	}
-	if cfg.DataPlaneDomain != "openclawmachines.com" {
-		t.Fatalf("expected hosted data-plane domain openclawmachines.com, got %q", cfg.DataPlaneDomain)
+	if cfg.DataPlaneDomain != "" {
+		t.Fatalf("expected no hosted data-plane domain default, got %q", cfg.DataPlaneDomain)
 	}
-	if cfg.BackupGCSBucket != "openclawmachines" {
-		t.Fatalf("expected hosted backup bucket openclawmachines, got %q", cfg.BackupGCSBucket)
+	if cfg.BackupGCSBucket != "" {
+		t.Fatalf("expected no hosted backup bucket default, got %q", cfg.BackupGCSBucket)
 	}
-	if cfg.BrowserRootfsGCSManifest != ExperimentalKernelBrowserManifestURI {
-		t.Fatalf("expected hosted browser rootfs manifest %q, got %q", ExperimentalKernelBrowserManifestURI, cfg.BrowserRootfsGCSManifest)
+	if cfg.BrowserRootfsGCSManifest != "" {
+		t.Fatalf("expected hosted browser rootfs manifest to be explicit, got %q", cfg.BrowserRootfsGCSManifest)
 	}
-	if cfg.BrowserRootfsVersion != StableKernelBrowserRootfsVersion {
-		t.Fatalf("expected stable kernel browser rootfs version %q, got %q", StableKernelBrowserRootfsVersion, cfg.BrowserRootfsVersion)
+	if cfg.BrowserRootfsVersion != "" {
+		t.Fatalf("expected hosted browser rootfs version to be explicit, got %q", cfg.BrowserRootfsVersion)
 	}
-	if cfg.HermesManifestURI != defaultHermesManifestURI {
-		t.Fatalf("expected hosted Hermes manifest %q, got %q", defaultHermesManifestURI, cfg.HermesManifestURI)
+	if cfg.HermesManifestURI != "" {
+		t.Fatalf("expected hosted Hermes manifest to be explicit, got %q", cfg.HermesManifestURI)
 	}
-	if cfg.HermesRootfsManifestURI != defaultHermesRootfsManifestURI {
-		t.Fatalf("expected hosted Hermes rootfs manifest %q, got %q", defaultHermesRootfsManifestURI, cfg.HermesRootfsManifestURI)
+	if cfg.HermesRootfsManifestURI != "" {
+		t.Fatalf("expected hosted Hermes rootfs manifest to be explicit, got %q", cfg.HermesRootfsManifestURI)
 	}
 	if !cfg.RequiresHostedIntegrations() {
 		t.Fatalf("hosted profile should require hosted integrations")
@@ -223,11 +223,11 @@ func TestLoadDefaultsBrowserRootfsToKernelStable(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load returned error: %v", err)
 	}
-	if cfg.BrowserRootfsGCSManifest != ExperimentalKernelBrowserManifestURI {
-		t.Fatalf("expected kernel browser rootfs manifest %q, got %q", ExperimentalKernelBrowserManifestURI, cfg.BrowserRootfsGCSManifest)
+	if cfg.BrowserRootfsGCSManifest != "" {
+		t.Fatalf("expected no browser rootfs manifest default, got %q", cfg.BrowserRootfsGCSManifest)
 	}
-	if cfg.BrowserRootfsVersion != StableKernelBrowserRootfsVersion {
-		t.Fatalf("expected stable kernel browser rootfs version %q, got %q", StableKernelBrowserRootfsVersion, cfg.BrowserRootfsVersion)
+	if cfg.BrowserRootfsVersion != "" {
+		t.Fatalf("expected no browser rootfs version default, got %q", cfg.BrowserRootfsVersion)
 	}
 }
 
@@ -241,11 +241,11 @@ func TestLoadAgentDefaultsBrowserRootfsToKernelStable(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadAgent returned error: %v", err)
 	}
-	if cfg.BrowserRootfsGCSManifest != ExperimentalKernelBrowserManifestURI {
-		t.Fatalf("expected kernel browser rootfs manifest %q, got %q", ExperimentalKernelBrowserManifestURI, cfg.BrowserRootfsGCSManifest)
+	if cfg.BrowserRootfsGCSManifest != "" {
+		t.Fatalf("expected no browser rootfs manifest default, got %q", cfg.BrowserRootfsGCSManifest)
 	}
-	if cfg.BrowserRootfsVersion != StableKernelBrowserRootfsVersion {
-		t.Fatalf("expected stable kernel browser rootfs version %q, got %q", StableKernelBrowserRootfsVersion, cfg.BrowserRootfsVersion)
+	if cfg.BrowserRootfsVersion != "" {
+		t.Fatalf("expected no browser rootfs version default, got %q", cfg.BrowserRootfsVersion)
 	}
 	if cfg.AllowKernelBrowserFullCopy {
 		t.Fatalf("expected kernel browser full-copy fallback to be disabled by default")
@@ -271,28 +271,28 @@ func TestLoadAgentAllowsSeparateBrowserStateDir(t *testing.T) {
 	}
 }
 
-func TestLoadBrowserRootfsManifestDefaultsExperimentalToStableVersion(t *testing.T) {
+func TestLoadBrowserRootfsManifestDoesNotInjectHostedVersion(t *testing.T) {
 	t.Setenv("DATABASE_URL", "postgres://test")
 	t.Setenv("CONTROL_PLANE_PROFILE", ProfileLocal)
-	t.Setenv("BROWSER_ROOTFS_GCS_MANIFEST", ExperimentalKernelBrowserManifestURI)
+	t.Setenv("BROWSER_ROOTFS_GCS_MANIFEST", "gs://example-ocm-artifacts/kernel-browser-rootfs/manifest.json")
 	unsetEnv(t, "BROWSER_ROOTFS_VERSION")
 
 	cfg, err := Load()
 	if err != nil {
 		t.Fatalf("Load returned error: %v", err)
 	}
-	if cfg.BrowserRootfsGCSManifest != ExperimentalKernelBrowserManifestURI {
-		t.Fatalf("expected experimental browser rootfs manifest %q, got %q", ExperimentalKernelBrowserManifestURI, cfg.BrowserRootfsGCSManifest)
+	if cfg.BrowserRootfsGCSManifest != "gs://example-ocm-artifacts/kernel-browser-rootfs/manifest.json" {
+		t.Fatalf("expected configured browser rootfs manifest, got %q", cfg.BrowserRootfsGCSManifest)
 	}
-	if cfg.BrowserRootfsVersion != StableKernelBrowserRootfsVersion {
-		t.Fatalf("expected stable kernel browser rootfs version %q, got %q", StableKernelBrowserRootfsVersion, cfg.BrowserRootfsVersion)
+	if cfg.BrowserRootfsVersion != "" {
+		t.Fatalf("expected no browser rootfs version default, got %q", cfg.BrowserRootfsVersion)
 	}
 }
 
 func TestLoadBrowserRootfsVersionExplicitEmptyUsesManifestLatest(t *testing.T) {
 	t.Setenv("DATABASE_URL", "postgres://test")
 	t.Setenv("CONTROL_PLANE_PROFILE", ProfileLocal)
-	t.Setenv("BROWSER_ROOTFS_GCS_MANIFEST", ExperimentalKernelBrowserManifestURI)
+	t.Setenv("BROWSER_ROOTFS_GCS_MANIFEST", "gs://example-ocm-artifacts/kernel-browser-rootfs/manifest.json")
 	t.Setenv("BROWSER_ROOTFS_VERSION", "")
 
 	cfg, err := Load()
@@ -317,14 +317,15 @@ func TestLoadAgentAllowsExplicitKernelBrowserFullCopyEscapeHatch(t *testing.T) {
 }
 
 func TestLoadAgentAllowsBrowserRootfsVersionPin(t *testing.T) {
-	t.Setenv("BROWSER_ROOTFS_VERSION", StableKernelBrowserRootfsVersion)
+	const version = "kernel-browser-rootfs-v1"
+	t.Setenv("BROWSER_ROOTFS_VERSION", version)
 
 	cfg, err := LoadAgent()
 	if err != nil {
 		t.Fatalf("LoadAgent returned error: %v", err)
 	}
-	if cfg.BrowserRootfsVersion != StableKernelBrowserRootfsVersion {
-		t.Fatalf("expected browser rootfs version pin %q, got %q", StableKernelBrowserRootfsVersion, cfg.BrowserRootfsVersion)
+	if cfg.BrowserRootfsVersion != version {
+		t.Fatalf("expected browser rootfs version pin %q, got %q", version, cfg.BrowserRootfsVersion)
 	}
 }
 

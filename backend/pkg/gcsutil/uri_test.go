@@ -24,8 +24,8 @@ func TestParseGCSURI(t *testing.T) {
 		},
 		{
 			name:       "valid deeply nested",
-			uri:        "gs://openclawmachines/agent/manifest-abc123.json",
-			wantBucket: "openclawmachines",
+			uri:        "gs://example-ocm-artifacts/agent/manifest-abc123.json",
+			wantBucket: "example-ocm-artifacts",
 			wantObject: "agent/manifest-abc123.json",
 		},
 		{

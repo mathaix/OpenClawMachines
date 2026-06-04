@@ -120,7 +120,7 @@ func main() {
 		}
 
 		kvAdapter := routing.NewKVAdapter(kv)
-		routeSvc := routing.New(tunnelMgr, kvAdapter, db)
+		routeSvc := routing.NewWithDomain(tunnelMgr, kvAdapter, db, cfg.DataPlaneDomain)
 
 		// Single signer instance shared by seed-config assembly (via RuntimeService)
 		// and live-config push (via Server.signComposioProxyToken).
@@ -266,6 +266,7 @@ func main() {
 			Snapshot:                 cfg.SnapshotName,
 			AgentToken:               cfg.AgentToken,
 			BackendURL:               cfg.BackendURL,
+			DataPlaneDomain:          cfg.DataPlaneDomain,
 			DataDiskSizeGB:           cfg.DataDiskSizeGB,
 			RootfsGCSManifest:        cfg.RootfsGCSManifest,
 			AgentGCSManifest:         cfg.AgentGCSManifest,
@@ -304,7 +305,7 @@ func main() {
 	kv := cloudflareKVStoreOrExit(cfg)
 
 	kvAdapter := routing.NewKVAdapter(kv)
-	routeSvc := routing.New(tunnelMgr, kvAdapter, db)
+	routeSvc := routing.NewWithDomain(tunnelMgr, kvAdapter, db, cfg.DataPlaneDomain)
 
 	// Start route projector (DB → KV sync every 60s)
 	if kvAdapter != nil {

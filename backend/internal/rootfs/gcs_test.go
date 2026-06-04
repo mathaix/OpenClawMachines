@@ -21,7 +21,7 @@ func TestParseManifest_Valid(t *testing.T) {
 		"sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
 		"size_bytes": 2147483648,
 		"compressed_size_bytes": 943718400,
-		"url": "gs://openclawmachines/rootfs/rootfs-abc1234.ext4.zst",
+		"url": "gs://example-ocm-artifacts/rootfs/rootfs-abc1234.ext4.zst",
 		"built_at": "2026-02-24T12:00:00Z",
 		"openclaw_version": "0.8.3",
 		"agent_version": "abc1234-20260224T120000Z",
@@ -34,7 +34,7 @@ func TestParseManifest_Valid(t *testing.T) {
 	if m.SHA256 != "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" {
 		t.Errorf("SHA256 = %q", m.SHA256)
 	}
-	if m.URL != "gs://openclawmachines/rootfs/rootfs-abc1234.ext4.zst" {
+	if m.URL != "gs://example-ocm-artifacts/rootfs/rootfs-abc1234.ext4.zst" {
 		t.Errorf("URL = %q", m.URL)
 	}
 	if m.Compression != "zstd" {

@@ -16,15 +16,12 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 -- ============================================================
--- Accounts (billing entity — owns machines)
+-- Accounts
 -- ============================================================
 CREATE TABLE IF NOT EXISTS accounts (
     id              SERIAL PRIMARY KEY,
     name            TEXT NOT NULL,
     slug            TEXT NOT NULL UNIQUE,   -- URL namespace
-    plan            TEXT NOT NULL DEFAULT 'free',  -- 'free' | 'pro' | 'team'
-    billing_email   TEXT,
-    stripe_customer_id TEXT,
     created_by      INT NOT NULL REFERENCES users(id),
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -117,34 +114,13 @@ CREATE INDEX IF NOT EXISTS idx_machines_status ON machines(status);
 CREATE INDEX IF NOT EXISTS idx_machines_slug ON machines(slug);
 
 -- ============================================================
--- LLM Usage (billing — tracked by LiteLLM proxy, keyed to machine/account)
--- ============================================================
-CREATE TABLE IF NOT EXISTS llm_usage (
-    id              BIGSERIAL PRIMARY KEY,
-    account_id      INT NOT NULL REFERENCES accounts(id),
-    machine_id      UUID NOT NULL REFERENCES machines(id),
-    provider        TEXT NOT NULL,
-    model           TEXT NOT NULL,
-    input_tokens    INT NOT NULL DEFAULT 0,
-    output_tokens   INT NOT NULL DEFAULT 0,
-    cost_microcents BIGINT NOT NULL DEFAULT 0,
-    request_id      TEXT,
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE INDEX IF NOT EXISTS idx_llm_usage_account_id ON llm_usage(account_id);
-CREATE INDEX IF NOT EXISTS idx_llm_usage_machine_id ON llm_usage(machine_id);
-CREATE INDEX IF NOT EXISTS idx_llm_usage_created_at ON llm_usage(created_at);
-
--- ============================================================
 -- Account Events (account lifecycle audit log)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS account_events (
     id              BIGSERIAL PRIMARY KEY,
     event_id        UUID NOT NULL DEFAULT gen_random_uuid(),
     event_type      TEXT NOT NULL,
-        -- 'account.created' | 'member.invited' | 'member.removed' |
-        -- 'plan.changed' | 'billing.updated'
+        -- 'account.created' | 'member.invited' | 'member.removed'
     account_id      INT NOT NULL REFERENCES accounts(id),
     actor_user_id   INT REFERENCES users(id),
     target_user_id  INT REFERENCES users(id),

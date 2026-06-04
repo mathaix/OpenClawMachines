@@ -195,7 +195,11 @@ func (s *Server) handleAgentRegister(w http.ResponseWriter, r *http.Request) {
 	// 4b. Create Cloudflare tunnel for the host
 	var tunnelToken string
 	if s.tunnelCreator != nil {
-		tunnelHostname := host.VMName + ".openclawmachines.com"
+		if normalizeDomain(s.dataPlaneDomain) == "" {
+			writeError(w, http.StatusBadRequest, "DATA_PLANE_DOMAIN is required for tunnel enrollment")
+			return
+		}
+		tunnelHostname := host.VMName + "." + s.dataPlaneDomainOrLocal()
 		tunnelID, tToken, err := s.tunnelCreator.CreateTunnel(ctx, host.VMName)
 		if err != nil {
 			slog.Error("enrollment.tunnel.create_failed", "host_id", host.ID, "error", err)
@@ -315,7 +319,10 @@ func (s *Server) handleDeregisterHost(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleInstallScript(w http.ResponseWriter, r *http.Request) {
 	backendURL := s.backendURL
 	if backendURL == "" {
-		backendURL = "https://api.openclawmachines.com"
+		backendURL = r.URL.Scheme + "://" + r.Host
+		if r.URL.Scheme == "" {
+			backendURL = "http://" + r.Host
+		}
 	}
 
 	script := strings.ReplaceAll(installScriptTemplate, "{{BACKEND_URL}}", backendURL)
@@ -547,21 +554,11 @@ download_agent() {
     return 0
 }
 
-# Download kernel from GCS if not present
-if [ ! -f /var/lib/ocm/vmlinux ] && [ -f /etc/ocm-agent/gcs-key.json ]; then
-    echo "==> Downloading kernel from GCS..."
-    mkdir -p /var/lib/ocm/images
-    if command -v gsutil >/dev/null 2>&1; then
-        gcloud auth activate-service-account --key-file=/etc/ocm-agent/gcs-key.json 2>/dev/null || true
-        gsutil cp gs://openclawmachines/vmlinux /var/lib/ocm/images/vmlinux 2>/dev/null && \
-            ln -sf /var/lib/ocm/images/vmlinux /var/lib/ocm/vmlinux && \
-            echo "    Kernel installed" || \
-            echo "WARNING: Failed to download kernel from GCS"
-    else
-        echo "WARNING: gsutil not available. Kernel must be installed manually."
-    fi
-elif [ -f /var/lib/ocm/vmlinux ]; then
+# Kernel must be supplied by the operator.
+if [ -f /var/lib/ocm/vmlinux ]; then
     echo "==> Kernel already present"
+else
+    echo "WARNING: Kernel not found at /var/lib/ocm/vmlinux. Install one before starting Firecracker workloads."
 fi
 
 download_agent

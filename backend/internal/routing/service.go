@@ -8,9 +8,10 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log/slog"
+	"strings"
 )
 
-const machineDomain = "openclawmachines.com"
+const defaultDataPlaneDomain = "localhost"
 
 // TunnelManager creates and manages Cloudflare Tunnels and DNS records.
 type TunnelManager interface {
@@ -104,18 +105,38 @@ type SyncKVRequest struct {
 
 // Service owns all routing side-effects for a machine.
 type Service struct {
-	tunnel TunnelManager
-	kv     KVWriter
-	store  RouteStore
+	tunnel          TunnelManager
+	kv              KVWriter
+	store           RouteStore
+	dataPlaneDomain string
 }
 
 // New creates a Service. tunnel, kv, and store may be nil (operations are skipped if so).
 func New(tunnel TunnelManager, kv KVWriter, store RouteStore) *Service {
-	return &Service{
-		tunnel: tunnel,
-		kv:     kv,
-		store:  store,
+	return NewWithDomain(tunnel, kv, store, defaultDataPlaneDomain)
+}
+
+// NewWithDomain creates a Service using an operator-supplied data-plane domain.
+func NewWithDomain(tunnel TunnelManager, kv KVWriter, store RouteStore, dataPlaneDomain string) *Service {
+	domain := strings.Trim(strings.TrimSpace(dataPlaneDomain), ".")
+	if domain == "" {
+		domain = defaultDataPlaneDomain
 	}
+	return &Service{
+		tunnel:          tunnel,
+		kv:              kv,
+		store:           store,
+		dataPlaneDomain: domain,
+	}
+}
+
+func (s *Service) hostnames(machineSlug string) (vmHostname, sshHostname string) {
+	return "m-" + machineSlug + "." + s.dataPlaneDomain, "ssh-" + machineSlug + "." + s.dataPlaneDomain
+}
+
+// Hostnames returns the data-plane HTTP and SSH hostnames for a machine slug.
+func (s *Service) Hostnames(machineSlug string) (vmHostname, sshHostname string) {
+	return s.hostnames(machineSlug)
 }
 
 // SetupRoute provisions Cloudflare Tunnel, DNS records, and stores tunnel info in the database.
@@ -123,8 +144,7 @@ func New(tunnel TunnelManager, kv KVWriter, store RouteStore) *Service {
 // If tunnel creation fails, a partial result is returned (VMHostname set, TunnelID empty).
 // The machine can still work via the proxy chain in that case.
 func (s *Service) SetupRoute(ctx context.Context, req SetupRequest) (*SetupResult, error) {
-	vmHostname := "m-" + req.MachineSlug + "." + machineDomain
-	sshHostname := "ssh-" + req.MachineSlug + "." + machineDomain
+	vmHostname, sshHostname := s.hostnames(req.MachineSlug)
 
 	result := &SetupResult{
 		VMHostname:  vmHostname,
@@ -214,8 +234,7 @@ func (s *Service) TeardownRoute(ctx context.Context, req TeardownRequest) error 
 
 	// Delete the tunnel and DNS records if we have a tunnel ID.
 	if s.tunnel != nil && req.TunnelID != "" {
-		vmHostname := "m-" + req.MachineSlug + "." + machineDomain
-		sshHostname := "ssh-" + req.MachineSlug + "." + machineDomain
+		vmHostname, sshHostname := s.hostnames(req.MachineSlug)
 
 		if err := s.tunnel.DeleteTunnelAndDNS(ctx, req.TunnelID, vmHostname, sshHostname); err != nil {
 			slog.Error("routing.teardown.tunnel.delete_failed",

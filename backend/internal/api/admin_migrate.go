@@ -450,8 +450,8 @@ func (s *Server) cleanupMachineIngress(ctx context.Context, machine *store.Machi
 	}
 
 	if s.tunnelMgr != nil && machine.TunnelID != nil {
-		vmHostname := "m-" + machine.Slug + ".openclawmachines.com"
-		sshHostname := "ssh-" + machine.Slug + ".openclawmachines.com"
+		vmHostname := s.dataPlaneHostname("m", machine.Slug)
+		sshHostname := s.dataPlaneHostname("ssh", machine.Slug)
 		if err := s.tunnelMgr.DeleteTunnelAndDNS(ctx, *machine.TunnelID, vmHostname, sshHostname); err != nil {
 			slog.Warn("admin.migrate.cleanup.tunnel_failed", "machine_id", machine.ID, "error", err)
 		}

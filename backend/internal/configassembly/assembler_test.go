@@ -2696,7 +2696,7 @@ func TestAssembleConfig_ComposioInjection(t *testing.T) {
 				},
 			},
 		},
-		ComposioAPIURL: "https://api.openclawmachines.com/api/composio",
+		ComposioAPIURL: "https://api.example.com/api/composio",
 		ComposioProxyTokenSigner: func(machineID string) (string, error) {
 			return "test-token-for-" + machineID, nil
 		},
@@ -2732,8 +2732,8 @@ func TestAssembleConfig_ComposioInjection(t *testing.T) {
 		t.Fatal("missing plugins.entries.composio.config")
 	}
 
-	if config["apiUrl"] != "https://api.openclawmachines.com/api/composio" {
-		t.Errorf("apiUrl = %v, want https://api.openclawmachines.com/api/composio", config["apiUrl"])
+	if config["apiUrl"] != "https://api.example.com/api/composio" {
+		t.Errorf("apiUrl = %v, want https://api.example.com/api/composio", config["apiUrl"])
 	}
 
 	if config["userId"] != "machine-uuid-123" {
@@ -2796,7 +2796,7 @@ func TestAssembleConfig_ComposioInjection_NoSigner(t *testing.T) {
 				},
 			},
 		},
-		ComposioAPIURL: "https://api.openclawmachines.com/api/composio",
+		ComposioAPIURL: "https://api.example.com/api/composio",
 		// ComposioProxyTokenSigner intentionally nil.
 	}
 
@@ -2843,7 +2843,7 @@ func TestAssembleConfig_ComposioInjection_SignerError(t *testing.T) {
 				},
 			},
 		},
-		ComposioAPIURL: "https://api.openclawmachines.com/api/composio",
+		ComposioAPIURL: "https://api.example.com/api/composio",
 		ComposioProxyTokenSigner: func(machineID string) (string, error) {
 			return "", fmt.Errorf("simulated signer failure for %s", machineID)
 		},
@@ -2892,7 +2892,7 @@ func TestAssembleConfig_PluginAllowListMerge(t *testing.T) {
 		},
 		OpikAPIURL:     "https://opik.example.com",
 		OpikAPIKey:     "test-opik-key",
-		ComposioAPIURL: "https://api.openclawmachines.com/api/composio",
+		ComposioAPIURL: "https://api.example.com/api/composio",
 	}
 
 	data, err := AssembleConfig(params)

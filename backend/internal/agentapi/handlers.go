@@ -51,7 +51,6 @@ type VMRequest struct {
 	Secrets          map[string]string                   `json:"secrets"`
 	LLMKeys          map[string]metadata.CredentialEntry `json:"llm_keys,omitempty"`
 	AccountID        int                                 `json:"account_id"`
-	BudgetMicrocents *int64                              `json:"budget_microcents,omitempty"`
 	DataVolumeGB     int                                 `json:"data_volume_gb"`
 	DataVersion      int                                 `json:"data_version"`
 	SigningKey       string                              `json:"signing_key,omitempty"`
@@ -132,7 +131,6 @@ func vmConfigFromRequest(req VMRequest) orchestrator.VMConfig {
 		Secrets:          req.Secrets,
 		LLMKeys:          req.LLMKeys,
 		AccountID:        req.AccountID,
-		BudgetMicrocents: req.BudgetMicrocents,
 		DataVolumeGB:     req.DataVolumeGB,
 		DataVersion:      req.DataVersion,
 		SigningKey:       req.SigningKey,

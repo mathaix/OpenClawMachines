@@ -12,11 +12,11 @@ const (
 	ProfileOperator = "operator"
 	ProfileHosted   = "hosted"
 
-	defaultHermesManifestURI             = "gs://openclawmachines/hermes/manifest-stable.json"
-	defaultHermesRootfsManifestURI       = "gs://openclawmachines/hermes-rootfs/manifest.json"
-	StableBrowserRootfsManifestURI       = "gs://openclawmachines/browser-rootfs/manifest.json"
-	ExperimentalKernelBrowserManifestURI = "gs://openclawmachines/kernel-browser-rootfs/manifest.json"
-	StableKernelBrowserRootfsVersion     = "9a80fb2-20260411T202541Z"
+	defaultHermesManifestURI             = ""
+	defaultHermesRootfsManifestURI       = ""
+	StableBrowserRootfsManifestURI       = ""
+	ExperimentalKernelBrowserManifestURI = ""
+	StableKernelBrowserRootfsVersion     = ""
 	DefaultBrowserRootfsManifestURI      = ExperimentalKernelBrowserManifestURI
 	DefaultBrowserRootfsVersion          = StableKernelBrowserRootfsVersion
 )
@@ -178,14 +178,7 @@ func defaultsForProfile(profile string) profileDefaults {
 	switch profile {
 	case ProfileHosted:
 		return profileDefaults{
-			AuthMode:                 "cfaccess",
-			GCPProject:               "clarateach",
-			GCPZone:                  "us-central1-b",
-			DataPlaneDomain:          "openclawmachines.com",
-			BackupGCSBucket:          "openclawmachines",
-			BrowserRootfsManifestURI: DefaultBrowserRootfsManifestURI,
-			HermesManifestURI:        defaultHermesManifestURI,
-			HermesRootfsManifestURI:  defaultHermesRootfsManifestURI,
+			AuthMode: "cfaccess",
 		}
 	case ProfileOperator:
 		return profileDefaults{}
@@ -291,7 +284,7 @@ type AgentConfig struct {
 	AgentEndpoint string // AGENT_ENDPOINT - e.g. "http://203.0.113.10:9090"
 
 	// Backup
-	BackupGCSBucket      string // BACKUP_GCS_BUCKET (default "openclawmachines")
+	BackupGCSBucket      string // BACKUP_GCS_BUCKET (empty = disabled)
 	BackupGCSPrefix      string // BACKUP_GCS_PREFIX (default "backups")
 	BackupMaxVolumeGB    int    // BACKUP_MAX_VOLUME_GB (default 10)
 	BackupMasterKey      string // BACKUP_MASTER_KEY - 32-byte hex-encoded platform master key
@@ -300,7 +293,7 @@ type AgentConfig struct {
 
 func LoadAgent() (*AgentConfig, error) {
 	stateDir := getEnv("STATE_DIR", "/var/lib/ocm/vms")
-	browserRootfsManifest := getEnvOrDefault("BROWSER_ROOTFS_GCS_MANIFEST", DefaultBrowserRootfsManifestURI)
+	browserRootfsManifest := getEnvOrDefault("BROWSER_ROOTFS_GCS_MANIFEST", "")
 	return &AgentConfig{
 		ControlPort: getEnv("CONTROL_PORT", "9090"),
 		ProxyPort:   getEnv("PROXY_PORT", "9091"),
@@ -345,7 +338,7 @@ func LoadAgent() (*AgentConfig, error) {
 
 		AgentEndpoint: os.Getenv("AGENT_ENDPOINT"),
 
-		BackupGCSBucket:      getEnv("BACKUP_GCS_BUCKET", "openclawmachines"),
+		BackupGCSBucket:      os.Getenv("BACKUP_GCS_BUCKET"),
 		BackupGCSPrefix:      getEnv("BACKUP_GCS_PREFIX", "backups"),
 		BackupMaxVolumeGB:    getEnvInt("BACKUP_MAX_VOLUME_GB", 10),
 		BackupMasterKey:      os.Getenv("BACKUP_MASTER_KEY"),
@@ -376,7 +369,7 @@ func getBrowserRootfsVersionOrDefault(manifest string) string {
 	if v, ok := os.LookupEnv("BROWSER_ROOTFS_VERSION"); ok {
 		return strings.TrimSpace(v)
 	}
-	if strings.TrimSpace(manifest) == ExperimentalKernelBrowserManifestURI {
+	if ExperimentalKernelBrowserManifestURI != "" && strings.TrimSpace(manifest) == ExperimentalKernelBrowserManifestURI {
 		return DefaultBrowserRootfsVersion
 	}
 	return ""

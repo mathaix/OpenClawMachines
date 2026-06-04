@@ -33,7 +33,6 @@ func buildConfigOps(oldConfigJSON, newConfigJSON []byte) ([]agentclient.ConfigOp
 	// Channels: managed by channel state machine (handleChannelConnect/Disconnect/Settings).
 	// NOT diffed here — channel transitions are the only code path that produces
 	// set/unset channels.* ops, preventing accidental wipes from other domains.
-	// See docs/designs/config-persistence.md.
 
 	// Plugins: plugins.entries.<name>
 	ops = append(ops, diffKeyedSection(oldConfig, newConfig, "plugins.entries",

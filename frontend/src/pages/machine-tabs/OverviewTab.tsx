@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import {
-  MessageSquare, Zap, TrendingUp, DollarSign,
+  MessageSquare,
   Server, Calendar, Activity, HardDrive,
   Brain, Plug, Globe, ArrowUpCircle, ArrowDownCircle,
 } from "lucide-react";
-import type { Machine, MachineUsageDetail, UsageRecord } from "../../lib/types";
-import { getMachineUsage, listMachineCapabilities, upgradeMachineOpenClaw, rollbackMachineOpenClaw, listOpenClawReleases, upgradeMachineRootfs, rollbackMachineRootfs, listRootfsReleases } from "../../lib/api";
+import type { Machine } from "../../lib/types";
+import { listMachineCapabilities, upgradeMachineOpenClaw, rollbackMachineOpenClaw, listOpenClawReleases, upgradeMachineRootfs, rollbackMachineRootfs, listRootfsReleases } from "../../lib/api";
 import type { MachineCapability, RuntimeRelease } from "../../lib/api";
 import { useSizes } from "../../lib/useSizes";
 import { SetupCard } from "../../components/SetupCard";
@@ -29,26 +29,6 @@ function formatUptime(startedAt: string | undefined): string {
   if (h > 24) return `${Math.floor(h / 24)}d ${h % 24}h`;
   if (h > 0) return `${h}h ${m}m`;
   return `${m}m`;
-}
-
-function formatMicrocents(mc: number): string {
-  const cents = mc / 10000;
-  return `$${(cents / 100).toFixed(4)}`;
-}
-
-function formatTokens(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
-  if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
-  return String(n);
-}
-
-function ProgressBar({ value, max, colorClass }: { value: number; max: number; colorClass: string }) {
-  const pct = max > 0 ? Math.min((value / max) * 100, 100) : 0;
-  return (
-    <div className="w-full h-2 bg-border rounded-full overflow-hidden">
-      <div className={`h-full rounded-full transition-all duration-500 ${colorClass}`} style={{ width: `${pct}%` }} />
-    </div>
-  );
 }
 
 function RuntimeVersionSection({ machine, accountId }: { machine: Machine; accountId: number }) {
@@ -267,24 +247,12 @@ function RuntimeVersionSection({ machine, accountId }: { machine: Machine; accou
 }
 
 export function OverviewTab({ machine, accountId, onTabChange }: OverviewTabProps) {
-  const [usage, setUsage] = useState<MachineUsageDetail | null>(null);
-  const [usageLoading, setUsageLoading] = useState(true);
-  const [usageError, setUsageError] = useState<string | null>(null);
   const [capabilities, setCapabilities] = useState<MachineCapability[]>([]);
   const [capsLoading, setCapsLoading] = useState(true);
   const [capsError, setCapsError] = useState<string | null>(null);
   const sizes = useSizes();
 
-  const isStopped = machine.status === "stopped";
-
   useEffect(() => {
-    setUsageLoading(true);
-    setUsageError(null);
-    getMachineUsage(accountId, machine.id)
-      .then((data) => { setUsage(data); setUsageError(null); })
-      .catch((err) => setUsageError(err instanceof Error ? err.message : "Failed to load usage"))
-      .finally(() => setUsageLoading(false));
-
     setCapsLoading(true);
     setCapsError(null);
     listMachineCapabilities(accountId, machine.id)
@@ -292,31 +260,6 @@ export function OverviewTab({ machine, accountId, onTabChange }: OverviewTabProp
       .catch((err) => setCapsError(err instanceof Error ? err.message : "Failed to load capabilities"))
       .finally(() => setCapsLoading(false));
   }, [accountId, machine.id]);
-
-  const totalInputTokens = usage?.records?.reduce((s: number, r: UsageRecord) => s + r.input_tokens, 0) ?? 0;
-  const totalOutputTokens = usage?.records?.reduce((s: number, r: UsageRecord) => s + r.output_tokens, 0) ?? 0;
-  const totalMessages = usage?.records?.length ?? 0;
-  const totalSpend = usage?.current_month_spend ?? 0;
-
-  // Aggregate usage records by model
-  const modelMap = new Map<string, { model: string; provider: string; input_tokens: number; output_tokens: number; cost_microcents: number; count: number }>();
-  for (const r of usage?.records ?? []) {
-    const key = `${r.provider}/${r.model}`;
-    const existing = modelMap.get(key);
-    if (existing) {
-      existing.input_tokens += r.input_tokens;
-      existing.output_tokens += r.output_tokens;
-      existing.cost_microcents += r.cost_microcents;
-      existing.count += 1;
-    } else {
-      modelMap.set(key, { model: r.model, provider: r.provider, input_tokens: r.input_tokens, output_tokens: r.output_tokens, cost_microcents: r.cost_microcents, count: 1 });
-    }
-  }
-  const modelBreakdown = [...modelMap.values()].sort((a, b) => b.cost_microcents - a.cost_microcents);
-  const budgetMc = usage?.budget_microcents ?? 0;
-  const spendPct = budgetMc > 0 ? totalSpend / budgetMc : 0;
-  const showCreditWarning = budgetMc > 0 && spendPct >= 0.8;
-  const creditWarningLevel = spendPct >= 0.95 ? "red" : "yellow";
 
   const hasChannels = !capsLoading && !capsError && capabilities.some((c) => c.enabled);
   const hasIntegrations = false;
@@ -326,29 +269,10 @@ export function OverviewTab({ machine, accountId, onTabChange }: OverviewTabProp
   const matchedSize = sizes.find((s) => s.vcpus === machine.vcpus && s.memory_mb === machine.memory_mb);
   const size = matchedSize ? matchedSize.label : `${machine.vcpus} vCPU / ${machine.memory_mb / 1024} GB`;
 
-  const maxMessages = 10000;
   const storageGB = matchedSize?.disk_gb ?? machine.data_volume_gb ?? 5;
 
   return (
     <div className="space-y-6">
-      {/* Credit warning banner */}
-      {showCreditWarning && (
-        <div
-          className={`rounded-[var(--radius)] px-4 py-3 text-sm font-medium flex items-center gap-2 ${
-            creditWarningLevel === "red"
-              ? "bg-red-500/10 border border-red-500/30 text-red-400"
-              : "bg-yellow-500/10 border border-yellow-500/30 text-yellow-400"
-          }`}
-        >
-          <span>{creditWarningLevel === "red" ? "\u26A0" : "!"}</span>
-          <span>
-            {creditWarningLevel === "red"
-              ? "Budget nearly exhausted \u2014 your machine may stop soon."
-              : "Approaching budget limit \u2014 usage is over 80%."}
-          </span>
-        </div>
-      )}
-
       {/* Setup cards */}
       <div>
         <h2 className="text-base md:text-lg font-semibold text-text-primary mb-4">SETUP</h2>
@@ -392,131 +316,7 @@ export function OverviewTab({ machine, accountId, onTabChange }: OverviewTabProp
         </div>
       </div>
 
-      {/* Usage & Machine Info Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
-        {/* Usage Metrics Card */}
-        <div className="bg-card border border-border rounded-[var(--radius-lg)] shadow-card overflow-hidden">
-          <div className="p-4 md:p-6 pb-0">
-            <div className="flex items-center justify-between mb-1">
-              <div className="text-lg md:text-xl font-semibold text-text-primary">Usage Metrics</div>
-              <span className="text-[10px] md:text-[11px] font-medium text-text-tertiary border border-border rounded-full px-2 py-0.5">This month</span>
-            </div>
-            <div className="text-xs md:text-sm text-text-tertiary mb-4">Monitor your machine's resource consumption</div>
-          </div>
-          <div className="px-4 md:px-6 pb-4 md:pb-6 space-y-4">
-            {usageLoading ? (
-              <div className="space-y-3 py-2">
-                <div className="h-4 w-48 bg-elevated rounded animate-pulse" />
-                <div className="h-2 w-full bg-elevated rounded animate-pulse" />
-                <div className="h-4 w-36 bg-elevated rounded animate-pulse" />
-                <div className="h-2 w-full bg-elevated rounded animate-pulse" />
-              </div>
-            ) : usageError ? (
-              <div className="text-sm text-red-400 py-2">Failed to load usage data</div>
-            ) : isStopped && !usage?.records?.length ? (
-              <div className="text-sm text-text-muted py-4 text-center">Machine is stopped — usage data unavailable</div>
-            ) : (<>
-            {/* Messages */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between text-sm">
-                <div className="flex items-center gap-2">
-                  <MessageSquare className="w-4 h-4 text-blue-400" />
-                  <span className="font-medium text-text-secondary">Messages</span>
-                </div>
-                <span className="font-semibold tabular-nums text-text-primary">{totalMessages.toLocaleString()}</span>
-              </div>
-              <ProgressBar value={totalMessages} max={maxMessages} colorClass="bg-blue-500" />
-              <p className="text-xs text-text-muted">{totalMessages.toLocaleString()} of {maxMessages.toLocaleString()} messages used</p>
-            </div>
-
-            <div className="border-t border-border-subtle" />
-
-            {/* Input Tokens */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between text-sm">
-                <div className="flex items-center gap-2">
-                  <Zap className="w-4 h-4 text-yellow-400" />
-                  <span className="font-medium text-text-secondary">Input Tokens</span>
-                </div>
-                <span className="font-semibold tabular-nums text-text-primary">{formatTokens(totalInputTokens)}</span>
-              </div>
-              <ProgressBar value={totalInputTokens} max={1000000} colorClass="bg-yellow-500" />
-              <p className="text-xs text-text-muted">{formatTokens(totalInputTokens)} tokens processed</p>
-            </div>
-
-            <div className="border-t border-border-subtle" />
-
-            {/* Output Tokens */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between text-sm">
-                <div className="flex items-center gap-2">
-                  <TrendingUp className="w-4 h-4 text-green-400" />
-                  <span className="font-medium text-text-secondary">Output Tokens</span>
-                </div>
-                <span className="font-semibold tabular-nums text-text-primary">{formatTokens(totalOutputTokens)}</span>
-              </div>
-              <ProgressBar value={totalOutputTokens} max={1000000} colorClass="bg-green-500" />
-              <p className="text-xs text-text-muted">{formatTokens(totalOutputTokens)} tokens generated</p>
-            </div>
-
-            {/* Model breakdown */}
-            {modelBreakdown.length > 0 && (
-              <>
-                <div className="border-t border-border-subtle" />
-                <div className="space-y-2">
-                  <span className="text-xs font-medium text-text-tertiary">By Model</span>
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="text-text-muted">
-                        <th className="text-left py-1 font-medium">Model</th>
-                        <th className="text-right py-1 font-medium">Input</th>
-                        <th className="text-right py-1 font-medium">Output</th>
-                        <th className="text-right py-1 font-medium">Cost</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {modelBreakdown.map((m) => (
-                        <tr key={`${m.provider}/${m.model}`} className="border-t border-border-subtle">
-                          <td className="py-1.5">
-                            <div className="font-medium text-text-primary text-xs">{m.model}</div>
-                            <div className="text-[10px] text-text-muted">{m.provider}</div>
-                          </td>
-                          <td className="text-right py-1.5 tabular-nums text-text-secondary">{formatTokens(m.input_tokens)}</td>
-                          <td className="text-right py-1.5 tabular-nums text-text-secondary">{formatTokens(m.output_tokens)}</td>
-                          <td className="text-right py-1.5 tabular-nums text-text-primary font-medium">{formatMicrocents(m.cost_microcents)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </>
-            )}
-
-            <div className="border-t border-border-subtle" />
-
-            {/* Cost summary */}
-            <div className="bg-gradient-to-r from-[rgba(52,211,153,0.12)] to-[rgba(20,184,166,0.12)] rounded-[var(--radius)] p-4 md:p-6 border border-[rgba(52,211,153,0.25)]">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 md:gap-3">
-                  <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-[rgba(52,211,153,0.15)] flex items-center justify-center flex-shrink-0">
-                    <DollarSign className="w-4 h-4 md:w-5 md:h-5 text-green-400" />
-                  </div>
-                  <div>
-                    <p className="text-xs md:text-sm text-text-tertiary">Cost (this month)</p>
-                    <p className="text-xl md:text-2xl font-bold text-text-primary tabular-nums">{formatMicrocents(totalSpend)}</p>
-                  </div>
-                </div>
-                {budgetMc > 0 && (
-                  <div className="text-right">
-                    <span className="text-[11px] font-medium text-text-tertiary">Budget: {formatMicrocents(budgetMc)}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-            </>)}
-          </div>
-        </div>
-
+      <div className="grid grid-cols-1 gap-4 md:gap-6">
         {/* Machine Info Card */}
         <div className="bg-card border border-border rounded-[var(--radius-lg)] shadow-card overflow-hidden">
           <div className="p-4 md:p-6 pb-0">

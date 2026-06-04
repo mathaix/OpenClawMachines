@@ -150,7 +150,7 @@ func TestVersionSidecar_ReadWrite(t *testing.T) {
 
 func TestEffectiveRootfsVersion_RejectsStagedMismatch(t *testing.T) {
 	o := newTestOrchestrator(t)
-	o.cfg.GCSRootfsManifest = "gs://openclawmachines/rootfs/manifest.json"
+	o.cfg.GCSRootfsManifest = "gs://example-ocm-artifacts/rootfs/manifest.json"
 	if err := os.MkdirAll(o.cfg.StateDir, 0o755); err != nil {
 		t.Fatal(err)
 	}

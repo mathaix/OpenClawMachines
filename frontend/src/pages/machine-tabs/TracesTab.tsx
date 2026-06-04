@@ -121,12 +121,6 @@ function formatTokens(tokens: number): string {
   return tokens.toLocaleString();
 }
 
-function formatCost(cost: number): string {
-  if (!Number.isFinite(cost) || cost <= 0) return "$0";
-  if (cost < 0.01) return `$${cost.toFixed(6)}`;
-  return `$${cost.toFixed(4)}`;
-}
-
 function formatFeedbackScore(value?: number): string {
   if (value === undefined || value === null || !Number.isFinite(value)) return "unreviewed";
   return `${Math.round(value * 100)}% score`;
@@ -377,7 +371,6 @@ export function TracesTab({ machine, accountId }: TracesTabProps) {
                   <div className="flex items-center gap-3 mt-2 text-xs text-text-tertiary">
                     <span>{trace.span_count} spans</span>
                     <span>{formatTokens(trace.total_tokens)} tokens</span>
-                    <span>{formatCost(trace.total_estimated_cost)}</span>
                     <span className={trace.feedback_count > 0 && (trace.avg_feedback_score ?? 1) < 0.5 ? "text-red-100" : ""}>
                       {formatFeedbackScore(trace.avg_feedback_score)}
                     </span>
@@ -463,10 +456,9 @@ function TraceHeader({
           <span>{formatDuration(trace.start_time, trace.end_time)}</span>
         </div>
       </div>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-4">
         <TraceMetric label="Spans" value={trace.span_count.toLocaleString()} />
         <TraceMetric label="Tokens" value={formatTokens(trace.total_tokens)} />
-        <TraceMetric label="Cost" value={formatCost(trace.total_estimated_cost)} />
         <TraceMetric label="Machines" value={emittingMachines.length > 1 ? `${emittingMachines.length}` : machine.name} />
       </div>
     </div>
@@ -686,7 +678,6 @@ function SpanRow({
         </div>
         <div className="flex items-center gap-3 mt-2 text-xs text-text-tertiary">
           <span>{formatTokens(span.total_tokens)} tokens</span>
-          <span>{formatCost(span.total_estimated_cost)}</span>
           {span.parent_span_id && <span className="font-mono">parent {shortId(span.parent_span_id)}</span>}
         </div>
       </summary>

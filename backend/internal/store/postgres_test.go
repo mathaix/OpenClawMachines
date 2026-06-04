@@ -13,7 +13,6 @@ func TestScanMachine_MapsRuntimeSelectionFields(t *testing.T) {
 	memoryMB := 8192
 	hostID := 7
 	dataVolumeGB := 25
-	budget := int64(123456)
 	homeHostID := 9
 
 	row := []any{
@@ -36,7 +35,6 @@ func TestScanMachine_MapsRuntimeSelectionFields(t *testing.T) {
 		"ready",
 		now,
 		now,
-		budget,
 		now,
 		now,
 		now,

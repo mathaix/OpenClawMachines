@@ -36,7 +36,6 @@ const mockAccount = {
   id: 1,
   name: 'Test Account',
   slug: 'test',
-  plan: 'free',
   created_by: 1,
   created_at: '2024-01-01T00:00:00Z',
 };

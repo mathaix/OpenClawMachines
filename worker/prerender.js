@@ -27,7 +27,7 @@ export function isBot(userAgent) {
 }
 
 // Only pre-render public marketing pages, not API or dashboard routes.
-const PRERENDER_PATHS = ["/", "/pricing", "/blog"];
+const PRERENDER_PATHS = ["/"];
 
 /**
  * Check if a path should be pre-rendered for bots.

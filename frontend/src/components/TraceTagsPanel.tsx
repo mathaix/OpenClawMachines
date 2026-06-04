@@ -3,7 +3,7 @@ import { Plus, Save, Tag, X } from "lucide-react";
 import { updateTraceTags } from "../lib/api";
 import type { OpikTraceListItem } from "../lib/types";
 
-const QUICK_TAGS = ["needs-review", "bug", "slow", "high-cost", "regression", "eval-fail"];
+const QUICK_TAGS = ["needs-review", "bug", "slow", "regression", "eval-fail"];
 const LOW_SIGNAL_TAGS = new Set(["ocm", "openclawmachines"]);
 const TAG_RE = /^[a-z0-9._:/-]+$/;
 

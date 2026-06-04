@@ -1,7 +1,5 @@
 -- VM resource instrumentation: per-second CPU + memory metrics for every VM.
 --
--- Design: docs/plans/2026-04-29-vm-instrumentation-design.md (rev. 3)
---
 -- Two tables, both partitioned by day on `ts`:
 --   - vm_metrics_1s — 1-second resolution, ~24 h retention
 --   - vm_metrics_1m — 1-minute aggregates, 7 d retention

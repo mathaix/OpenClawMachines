@@ -17,8 +17,6 @@ import (
 // they also update the build script's keep list. The build script's allowlist
 // is the source of truth at artifact-build time; this test enforces that it
 // stays in sync with the runtime channel surface.
-//
-// See docs/plans/2026-04-28-cold-boot-extension-scrub-design.md
 func TestChannelKeepListMatchesBuildScript(t *testing.T) {
 	// Channels OCM's product plumbing actually supports today.
 	// Token-based: from ChannelTokenFields.

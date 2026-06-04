@@ -7,13 +7,13 @@ import (
 )
 
 func TestNewFirebaseAuth(t *testing.T) {
-	fa := NewFirebaseAuth("clarateach")
+	fa := NewFirebaseAuth("example-project")
 	if fa == nil {
 		t.Fatal("expected non-nil FirebaseAuth")
 		return
 	}
-	if fa.projectID != "clarateach" {
-		t.Errorf("expected projectID 'clarateach', got %q", fa.projectID)
+	if fa.projectID != "example-project" {
+		t.Errorf("expected projectID 'example-project', got %q", fa.projectID)
 	}
 }
 
@@ -25,7 +25,7 @@ func TestFirebaseAuth_ProjectID(t *testing.T) {
 }
 
 func TestFirebaseAuth_ValidateToken_InvalidToken(t *testing.T) {
-	fa := NewFirebaseAuth("clarateach")
+	fa := NewFirebaseAuth("example-project")
 	_, err := fa.ValidateToken("not.a.valid.token")
 	if err == nil {
 		t.Fatal("expected error for invalid token")
@@ -33,7 +33,7 @@ func TestFirebaseAuth_ValidateToken_InvalidToken(t *testing.T) {
 }
 
 func TestFirebaseAuth_ValidateToken_MalformedJWT(t *testing.T) {
-	fa := NewFirebaseAuth("clarateach")
+	fa := NewFirebaseAuth("example-project")
 	_, err := fa.ValidateToken("totally-not-a-jwt")
 	if err == nil {
 		t.Fatal("expected error for malformed token")

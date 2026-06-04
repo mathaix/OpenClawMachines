@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/mathaix/openclawmachines/backend/internal/agentclient"
@@ -29,6 +30,7 @@ type Provisioner struct {
 	snapshot                 string
 	agentToken               string
 	backendURL               string
+	dataPlaneDomain          string
 	dataDiskSizeGB           int64
 	rootfsGCSManifest        string
 	agentGCSManifest         string
@@ -48,6 +50,7 @@ type Config struct {
 	Snapshot                 string
 	AgentToken               string
 	BackendURL               string
+	DataPlaneDomain          string
 	DataDiskSizeGB           int64
 	RootfsGCSManifest        string
 	AgentGCSManifest         string
@@ -67,6 +70,7 @@ func New(cfg Config) *Provisioner {
 		snapshot:                 cfg.Snapshot,
 		agentToken:               cfg.AgentToken,
 		backendURL:               cfg.BackendURL,
+		dataPlaneDomain:          strings.Trim(strings.TrimSpace(cfg.DataPlaneDomain), "."),
 		dataDiskSizeGB:           cfg.DataDiskSizeGB,
 		rootfsGCSManifest:        cfg.RootfsGCSManifest,
 		agentGCSManifest:         cfg.AgentGCSManifest,
@@ -176,7 +180,10 @@ func (p *Provisioner) ProvisionHost(ctx context.Context, machineType string, phy
 	var tunnelToken string
 	var tunnelHostname string
 	if p.tunnel != nil {
-		tunnelHostname = vmName + ".openclawmachines.com"
+		if p.dataPlaneDomain == "" {
+			return failHost(fmt.Errorf("DATA_PLANE_DOMAIN is required for tunnel provisioning"))
+		}
+		tunnelHostname = vmName + "." + p.dataPlaneDomain
 		slog.Info("host.provision.tunnel.creating", "hostname", tunnelHostname)
 
 		tunnelID, token, err := p.tunnel.CreateTunnel(ctx, vmName)
@@ -300,7 +307,7 @@ func (p *Provisioner) ProvisionHost(ctx context.Context, machineType string, phy
 			Items: metadataItems,
 		},
 		Tags: &computepb.Tags{
-			Items: []string{"clarateach-agent"},
+			Items: []string{"ocm-agent"},
 		},
 		Labels: map[string]string{
 			"ocm": "true",

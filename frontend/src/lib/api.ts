@@ -1,8 +1,8 @@
-import type { User, Account, AccountMember, AccountInvitation, Machine, MachineKind, MachineSize, RegionOption, FileEntry, MachineCredential, CredentialProvider, AccountUsage, MachineUsageDetail, MachineBudgetResponse, ModelEntry, UsageBreakdown, ProviderCatalogEntry, OpikTraceListResponse, OpikTraceDetail, OpikFeedbackScore, VMMetricsResponse, ChannelCatalogEntry, OpenAIAgentRuntime } from "./types";
+import type { User, Account, AccountMember, AccountInvitation, Machine, MachineKind, MachineSize, RegionOption, FileEntry, MachineCredential, CredentialProvider, ModelEntry, ProviderCatalogEntry, OpikTraceListResponse, OpikTraceDetail, OpikFeedbackScore, VMMetricsResponse, ChannelCatalogEntry, OpenAIAgentRuntime } from "./types";
 import { ApiError } from "./errors";
 
-// In production VITE_API_URL is set at build time (e.g. "https://api.openclawmachines.com/api").
-// In dev the vite proxy forwards /api to localhost:8080.
+// In hosted/operator deployments VITE_API_URL can be set at build time.
+// In dev the Vite proxy forwards /api to localhost:8080.
 const BASE = import.meta.env.VITE_API_URL || "/api";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -33,26 +33,6 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (res.status === 204) return undefined as T;
   return res.json();
 }
-
-
-// Waitlist (public, no auth)
-export const joinWaitlist = async (email: string, source = "landing") => {
-  const result = await request<{ status: string }>("/waitlist", {
-    method: "POST",
-    body: JSON.stringify({ email, source }),
-  });
-  // Track conversion in GA4
-  if (typeof window.gtag === "function") {
-    window.gtag("event", "sign_up", { method: "waitlist", source: source });
-  }
-  return result;
-};
-
-export const updateWaitlistSurvey = (email: string, survey: Record<string, unknown>) =>
-  request<{ status: string }>("/waitlist", {
-    method: "PUT",
-    body: JSON.stringify({ email, survey }),
-  });
 
 // Auth
 export const authMe = () =>
@@ -417,13 +397,13 @@ export const listFiles = (accountId: number, machineId: string, path: string = "
 
 // Data plane URL helpers
 //
-// In production, data plane traffic goes through subdomain routing:
-//   https://{accountSlug}.openclawmachines.com/{machineSlug}/{path}
+// With VITE_DATA_PLANE_DOMAIN set, data plane traffic goes through subdomain routing:
+//   https://{accountSlug}.{DATA_PLANE_DOMAIN}/{machineSlug}/{path}
 //
 // In dev (localhost), we fall back to the control plane proxy using numeric IDs,
 // because the backend's AccountMiddleware expects integer accountId, not slugs.
 
-const DATA_PLANE_DOMAIN = import.meta.env.VITE_DATA_PLANE_DOMAIN || "openclawmachines.com";
+const DATA_PLANE_DOMAIN = (import.meta.env.VITE_DATA_PLANE_DOMAIN || "").trim().replace(/^\./, "");
 
 /** Check if running in development mode (localhost) */
 function isDev(): boolean {
@@ -455,8 +435,8 @@ interface DataPlaneParams {
 function buildDataPlaneUrl(params: DataPlaneParams, protocol: "https" | "wss"): string {
   const { accountSlug, machineSlug, path, accountId, machineId } = params;
 
-  // Production: subdomain routing
-  if (accountSlug && machineSlug && !isDev()) {
+  // Operator-hosted: subdomain routing when explicitly configured.
+  if (accountSlug && machineSlug && DATA_PLANE_DOMAIN && !isDev()) {
     return `${protocol}://${accountSlug}.${DATA_PLANE_DOMAIN}/${machineSlug}/${path}`;
   }
 
@@ -521,23 +501,6 @@ export async function restartGateway(
   return res.json();
 }
 
-// Usage & Billing
-export const getAccountUsage = (accountId: number) =>
-  request<AccountUsage>(`/accounts/${accountId}/usage`);
-export const getMachineUsage = (accountId: number, machineId: string, since?: string) => {
-  const params = since ? `?since=${encodeURIComponent(since)}` : "";
-  return request<MachineUsageDetail>(`/accounts/${accountId}/machines/${machineId}/usage${params}`);
-};
-export const getMachineUsageBreakdown = (
-  accountId: number,
-  machineId: string,
-  period: "hour" | "day",
-  since?: string,
-) => {
-  const params = new URLSearchParams({ period });
-  if (since) params.set("since", since);
-  return request<UsageBreakdown>(`/accounts/${accountId}/machines/${machineId}/usage/breakdown?${params}`);
-};
 export const getMachineTraces = (accountId: number, machineId: string, since?: string, limit = 50) => {
   const params = new URLSearchParams({ limit: String(limit) });
   if (since) params.set("since", since);
@@ -558,7 +521,6 @@ export interface AccountTraceFilters {
   max_feedback_score?: number;
   tags?: string[];
   min_tokens?: number;
-  min_cost?: number;
   min_duration_ms?: number;
 }
 
@@ -576,7 +538,6 @@ export const getAccountTraces = (accountId: number, filters: AccountTraceFilters
   }
   if (filters.max_feedback_score !== undefined) params.set("max_feedback_score", String(filters.max_feedback_score));
   if (filters.min_tokens !== undefined) params.set("min_tokens", String(filters.min_tokens));
-  if (filters.min_cost !== undefined) params.set("min_cost", String(filters.min_cost));
   if (filters.min_duration_ms !== undefined) params.set("min_duration_ms", String(filters.min_duration_ms));
   return request<OpikTraceListResponse>(`/accounts/${accountId}/traces?${params}`);
 };
@@ -599,14 +560,6 @@ export const createTraceFeedback = (
     method: "POST",
     body: JSON.stringify(data),
   });
-export const setMachineBudget = (accountId: number, machineId: string, limitCents: number) =>
-  request<MachineBudgetResponse>(`/accounts/${accountId}/machines/${machineId}/budget`, {
-    method: "PUT",
-    body: JSON.stringify({ limit_cents: limitCents }),
-  });
-export const deleteMachineBudget = (accountId: number, machineId: string) =>
-  request<void>(`/accounts/${accountId}/machines/${machineId}/budget`, { method: "DELETE" });
-
 // Registry (catalog of available channels, skills, tools)
 export interface RegistryEntry {
   id: string;

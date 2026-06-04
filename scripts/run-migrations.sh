@@ -17,8 +17,12 @@ MIGRATIONS_DIR="backend/migrations"
 
 # --- Resolve DATABASE_URL ---
 if [ "${1:-}" = "--from-secret" ]; then
+    if [ -z "${GCP_PROJECT:-}" ]; then
+        echo "ERROR: GCP_PROJECT must be set when using --from-secret."
+        exit 1
+    fi
     DATABASE_URL=$(gcloud secrets versions access latest \
-        --secret=OCM_DATABASE_URL --project="${GCP_PROJECT:-clarateach}" 2>/dev/null) \
+        --secret=OCM_DATABASE_URL --project="${GCP_PROJECT}" 2>/dev/null) \
         || { echo "ERROR: Could not fetch DATABASE_URL from Secret Manager"; exit 1; }
 elif [ -z "${DATABASE_URL:-}" ]; then
     echo "ERROR: DATABASE_URL not set. Use --from-secret or set DATABASE_URL env var."

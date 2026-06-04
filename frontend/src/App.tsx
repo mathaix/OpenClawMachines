@@ -18,10 +18,6 @@ import { CliAuth } from "./pages/CliAuth";
 import { InvitationAccept } from "./pages/InvitationAccept";
 import { LoginFirebase } from "./pages/LoginFirebase";
 
-const Blog = lazy(() => import("./pages/Blog"));
-const BlogPost = lazy(() => import("./pages/BlogPost"));
-const Docs = lazy(() => import("./pages/Docs"));
-const DocsPage = lazy(() => import("./pages/DocsPage"));
 const ChatPage = lazy(() => import("./pages/ChatPage"));
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -51,11 +47,10 @@ export function App() {
   return (
     <Routes>
       <Route path="/" element={<Landing />} />
-      <Route path="/pricing" element={<Navigate to="/" replace />} />
-      <Route path="/docs" element={<Suspense fallback={<div className="min-h-screen bg-gray-950" />}><Docs /></Suspense>} />
-      <Route path="/docs/:slug" element={<Suspense fallback={<div className="min-h-screen bg-gray-950" />}><DocsPage /></Suspense>} />
-      <Route path="/blog" element={<Suspense fallback={<div className="min-h-screen bg-gray-950" />}><Blog /></Suspense>} />
-      <Route path="/blog/:slug" element={<Suspense fallback={<div className="min-h-screen bg-gray-950" />}><BlogPost /></Suspense>} />
+      <Route path="/docs" element={<Navigate to="/" replace />} />
+      <Route path="/docs/:slug" element={<Navigate to="/" replace />} />
+      <Route path="/blog" element={<Navigate to="/" replace />} />
+      <Route path="/blog/:slug" element={<Navigate to="/" replace />} />
       <Route path="/signed-out" element={<SignedOut />} />
       <Route path="/login" element={<LoginFirebase />} />
       <Route path="/cli-auth" element={<CliAuth />} />

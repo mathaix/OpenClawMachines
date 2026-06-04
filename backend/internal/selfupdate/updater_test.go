@@ -106,7 +106,7 @@ func TestCheckAndUpdate_Case1_FullyCurrent(t *testing.T) {
 	manifest := &Manifest{
 		Version:   "v2.0",
 		SHA256:    sha,
-		URL:       "gs://openclawmachines/agent/agent-v2.0",
+		URL:       "gs://example-ocm-artifacts/agent/agent-v2.0",
 		SizeBytes: int64(len(binaryContent)),
 	}
 
@@ -143,7 +143,7 @@ func TestCheckAndUpdate_Case2_RepairInstalled(t *testing.T) {
 	manifest := &Manifest{
 		Version:   "v2.0",
 		SHA256:    sha,
-		URL:       "gs://openclawmachines/agent/agent-v2.0",
+		URL:       "gs://example-ocm-artifacts/agent/agent-v2.0",
 		SizeBytes: int64(len(binaryContent)),
 	}
 
@@ -186,7 +186,7 @@ func TestCheckAndUpdate_Case3_RestartNeeded(t *testing.T) {
 	manifest := &Manifest{
 		Version:   "v2.0",
 		SHA256:    sha,
-		URL:       "gs://openclawmachines/agent/agent-v2.0",
+		URL:       "gs://example-ocm-artifacts/agent/agent-v2.0",
 		SizeBytes: int64(len(newBinary)),
 	}
 
@@ -223,7 +223,7 @@ func TestCheckAndUpdate_Case4_FullDownload(t *testing.T) {
 	manifest := &Manifest{
 		Version:   "v2.0",
 		SHA256:    sha,
-		URL:       "gs://openclawmachines/agent/agent-v2.0",
+		URL:       "gs://example-ocm-artifacts/agent/agent-v2.0",
 		SizeBytes: int64(len(newBinary)),
 	}
 
@@ -266,7 +266,7 @@ func TestCheckAndUpdate_VerifyFailure_LeavesInstalledUntouched(t *testing.T) {
 	manifest := &Manifest{
 		Version:   "v2.0",
 		SHA256:    sha,
-		URL:       "gs://openclawmachines/agent/agent-v2.0",
+		URL:       "gs://example-ocm-artifacts/agent/agent-v2.0",
 		SizeBytes: int64(len(newBinary)),
 	}
 
@@ -316,7 +316,7 @@ func TestCheckAndUpdate_NeverMutatesVersion(t *testing.T) {
 	manifest := &Manifest{
 		Version:   "new-version-xyz",
 		SHA256:    sha,
-		URL:       "gs://openclawmachines/agent/agent-new",
+		URL:       "gs://example-ocm-artifacts/agent/agent-new",
 		SizeBytes: int64(len(binaryContent)),
 	}
 
@@ -362,7 +362,7 @@ func TestCheckAndUpdate_ConcurrentCallsSerialized(t *testing.T) {
 	manifest := &Manifest{
 		Version:   "v2.0",
 		SHA256:    sha,
-		URL:       "gs://openclawmachines/agent/agent-v2.0",
+		URL:       "gs://example-ocm-artifacts/agent/agent-v2.0",
 		SizeBytes: int64(len(binaryContent)),
 	}
 
@@ -406,7 +406,7 @@ func TestCheckAndUpdate_SHA256Mismatch_LeavesInstalledUntouched(t *testing.T) {
 	manifest := &Manifest{
 		Version:   "v2.0",
 		SHA256:    fileHash(realContent), // expect real content's hash
-		URL:       "gs://openclawmachines/agent/agent-v2.0",
+		URL:       "gs://example-ocm-artifacts/agent/agent-v2.0",
 		SizeBytes: int64(len(realContent)),
 	}
 
@@ -439,6 +439,7 @@ func TestCheckAndUpdate_SHA256Mismatch_LeavesInstalledUntouched(t *testing.T) {
 // --- Original helper tests (kept) ---
 
 func TestParseManifest(t *testing.T) {
+	t.Setenv("OCM_TRUSTED_ARTIFACT_BUCKETS", "example-ocm-artifacts")
 	tests := []struct {
 		name    string
 		json    string
@@ -447,27 +448,27 @@ func TestParseManifest(t *testing.T) {
 	}{
 		{
 			name:    "valid manifest",
-			json:    `{"version":"abc123","sha256":"` + validSHA256 + `","url":"gs://openclawmachines/agent/agent-abc123","size_bytes":1024,"built_at":"2026-01-01T00:00:00Z"}`,
+			json:    `{"version":"abc123","sha256":"` + validSHA256 + `","url":"gs://example-ocm-artifacts/agent/agent-abc123","size_bytes":1024,"built_at":"2026-01-01T00:00:00Z"}`,
 			wantVer: "abc123",
 		},
 		{
 			name:    "missing version",
-			json:    `{"sha256":"` + validSHA256 + `","url":"gs://openclawmachines/agent/agent-abc123"}`,
+			json:    `{"sha256":"` + validSHA256 + `","url":"gs://example-ocm-artifacts/agent/agent-abc123"}`,
 			wantErr: "version",
 		},
 		{
 			name:    "missing sha256",
-			json:    `{"version":"abc123","url":"gs://openclawmachines/agent/agent-abc123"}`,
+			json:    `{"version":"abc123","url":"gs://example-ocm-artifacts/agent/agent-abc123"}`,
 			wantErr: "sha256",
 		},
 		{
 			name:    "invalid sha256 format - wrong length",
-			json:    `{"version":"abc123","sha256":"deadbeef","url":"gs://openclawmachines/agent/agent-abc123"}`,
+			json:    `{"version":"abc123","sha256":"deadbeef","url":"gs://example-ocm-artifacts/agent/agent-abc123"}`,
 			wantErr: "invalid sha256",
 		},
 		{
 			name:    "invalid sha256 format - not hex",
-			json:    `{"version":"abc123","sha256":"zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz","url":"gs://openclawmachines/agent/agent-abc123"}`,
+			json:    `{"version":"abc123","sha256":"zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz","url":"gs://example-ocm-artifacts/agent/agent-abc123"}`,
 			wantErr: "not valid hex",
 		},
 		{
@@ -542,12 +543,13 @@ func TestValidateSHA256(t *testing.T) {
 }
 
 func TestValidateTrustedURL(t *testing.T) {
+	t.Setenv("OCM_TRUSTED_ARTIFACT_BUCKETS", "example-ocm-artifacts")
 	tests := []struct {
 		name    string
 		url     string
 		wantErr bool
 	}{
-		{"trusted bucket", "gs://openclawmachines/agent/agent-v1", false},
+		{"trusted bucket", "gs://example-ocm-artifacts/agent/agent-v1", false},
 		{"untrusted bucket", "gs://evil-bucket/agent/agent-v1", true},
 		{"non-gcs url", "https://example.com/agent", true},
 		{"empty url", "", true},

@@ -263,7 +263,7 @@ func (s *Server) handleMachineServiceProxy(w http.ResponseWriter, r *http.Reques
 			continue
 		case "content-security-policy":
 			for _, value := range values {
-				cleaned := strings.Replace(value, "frame-ancestors 'none'", "frame-ancestors 'self' openclawmachines.com *.openclawmachines.com", 1)
+				cleaned := strings.Replace(value, "frame-ancestors 'none'", s.frameAncestorsDirective(), 1)
 				w.Header().Add(key, cleaned)
 			}
 			continue

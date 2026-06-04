@@ -79,8 +79,8 @@ func (s *Server) handleAdminResetMachine(w http.ResponseWriter, r *http.Request)
 
 	// Clean up stale tunnel if present
 	if s.tunnelMgr != nil && machine.TunnelID != nil {
-		vmHostname := "m-" + machine.Slug + ".openclawmachines.com"
-		sshHostname := "ssh-" + machine.Slug + ".openclawmachines.com"
+		vmHostname := s.dataPlaneHostname("m", machine.Slug)
+		sshHostname := s.dataPlaneHostname("ssh", machine.Slug)
 		if err := s.tunnelMgr.DeleteTunnelAndDNS(r.Context(), *machine.TunnelID, vmHostname, sshHostname); err != nil {
 			slog.Warn("admin.reset.machine.tunnel_cleanup_failed", "machine_id", machineID, "error", err)
 		}

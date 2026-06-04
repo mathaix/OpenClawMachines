@@ -509,7 +509,7 @@ type AssemblyParams struct {
 	OpenAIAgentRuntime      string            // "", "auto", "codex", or "pi"; non-auto is emitted for openai/* models
 	OpikAPIURL              string            // Base URL for Opik-compatible API
 	OpikAPIKey              string            // API key for Opik plugin authentication (gateway token)
-	ComposioAPIURL          string            // Backend proxy URL for Composio (e.g. https://api.openclawmachines.com/api/composio)
+	ComposioAPIURL          string            // Backend proxy URL for Composio (e.g. https://api.example.com/api/composio)
 	// ComposioProxyTokenSigner mints a short-lived per-machine token the in-VM
 	// Composio plugin presents to the backend proxy as a Bearer token. The
 	// backend uses the token's machine_id claim as the Composio user_id,
@@ -1038,7 +1038,7 @@ type SeedParams struct {
 	Plugins            []PluginSelection                 // enabled plugins (from machine_plugins + catalog)
 	OpikAPIURL         string                            // Opik tracing endpoint URL
 	OpikAPIKey         string                            // API key for Opik plugin authentication (gateway token)
-	ComposioAPIURL     string                            // Backend proxy URL for Composio (e.g. https://api.openclawmachines.com/api/composio)
+	ComposioAPIURL     string                            // Backend proxy URL for Composio (e.g. https://api.example.com/api/composio)
 	// ComposioProxyTokenSigner mints a short-lived per-machine token the
 	// in-VM Composio plugin presents to the backend proxy. See
 	// AssemblyParams.ComposioProxyTokenSigner.

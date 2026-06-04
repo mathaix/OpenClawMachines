@@ -175,7 +175,7 @@ export function AnthropicSubscriptionConnect({
                   <li>Copy the token — it starts with <code className="text-[10px] bg-[rgba(255,255,255,0.05)] px-1 py-0.5 rounded">sk-ant-oat-</code></li>
                   <li>Paste it below</li>
                 </ol>
-                <p className="text-[10px] text-text-muted mt-1">Requires a Claude Pro, Max, or Team plan. Your token is encrypted and stored securely.</p>
+                <p className="text-[10px] text-text-muted mt-1">Requires an Anthropic subscription that supports setup tokens. Your token is encrypted and stored securely.</p>
               </div>
             )}
 

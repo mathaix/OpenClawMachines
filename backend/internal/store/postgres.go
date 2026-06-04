@@ -138,10 +138,10 @@ func (s *PostgresStore) UpdateUserProvider(ctx context.Context, userID int, prov
 
 func (s *PostgresStore) CreateAccount(ctx context.Context, a *Account) error {
 	return s.pool.QueryRow(ctx,
-		`INSERT INTO accounts (name, slug, plan, billing_email, created_by)
-		 VALUES ($1, $2, $3, $4, $5)
+		`INSERT INTO accounts (name, slug, created_by)
+		 VALUES ($1, $2, $3)
 		 RETURNING id, created_at`,
-		a.Name, a.Slug, a.Plan, a.BillingEmail, a.CreatedBy,
+		a.Name, a.Slug, a.CreatedBy,
 	).Scan(&a.ID, &a.CreatedAt)
 }
 
@@ -153,10 +153,10 @@ func (s *PostgresStore) CreateAccountWithOwner(ctx context.Context, a *Account, 
 	defer tx.Rollback(ctx) //nolint:errcheck
 
 	if err := tx.QueryRow(ctx,
-		`INSERT INTO accounts (name, slug, plan, billing_email, created_by)
-		 VALUES ($1, $2, $3, $4, $5)
+		`INSERT INTO accounts (name, slug, created_by)
+		 VALUES ($1, $2, $3)
 		 RETURNING id, created_at`,
-		a.Name, a.Slug, a.Plan, a.BillingEmail, a.CreatedBy,
+		a.Name, a.Slug, a.CreatedBy,
 	).Scan(&a.ID, &a.CreatedAt); err != nil {
 		return err
 	}
@@ -189,9 +189,9 @@ func (s *PostgresStore) UpdateAccountName(ctx context.Context, accountID int, na
 func (s *PostgresStore) GetAccount(ctx context.Context, id int) (*Account, error) {
 	a := &Account{}
 	err := s.pool.QueryRow(ctx,
-		`SELECT id, name, slug, plan, billing_email, stripe_customer_id, created_by, created_at
+		`SELECT id, name, slug, created_by, created_at
 		 FROM accounts WHERE id = $1`, id,
-	).Scan(&a.ID, &a.Name, &a.Slug, &a.Plan, &a.BillingEmail, &a.StripeCustomerID, &a.CreatedBy, &a.CreatedAt)
+	).Scan(&a.ID, &a.Name, &a.Slug, &a.CreatedBy, &a.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -201,9 +201,9 @@ func (s *PostgresStore) GetAccount(ctx context.Context, id int) (*Account, error
 func (s *PostgresStore) GetAccountBySlug(ctx context.Context, slug string) (*Account, error) {
 	a := &Account{}
 	err := s.pool.QueryRow(ctx,
-		`SELECT id, name, slug, plan, billing_email, stripe_customer_id, created_by, created_at
+		`SELECT id, name, slug, created_by, created_at
 		 FROM accounts WHERE slug = $1`, slug,
-	).Scan(&a.ID, &a.Name, &a.Slug, &a.Plan, &a.BillingEmail, &a.StripeCustomerID, &a.CreatedBy, &a.CreatedAt)
+	).Scan(&a.ID, &a.Name, &a.Slug, &a.CreatedBy, &a.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -212,7 +212,7 @@ func (s *PostgresStore) GetAccountBySlug(ctx context.Context, slug string) (*Acc
 
 func (s *PostgresStore) ListAccountsByUser(ctx context.Context, userID int) ([]Account, error) {
 	rows, err := s.pool.Query(ctx,
-		`SELECT a.id, a.name, a.slug, a.plan, a.billing_email, a.stripe_customer_id, a.created_by, a.created_at
+		`SELECT a.id, a.name, a.slug, a.created_by, a.created_at
 		 FROM accounts a
 		 JOIN account_members am ON am.account_id = a.id
 		 WHERE am.user_id = $1
@@ -225,7 +225,7 @@ func (s *PostgresStore) ListAccountsByUser(ctx context.Context, userID int) ([]A
 	accounts := []Account{}
 	for rows.Next() {
 		var a Account
-		if err := rows.Scan(&a.ID, &a.Name, &a.Slug, &a.Plan, &a.BillingEmail, &a.StripeCustomerID, &a.CreatedBy, &a.CreatedAt); err != nil {
+		if err := rows.Scan(&a.ID, &a.Name, &a.Slug, &a.CreatedBy, &a.CreatedAt); err != nil {
 			return nil, err
 		}
 		accounts = append(accounts, a)
@@ -459,7 +459,7 @@ func (s *PostgresStore) ExpireOldInvitations(ctx context.Context) (int64, error)
 const machineColumns = `id, account_id, kind, name, slug, preferred_region, status, status_message, vcpus, memory_mb,
 	host_id, vm_ip, tunnel_hostname, custom_domain, gateway_token, proxy_token,
 	provision_step, provisioning_started_at, provisioning_completed_at,
-	budget_microcents, created_at, started_at, stopped_at, data_volume_gb,
+	created_at, started_at, stopped_at, data_volume_gb,
 	desired_rootfs_version, desired_openclaw_version, desired_channel,
 	resolved_rootfs_version, resolved_openclaw_version, actual_rootfs_version, actual_openclaw_version, version_source, runtime_source,
 	rootfs_snapshot, openclaw_version, last_started_at, tunnel_id, signing_key,
@@ -470,7 +470,7 @@ func scanMachine(scan func(dest ...any) error) (*Machine, error) {
 	err := scan(&m.ID, &m.AccountID, &m.Kind, &m.Name, &m.Slug, &m.PreferredRegion, &m.Status, &m.StatusMessage,
 		&m.VCPUs, &m.MemoryMB, &m.HostID, &m.VMIP, &m.TunnelHostname, &m.CustomDomain,
 		&m.GatewayToken, &m.ProxyToken, &m.ProvisionStep, &m.ProvisioningStartedAt, &m.ProvisioningCompletedAt,
-		&m.BudgetMicrocents, &m.CreatedAt, &m.StartedAt, &m.StoppedAt, &m.DataVolumeGB,
+		&m.CreatedAt, &m.StartedAt, &m.StoppedAt, &m.DataVolumeGB,
 		&m.DesiredRootfsVersion, &m.DesiredOpenclawVersion, &m.DesiredChannel,
 		&m.ResolvedRootfsVersion, &m.ResolvedOpenclawVersion, &m.ActualRootfsVersion, &m.ActualOpenclawVersion, &m.VersionSource, &m.RuntimeSource,
 		&m.RootfsSnapshot, &m.OpenclawVersion, &m.LastStartedAt, &m.TunnelID, &m.SigningKey,
@@ -1287,148 +1287,6 @@ func (s *PostgresStore) MarkMachinesOnHostError(ctx context.Context, hostID int,
 		ids = append(ids, id)
 	}
 	return ids, nil
-}
-
-// ---- Opik-based billing (reads from opik_spans + model_pricing_history) ----
-
-func (s *PostgresStore) GetOpikSpendByMachine(ctx context.Context, accountID int, machineID string) (int64, error) {
-	var total int64
-	err := s.pool.QueryRow(ctx,
-		`SELECT COALESCE(SUM(
-			COALESCE(s.prompt_tokens::BIGINT * p.cost_input_microcents * p.margin / 1000000, 0)
-			+ COALESCE(s.completion_tokens::BIGINT * p.cost_output_microcents * p.margin / 1000000, 0)
-		)::bigint, 0)
-		FROM opik_spans s
-		LEFT JOIN LATERAL (
-			SELECT cost_input_microcents, cost_output_microcents, margin
-			FROM model_pricing_history
-			WHERE model_id = s.model AND effective_from <= s.start_time
-			ORDER BY effective_from DESC LIMIT 1
-		) p ON true
-			WHERE s.account_id = $1
-			  AND s.machine_id = $2
-			  AND s.start_time >= date_trunc('month', now())
-			  AND s.type = 'llm'`,
-		accountID, machineID,
-	).Scan(&total)
-	return total, err
-}
-
-func (s *PostgresStore) GetOpikUsageByMachine(ctx context.Context, accountID int, machineID string, since time.Time, limit int) ([]LLMUsage, error) {
-	rows, err := s.pool.Query(ctx,
-		`SELECT s.account_id, s.machine_id, COALESCE(s.provider, ''), COALESCE(s.model, ''),
-		        COALESCE(s.prompt_tokens, 0), COALESCE(s.completion_tokens, 0),
-		        COALESCE(
-		            COALESCE(s.prompt_tokens::BIGINT * p.cost_input_microcents * p.margin / 1000000, 0)
-		            + COALESCE(s.completion_tokens::BIGINT * p.cost_output_microcents * p.margin / 1000000, 0)
-		        , 0)::bigint AS cost_microcents,
-		        s.start_time
-		 FROM opik_spans s
-		 LEFT JOIN LATERAL (
-		     SELECT cost_input_microcents, cost_output_microcents, margin
-		     FROM model_pricing_history
-		     WHERE model_id = s.model AND effective_from <= s.start_time
-		     ORDER BY effective_from DESC LIMIT 1
-		 ) p ON true
-			 WHERE s.account_id = $1 AND s.machine_id = $2 AND s.start_time >= $3 AND s.type = 'llm'
-			 ORDER BY s.start_time DESC
-			 LIMIT $4`,
-		accountID, machineID, since, limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var usages []LLMUsage
-	for rows.Next() {
-		var u LLMUsage
-		if err := rows.Scan(&u.AccountID, &u.MachineID, &u.Provider, &u.Model,
-			&u.InputTokens, &u.OutputTokens, &u.CostMicrocents, &u.CreatedAt); err != nil {
-			return nil, err
-		}
-		usages = append(usages, u)
-	}
-	return usages, rows.Err()
-}
-
-func (s *PostgresStore) GetOpikUsageBreakdown(ctx context.Context, accountID int, machineID string, period string, since time.Time) ([]UsageBucket, error) {
-	switch period {
-	case "hour", "day":
-	default:
-		return nil, fmt.Errorf("invalid period: %s (must be 'hour' or 'day')", period)
-	}
-
-	rows, err := s.pool.Query(ctx,
-		fmt.Sprintf(`SELECT
-			date_trunc('%s', s.start_time) AS bucket,
-			COALESCE(s.provider, ''),
-			COALESCE(s.model, ''),
-			SUM(COALESCE(s.prompt_tokens, 0))::int AS input_tokens,
-			SUM(COALESCE(s.completion_tokens, 0))::int AS output_tokens,
-			COALESCE(SUM(
-				COALESCE(s.prompt_tokens::BIGINT * p.cost_input_microcents * p.margin / 1000000, 0)
-				+ COALESCE(s.completion_tokens::BIGINT * p.cost_output_microcents * p.margin / 1000000, 0)
-			)::bigint, 0) AS cost_microcents,
-			COUNT(*)::int AS request_count
-		FROM opik_spans s
-		LEFT JOIN LATERAL (
-			SELECT cost_input_microcents, cost_output_microcents, margin
-			FROM model_pricing_history
-			WHERE model_id = s.model AND effective_from <= s.start_time
-			ORDER BY effective_from DESC LIMIT 1
-		) p ON true
-			WHERE s.account_id = $1 AND s.machine_id = $2 AND s.start_time >= $3 AND s.type = 'llm'
-			GROUP BY bucket, s.provider, s.model
-			ORDER BY bucket, s.provider, s.model`, period),
-		accountID, machineID, since)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	bucketMap := make(map[time.Time]*UsageBucket)
-	var bucketOrder []time.Time
-
-	for rows.Next() {
-		var ts time.Time
-		var e UsageBucketEntry
-		if err := rows.Scan(&ts, &e.Provider, &e.Model, &e.InputTokens,
-			&e.OutputTokens, &e.CostMicrocents, &e.RequestCount); err != nil {
-			return nil, err
-		}
-		b, exists := bucketMap[ts]
-		if !exists {
-			b = &UsageBucket{Timestamp: ts}
-			bucketMap[ts] = b
-			bucketOrder = append(bucketOrder, ts)
-		}
-		b.Entries = append(b.Entries, e)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-
-	buckets := make([]UsageBucket, 0, len(bucketOrder))
-	for _, ts := range bucketOrder {
-		buckets = append(buckets, *bucketMap[ts])
-	}
-	return buckets, nil
-}
-
-// ---- Machine Budget ----
-
-func (s *PostgresStore) SetMachineBudget(ctx context.Context, machineID string, budgetMicrocents int64) error {
-	_, err := s.pool.Exec(ctx,
-		`UPDATE machines SET budget_microcents = $2 WHERE id = $1`,
-		machineID, budgetMicrocents)
-	return err
-}
-
-func (s *PostgresStore) ClearMachineBudget(ctx context.Context, machineID string) error {
-	_, err := s.pool.Exec(ctx,
-		`UPDATE machines SET budget_microcents = NULL WHERE id = $1`,
-		machineID)
-	return err
 }
 
 // ---- Activity Log ----
@@ -2289,22 +2147,6 @@ func (s *PostgresStore) GetCustomProvider(ctx context.Context, accountID int, na
 		return nil, err
 	}
 	return p, nil
-}
-
-// ---- Waitlist ----
-
-func (s *PostgresStore) AddToWaitlist(ctx context.Context, email, source string) error {
-	_, err := s.pool.Exec(ctx,
-		`INSERT INTO waitlist (email, source) VALUES ($1, $2) ON CONFLICT (email) DO NOTHING`,
-		email, source)
-	return err
-}
-
-func (s *PostgresStore) UpdateWaitlistSurvey(ctx context.Context, email string, survey json.RawMessage) error {
-	_, err := s.pool.Exec(ctx,
-		`UPDATE waitlist SET survey = $1 WHERE email = $2`,
-		survey, email)
-	return err
 }
 
 // ---- Machine Operations ----
@@ -3437,7 +3279,7 @@ func (s *PostgresStore) RecordTokenUsage(ctx context.Context, record *TokenUsage
 
 func (s *PostgresStore) ListModelCatalog(ctx context.Context) ([]ModelCatalogEntry, error) {
 	rows, err := s.pool.Query(ctx,
-		`SELECT id, label, description, source, tier, input_price_per_m, output_price_per_m,
+		`SELECT id, label, description, source, tier,
 		        gateway_model_id, provider, enabled, sort_order, created_at
 		 FROM model_catalog
 		 WHERE enabled = true
@@ -3451,7 +3293,6 @@ func (s *PostgresStore) ListModelCatalog(ctx context.Context) ([]ModelCatalogEnt
 	for rows.Next() {
 		var e ModelCatalogEntry
 		if err := rows.Scan(&e.ID, &e.Label, &e.Description, &e.Source, &e.Tier,
-			&e.InputPricePerM, &e.OutputPricePerM,
 			&e.GatewayModelID, &e.Provider, &e.Enabled, &e.SortOrder, &e.CreatedAt); err != nil {
 			return nil, err
 		}
@@ -3463,12 +3304,11 @@ func (s *PostgresStore) ListModelCatalog(ctx context.Context) ([]ModelCatalogEnt
 func (s *PostgresStore) GetModelCatalogEntry(ctx context.Context, modelID string) (*ModelCatalogEntry, error) {
 	var e ModelCatalogEntry
 	err := s.pool.QueryRow(ctx,
-		`SELECT id, label, description, source, tier, input_price_per_m, output_price_per_m,
+		`SELECT id, label, description, source, tier,
 		        gateway_model_id, provider, enabled, sort_order, created_at
 		 FROM model_catalog
 		 WHERE id = $1 AND enabled = true`, modelID).
 		Scan(&e.ID, &e.Label, &e.Description, &e.Source, &e.Tier,
-			&e.InputPricePerM, &e.OutputPricePerM,
 			&e.GatewayModelID, &e.Provider, &e.Enabled, &e.SortOrder, &e.CreatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -3477,38 +3317,6 @@ func (s *PostgresStore) GetModelCatalogEntry(ctx context.Context, modelID string
 		return nil, err
 	}
 	return &e, nil
-}
-
-func (s *PostgresStore) ListModelPricingHistory(ctx context.Context, modelID string) ([]ModelPricingHistory, error) {
-	rows, err := s.pool.Query(ctx,
-		`SELECT id, model_id, cost_input_microcents, cost_output_microcents, margin, effective_from, created_at
-		 FROM model_pricing_history
-		 WHERE model_id = $1
-		 ORDER BY effective_from DESC`,
-		modelID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var entries []ModelPricingHistory
-	for rows.Next() {
-		var e ModelPricingHistory
-		if err := rows.Scan(&e.ID, &e.ModelID, &e.CostInputMicrocents, &e.CostOutputMicrocents,
-			&e.Margin, &e.EffectiveFrom, &e.CreatedAt); err != nil {
-			return nil, err
-		}
-		entries = append(entries, e)
-	}
-	return entries, rows.Err()
-}
-
-func (s *PostgresStore) InsertModelPricing(ctx context.Context, entry *ModelPricingHistory) error {
-	_, err := s.pool.Exec(ctx,
-		`INSERT INTO model_pricing_history (model_id, cost_input_microcents, cost_output_microcents, margin, effective_from)
-		 VALUES ($1, $2, $3, $4, $5)`,
-		entry.ModelID, entry.CostInputMicrocents, entry.CostOutputMicrocents, entry.Margin, entry.EffectiveFrom)
-	return err
 }
 
 // ---- Opik ----
@@ -3894,10 +3702,6 @@ func (s *PostgresStore) ListOpikTraces(ctx context.Context, accountID int, filte
 	if filters.MinTokens != nil {
 		arg := nextArg(*filters.MinTokens)
 		having = append(having, `COALESCE(SUM(COALESCE(s.total_tokens, 0)), 0) >= `+arg)
-	}
-	if filters.MinCost != nil {
-		arg := nextArg(*filters.MinCost)
-		having = append(having, `COALESCE(SUM(COALESCE(s.total_estimated_cost, 0)), 0)::double precision >= `+arg)
 	}
 	if filters.MinDurationMS != nil {
 		arg := nextArg(*filters.MinDurationMS)
