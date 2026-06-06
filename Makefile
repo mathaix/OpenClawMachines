@@ -1,6 +1,6 @@
 # OpenClaw Machines public-core Makefile
 
-.PHONY: help dev local-env local-postgres local-migrate local-backend local-frontend local-status local-stop preflight backend frontend status check check-go check-scripts test test-go test-unit test-frontend typecheck test-worker test-integration test-integration-e2e test-integration-run integration-kvm build build-server build-agent build-authproxy build-ocm-secrets build-rootfs test-rootfs build-openclaw setup-local-openclaw clean
+.PHONY: help dev local-env local-postgres local-migrate local-backend local-frontend local-status local-stop preflight backend frontend status check check-go check-scripts test test-go test-unit test-frontend typecheck test-worker test-integration test-integration-local-e2e test-integration-tunnel-e2e test-integration-e2e test-integration-run integration-kvm build build-server build-agent build-authproxy build-ocm-secrets build-rootfs test-rootfs build-openclaw setup-local-openclaw clean
 
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 GIT_COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
@@ -31,6 +31,8 @@ help:
 	@echo "  make typecheck      - Run frontend typecheck"
 	@echo "  make test-worker    - Run Cloudflare Worker tests"
 	@echo "  make integration-kvm - Run KVM/Firecracker integration tests"
+	@echo "  make test-integration-e2e - Run local Worker+Firecracker e2e, plus tunnel smoke when CF creds exist"
+	@echo "  make test-integration-tunnel-e2e - Run real Cloudflare tunnel e2e"
 	@echo ""
 	@echo "Build:"
 	@echo "  make build          - Build backend server, agent, authproxy, and ocm-secrets"
@@ -111,14 +113,36 @@ test-worker:
 	cd worker && npm run test
 
 test-integration:
-	cd backend && $(INTEGRATION_SUDO) go test -v -tags integration -timeout 15m ./internal/integration/...
+	@sudo scripts/test-cleanup.sh
+	@sudo scripts/test-xfs-setup.sh
+	@rc=0; cd backend && $(INTEGRATION_SUDO) go test -v -tags integration -timeout 45m ./internal/integration/... || rc=$$?; \
+		sudo "$(CURDIR)/scripts/test-cleanup.sh"; exit $$rc
 
-test-integration-e2e:
-	cd backend && $(INTEGRATION_SUDO) go test -v -tags integration -timeout 20m ./internal/integration/... -run 'TestTunnel_|Test.*E2E'
+test-integration-local-e2e: test-worker
+	@sudo scripts/test-cleanup.sh
+	@sudo scripts/test-xfs-setup.sh
+	@rc=0; cd backend && $(INTEGRATION_SUDO) go test -v -tags integration -timeout 30m ./internal/integration/... -run 'Test(DataplaneSuite|GatewaySuite|E2E_FullWorkflow)$$' || rc=$$?; \
+		sudo "$(CURDIR)/scripts/test-cleanup.sh"; exit $$rc
+
+test-integration-tunnel-e2e:
+	@sudo scripts/test-cleanup.sh
+	@sudo scripts/test-xfs-setup.sh
+	@rc=0; cd backend && $(INTEGRATION_SUDO) go test -v -tags integration -timeout 20m ./internal/integration/... -run 'TestTunnel' || rc=$$?; \
+		sudo "$(CURDIR)/scripts/test-cleanup.sh"; exit $$rc
+
+test-integration-e2e: test-integration-local-e2e
+	@if [ -n "$$CF_API_TOKEN" ] && [ -n "$$CF_ACCOUNT_ID" ] && [ -n "$$CF_ZONE_ID" ]; then \
+		$(MAKE) test-integration-tunnel-e2e; \
+	else \
+		echo "Skipping Cloudflare tunnel e2e: CF_API_TOKEN, CF_ACCOUNT_ID, and CF_ZONE_ID are not all set."; \
+	fi
 
 test-integration-run:
 	@test -n "$(TEST)" || (echo "Usage: make test-integration-run TEST=TestName"; exit 1)
-	cd backend && $(INTEGRATION_SUDO) go test -v -tags integration -timeout 15m ./internal/integration/... -run "$(TEST)"
+	@sudo scripts/test-cleanup.sh
+	@sudo scripts/test-xfs-setup.sh
+	@rc=0; cd backend && $(INTEGRATION_SUDO) go test -v -tags integration -timeout 25m ./internal/integration/... -run "$(TEST)" || rc=$$?; \
+		sudo "$(CURDIR)/scripts/test-cleanup.sh"; exit $$rc
 
 integration-kvm: test-integration
 

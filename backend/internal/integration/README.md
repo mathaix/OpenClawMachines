@@ -26,11 +26,14 @@ From the repository root:
 # Run all integration tests (local, no tunnel)
 make test-integration
 
-# Run full E2E with Cloudflare tunnel
+# Run local E2E: Miniflare/Wrangler Worker tests plus focused Firecracker VM flows.
+make test-integration-e2e
+
+# Run real Cloudflare tunnel E2E smoke tests.
 export CF_API_TOKEN="..."
 export CF_ACCOUNT_ID="..."
 export CF_ZONE_ID="..."
-make test-integration-e2e
+make test-integration-tunnel-e2e
 
 # Run a specific test
 make test-integration-run TEST=TestGateway_Health
@@ -81,6 +84,8 @@ sudo -E env PATH="/usr/sbin:/sbin:/usr/local/sbin:$PATH" bash -c 'source scripts
 - `TestTunnel_HealthE2E` — Health check through real Cloudflare tunnel
 - `TestTunnel_TerminalE2E` — Terminal WebSocket echo test through tunnel
 - `TestTunnel_GatewayE2E` — Gateway health check through tunnel
+
+`make test-integration-e2e` runs the local e2e slice first: Worker tests under Wrangler/Miniflare and focused Firecracker tests for dataplane, gateway, and full VM workflow. It runs the real Cloudflare tunnel smoke tests only when `CF_API_TOKEN`, `CF_ACCOUNT_ID`, and `CF_ZONE_ID` are all set. Use `make test-integration-tunnel-e2e` to require the Cloudflare path directly.
 
 ## Configuration
 

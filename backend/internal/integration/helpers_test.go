@@ -655,14 +655,49 @@ func setupTestOrchestrator(t *testing.T, cfg *TestConfig, bridge *network.Bridge
 	if err != nil {
 		t.Fatalf("create orchestrator: %v", err)
 	}
+	testOrch := &defaultRuntimeOrchestrator{
+		Orchestrator: orch,
+		t:            t,
+	}
 
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		orch.Shutdown(ctx)
+		if err := testOrch.Drain(ctx); err != nil {
+			t.Logf("drain orchestrator during cleanup: %v", err)
+		}
+		if err := testOrch.Shutdown(ctx); err != nil {
+			t.Logf("shutdown orchestrator during cleanup: %v", err)
+		}
 	})
 
-	return orch
+	return testOrch
+}
+
+type defaultRuntimeOrchestrator struct {
+	orchestrator.Orchestrator
+	t *testing.T
+}
+
+func (o *defaultRuntimeOrchestrator) defaultRuntime(cfg *orchestrator.VMConfig) {
+	if cfg.RuntimeSelection == nil {
+		withDefaultRuntimeSelection(o.t, cfg)
+	}
+}
+
+func (o *defaultRuntimeOrchestrator) Create(ctx context.Context, cfg orchestrator.VMConfig) error {
+	o.defaultRuntime(&cfg)
+	return o.Orchestrator.Create(ctx, cfg)
+}
+
+func (o *defaultRuntimeOrchestrator) Upgrade(ctx context.Context, cfg orchestrator.VMConfig) error {
+	o.defaultRuntime(&cfg)
+	return o.Orchestrator.Upgrade(ctx, cfg)
+}
+
+func (o *defaultRuntimeOrchestrator) RegisterPending(cfg orchestrator.VMConfig) {
+	o.defaultRuntime(&cfg)
+	o.Orchestrator.RegisterPending(cfg)
 }
 
 // setupTestMetadataServer creates and starts a metadata server on the bridge
