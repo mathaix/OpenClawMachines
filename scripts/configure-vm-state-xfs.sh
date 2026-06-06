@@ -20,7 +20,7 @@
 #   OCM_BASE=/var/lib/ocm
 #   OCM_STATE_DIR=/var/lib/ocm/vms
 #   OCM_VM_STATE_XFS_IMAGE=/var/lib/ocm/ocm-xfs.img
-#   OCM_VM_STATE_XFS_SIZE=200G
+#   OCM_VM_STATE_XFS_SIZE=40G
 #   OCM_AGENT_ENV=/etc/ocm-agent/agent.env
 #   OCM_SET_BROWSER_STATE_DIR=true
 #   OCM_STOP_AGENT=true
@@ -31,7 +31,7 @@ set -euo pipefail
 OCM_BASE="${OCM_BASE:-/var/lib/ocm}"
 OCM_STATE_DIR="${OCM_STATE_DIR:-${STATE_DIR:-${OCM_BASE}/vms}}"
 OCM_VM_STATE_XFS_IMAGE="${OCM_VM_STATE_XFS_IMAGE:-${OCM_BASE}/ocm-xfs.img}"
-OCM_VM_STATE_XFS_SIZE="${OCM_VM_STATE_XFS_SIZE:-200G}"
+OCM_VM_STATE_XFS_SIZE="${OCM_VM_STATE_XFS_SIZE:-40G}"
 OCM_AGENT_ENV="${OCM_AGENT_ENV:-/etc/ocm-agent/agent.env}"
 OCM_SET_BROWSER_STATE_DIR="${OCM_SET_BROWSER_STATE_DIR:-true}"
 OCM_STOP_AGENT="${OCM_STOP_AGENT:-true}"
