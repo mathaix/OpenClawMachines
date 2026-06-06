@@ -27,6 +27,36 @@ type mockDevStore struct {
 	createAccountCalled bool
 }
 
+func TestSessionCookieAttributesFollowRequestScheme(t *testing.T) {
+	srv := &Server{dataPlaneDomain: "localhost"}
+
+	httpReq := httptest.NewRequest(http.MethodGet, "http://localhost:8080/api/auth/me", nil)
+	httpCookie := srv.sessionCookie(httpReq, "token", 86400)
+	if httpCookie.Secure {
+		t.Fatal("local HTTP session cookie must not be Secure")
+	}
+	if httpCookie.SameSite != http.SameSiteLaxMode {
+		t.Fatalf("local HTTP SameSite = %v, want Lax", httpCookie.SameSite)
+	}
+	if httpCookie.Domain != "" {
+		t.Fatalf("local HTTP Domain = %q, want empty", httpCookie.Domain)
+	}
+
+	httpsReq := httptest.NewRequest(http.MethodGet, "http://api.example.com/api/auth/me", nil)
+	httpsReq.Header.Set("X-Forwarded-Proto", "https")
+	srv.dataPlaneDomain = "example.com"
+	httpsCookie := srv.sessionCookie(httpsReq, "token", 86400)
+	if !httpsCookie.Secure {
+		t.Fatal("forwarded HTTPS session cookie must be Secure")
+	}
+	if httpsCookie.SameSite != http.SameSiteNoneMode {
+		t.Fatalf("forwarded HTTPS SameSite = %v, want None", httpsCookie.SameSite)
+	}
+	if httpsCookie.Domain != ".example.com" {
+		t.Fatalf("forwarded HTTPS Domain = %q, want .example.com", httpsCookie.Domain)
+	}
+}
+
 func newMockDevStore() *mockDevStore {
 	return &mockDevStore{
 		users:      make(map[string]*store.User),

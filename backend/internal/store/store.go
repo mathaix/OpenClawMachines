@@ -74,6 +74,7 @@ type Machine struct {
 	ProvisionStep           *string    `json:"provision_step,omitempty"`
 	ProvisioningStartedAt   *time.Time `json:"provisioning_started_at,omitempty"`
 	ProvisioningCompletedAt *time.Time `json:"provisioning_completed_at,omitempty"`
+	BudgetMicrocents        *int64     `json:"budget_microcents,omitempty"`
 	CreatedAt               time.Time  `json:"created_at"`
 	StartedAt               *time.Time `json:"started_at,omitempty"`
 	StoppedAt               *time.Time `json:"stopped_at,omitempty"`

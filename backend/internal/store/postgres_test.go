@@ -14,6 +14,7 @@ func TestScanMachine_MapsRuntimeSelectionFields(t *testing.T) {
 	hostID := 7
 	dataVolumeGB := 25
 	homeHostID := 9
+	budget := int64(123456)
 
 	row := []any{
 		"machine-1",
@@ -35,6 +36,7 @@ func TestScanMachine_MapsRuntimeSelectionFields(t *testing.T) {
 		"ready",
 		now,
 		now,
+		budget,
 		now,
 		now,
 		now,
@@ -75,6 +77,9 @@ func TestScanMachine_MapsRuntimeSelectionFields(t *testing.T) {
 
 	if m.DesiredRootfsVersion == nil || *m.DesiredRootfsVersion != "rootfs-2026.04.05" {
 		t.Fatalf("DesiredRootfsVersion = %v", m.DesiredRootfsVersion)
+	}
+	if m.BudgetMicrocents == nil || *m.BudgetMicrocents != budget {
+		t.Fatalf("BudgetMicrocents = %v", m.BudgetMicrocents)
 	}
 	if m.Kind != MachineKindOpenClaw {
 		t.Fatalf("Kind = %q, want %q", m.Kind, MachineKindOpenClaw)

@@ -253,6 +253,10 @@ func main() {
 		Strategy:      fleet.Spread,
 	})
 	agentCli := agentclient.New(cfg.AgentToken)
+	if missing := hostedProvisionerMissingConfig(cfg); missing != "" {
+		slog.Error("host.provisioner.not_configured", "error", missing+" is required for CONTROL_PLANE_PROFILE=hosted")
+		os.Exit(1)
+	}
 	tunnelMgr := cloudflareTunnelManagerOrExit(cfg)
 	var prov *provisioner.Provisioner
 	if cfg.GCPProject != "" && tunnelMgr != nil {
@@ -489,6 +493,13 @@ func cloudflareTunnelManagerOrExit(cfg *config.Config) *tunnel.Manager {
 		return nil
 	}
 	return tunnel.New(cfg.CloudflareAPIToken, cfg.CloudflareAccountID, cfg.CloudflareZoneID)
+}
+
+func hostedProvisionerMissingConfig(cfg *config.Config) string {
+	if cfg.RequiresHostedIntegrations() && strings.TrimSpace(cfg.GCPProject) == "" {
+		return "GCP_PROJECT"
+	}
+	return ""
 }
 
 func cloudflareKVStoreOrExit(cfg *config.Config) *kvstore.KVStore {

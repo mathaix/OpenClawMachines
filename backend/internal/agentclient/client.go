@@ -102,6 +102,7 @@ type VMRequest struct {
 	Secrets          map[string]string                   `json:"secrets,omitempty"`
 	LLMKeys          map[string]metadata.CredentialEntry `json:"llm_keys,omitempty"`
 	AccountID        int                                 `json:"account_id"`
+	BudgetMicrocents *int64                              `json:"budget_microcents,omitempty"`
 	DataVolumeGB     int                                 `json:"data_volume_gb"`
 	DataVersion      int                                 `json:"data_version"`
 	SigningKey       string                              `json:"signing_key,omitempty"`
@@ -151,6 +152,7 @@ func buildVMRequest(machine *store.Machine, vmIP string, secrets map[string]stri
 		Secrets:          secrets,
 		LLMKeys:          llmKeys,
 		AccountID:        machine.AccountID,
+		BudgetMicrocents: machine.BudgetMicrocents,
 		DataVolumeGB:     machine.DataVolumeGB,
 		DataVersion:      dataVersion,
 		RuntimeSelection: runtimeSelection,
