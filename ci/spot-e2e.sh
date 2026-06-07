@@ -1,0 +1,112 @@
+#!/usr/bin/env bash
+# spot-e2e.sh — provision a real GCE spot host, run the E2E + Playwright suite
+# against it, and tear everything down. Designed to run in CI (admin-gated) but
+# also locally for an admin who has gcloud auth + the required env.
+#
+# Required env (the CI workflow sets these after GCP auth + Secret Manager reads):
+#   GCP_PROJECT, GCP_ZONE, DATA_PLANE_DOMAIN,
+#   CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_ZONE_ID,
+#   CLOUDFLARE_KV_NAMESPACE_ID, FC_AGENT_TOKEN, SECRET_ENCRYPTION_KEY, JWT_SECRET
+# Optional:
+#   MACHINE_TYPE (default n2-standard-2), HOST_READY_TIMEOUT (default 900s),
+#   OCM_ARTIFACT_BUCKET / OCM_ARTIFACT_BASE_URL (artifact source override)
+#
+# Artifacts (Playwright report, screenshots, traces) are left in
+# frontend/playwright-report and frontend/test-results for the workflow to upload.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+: "${GCP_PROJECT:?}"; : "${GCP_ZONE:=us-central1-b}"; : "${DATA_PLANE_DOMAIN:?}"
+: "${CLOUDFLARE_API_TOKEN:?}"; : "${CLOUDFLARE_ACCOUNT_ID:?}"; : "${CLOUDFLARE_ZONE_ID:?}"
+: "${FC_AGENT_TOKEN:?}"; : "${SECRET_ENCRYPTION_KEY:?}"
+MACHINE_TYPE="${MACHINE_TYPE:-n2-standard-2}"
+HOST_READY_TIMEOUT="${HOST_READY_TIMEOUT:-900}"
+API="http://localhost:8080"
+
+log() { echo "==> $*"; }
+
+TUNNEL_PID=""; BACKEND_PID=""; FRONTEND_PID=""; MACHINE_ID=""; HOST_ID=""
+cleanup() {
+  set +e
+  log "TEARDOWN"
+  [ -n "$MACHINE_ID" ] && curl -s -m20 -X DELETE "$API/api/accounts/1/machines/$MACHINE_ID" >/dev/null 2>&1
+  if [ -n "$HOST_ID" ]; then
+    curl -s -m30 -X DELETE "$API/api/admin/hosts/$HOST_ID" >/dev/null 2>&1
+    # Wait briefly for the spot instance to be deleted (DestroyHost is async).
+    for _ in $(seq 1 12); do
+      n="$(gcloud compute instances list --project="$GCP_PROJECT" --filter='name~ocm-host AND status!=TERMINATED' --format='value(name)' 2>/dev/null | wc -l | tr -d ' ')"
+      [ "$n" = "0" ] && break; sleep 10
+    done
+  fi
+  # Backstop: delete any ocm-host instance this run may have leaked.
+  for inst in $(gcloud compute instances list --project="$GCP_PROJECT" --filter='name~ocm-host AND status!=TERMINATED' --format='value(name,zone)' 2>/dev/null | awk '{print $1":"$2}'); do
+    gcloud compute instances delete "${inst%%:*}" --zone="${inst##*:}" --project="$GCP_PROJECT" --quiet >/dev/null 2>&1
+  done
+  [ -n "$BACKEND_PID" ] && kill "$BACKEND_PID" 2>/dev/null
+  [ -n "$FRONTEND_PID" ] && kill "$FRONTEND_PID" 2>/dev/null
+  [ -n "$TUNNEL_PID" ] && kill "$TUNNEL_PID" 2>/dev/null
+  docker rm -f ocm-e2e-pg >/dev/null 2>&1
+  log "teardown done"
+}
+trap cleanup EXIT
+
+# ── 1. Postgres + migrations ──────────────────────────────────────────────────
+log "starting Postgres"
+docker run -d --name ocm-e2e-pg -e POSTGRES_USER=ocm -e POSTGRES_PASSWORD=ocm -e POSTGRES_DB=ocm -p 5432:5432 postgres:16 >/dev/null
+export DATABASE_URL="postgres://ocm:ocm@localhost:5432/ocm?sslmode=disable"
+for _ in $(seq 1 30); do docker exec ocm-e2e-pg pg_isready -U ocm >/dev/null 2>&1 && break; sleep 2; done
+bash scripts/run-migrations.sh
+
+# ── 2. cloudflared tunnel for a publicly-reachable BACKEND_URL ────────────────
+log "starting cloudflared tunnel"
+cloudflared tunnel --url http://localhost:8080 >/tmp/cf.log 2>&1 & TUNNEL_PID=$!
+for _ in $(seq 1 20); do
+  BACKEND_URL="$(grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' /tmp/cf.log | head -1)"
+  [ -n "$BACKEND_URL" ] && break; sleep 2
+done
+[ -n "${BACKEND_URL:-}" ] || { echo "no tunnel URL"; exit 1; }
+export BACKEND_URL
+log "BACKEND_URL=$BACKEND_URL"
+
+# ── 3. Control plane (operator profile, dev auth, spot) ───────────────────────
+log "building + starting control plane"
+( cd backend && go build -o ./server ./cmd/server )
+export CONTROL_PLANE_PROFILE=operator AUTH_MODE=dev OCM_ALLOW_DEV_AUTH=1 \
+  OCM_ADMIN_EMAILS=dev@localhost OCM_SUPERUSER_EMAILS=dev@localhost \
+  PORT=8080 FRONTEND_URL=http://localhost:5173 CORS_ORIGINS=http://localhost:5173 \
+  HOST_PROVISIONING_MODEL=SPOT FF_RUNTIME_VERSION_RESOLVER=1
+./backend/server >/tmp/backend.log 2>&1 & BACKEND_PID=$!
+for _ in $(seq 1 30); do curl -fsS -m3 "$API/health" >/dev/null 2>&1 && break; sleep 2; done
+
+# ── 4. Frontend (Vite dev server, proxies /api) ───────────────────────────────
+log "starting frontend"
+( cd frontend; npm ci >/dev/null 2>&1 || npm install >/dev/null 2>&1 )
+cat > frontend/.env.local <<EOF
+VITE_API_URL=/api
+VITE_DATA_PLANE_DOMAIN=$DATA_PLANE_DOMAIN
+VITE_OCM_ADMIN_EMAILS=dev@localhost
+EOF
+( cd frontend && npm run dev >/tmp/frontend.log 2>&1 ) & FRONTEND_PID=$!
+for _ in $(seq 1 30); do curl -fsS -m3 http://localhost:5173 >/dev/null 2>&1 && break; sleep 2; done
+
+# ── 5. Provision a spot host, wait for ready ──────────────────────────────────
+log "provisioning spot host ($MACHINE_TYPE in $GCP_ZONE)"
+curl -fsS -m20 -X POST "$API/api/admin/hosts" -H 'Content-Type: application/json' \
+  -d "{\"machine_type\":\"$MACHINE_TYPE\",\"zone\":\"$GCP_ZONE\"}" >/dev/null
+deadline=$(( $(date +%s) + HOST_READY_TIMEOUT ))
+while :; do
+  read -r HOST_ID STATUS < <(curl -s -m5 "$API/api/admin/hosts" | python3 -c 'import sys,json;d=json.load(sys.stdin);h=max(d,key=lambda x:x["id"]) if d else None;print((str(h["id"])+" "+h["status"]) if h else "0 none")')
+  log "host $HOST_ID: $STATUS"
+  [ "$STATUS" = "ready" ] && break
+  [ "$STATUS" = "error" ] && { echo "host provisioning failed"; exit 1; }
+  [ "$(date +%s)" -ge "$deadline" ] && { echo "timeout waiting for host ready"; exit 1; }
+  sleep 15
+done
+
+# ── 6. Playwright E2E (drives create -> Firecracker boot, captures on failure) ─
+log "running Playwright E2E"
+export PLAYWRIGHT_BASE_URL=http://localhost:5173 CI=1
+( cd frontend && npx playwright install --with-deps chromium >/dev/null 2>&1 || true
+  npx playwright test e2e/machine-lifecycle.spec.ts --reporter=html )
+
+log "E2E passed"
