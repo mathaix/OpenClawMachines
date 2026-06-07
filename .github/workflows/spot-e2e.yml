@@ -1,23 +1,14 @@
 name: Spot E2E
 
-# Admin-only end-to-end gate: provisions a REAL GCE spot host, runs the
-# Playwright E2E (login -> create machine -> Firecracker boots) against it, and
-# tears everything down. Gates merge to main via the `spot-e2e` commit status.
+# Admin-only merge gate (Actions-tab dispatch). Verifies the actor is a repo
+# admin + the SHA matches the PR head, then calls the reusable spot-e2e-run
+# workflow which provisions a real GCE spot host, runs the Playwright smoke,
+# uploads artifacts, tears down, and posts the `spot-e2e` commit status.
 #
-# Security model (mirrors kvm-integration):
-#   - NO pull_request / pull_request_target trigger — secrets and billable VMs
-#     are never exposed to untrusted fork PRs.
-#   - workflow_dispatch requires repo write access; an explicit admin check
-#     hard-gates it so only admins can run it.
-#   - To gate a PR: an admin dispatches with the PR number + head SHA; the
-#     `spot-e2e` status posted on that SHA satisfies branch protection.
+# PR-comment "/spot-e2e" triggers the same reusable job via comment-commands.yml.
+# Security: no pull_request trigger — secrets/VMs are never exposed to fork PRs.
 #
-# Required config (see docs/spot-e2e-ci.md):
-#   Repo variables: GCP_PROJECT, GCP_ZONE, E2E_DATA_PLANE_DOMAIN, E2E_CLOUDFLARE_ZONE_ID
-#   Repo secrets:   GCP_WIF_PROVIDER, GCP_SERVICE_ACCOUNT
-#   Secret Manager (read via the WIF SA): OCM_CLOUDFLARE_API_TOKEN,
-#     OCM_CLOUDFLARE_ACCOUNT_ID, OCM_CLOUDFLARE_KV_NAMESPACE_ID,
-#     OCM_FC_AGENT_TOKEN, OCM_SECRET_ENCRYPTION_KEY, OCM_JWT_SECRET
+# Config: see docs/spot-e2e-ci.md (repo vars + WIF secrets + Secret Manager).
 
 on:
   workflow_dispatch:
@@ -43,7 +34,6 @@ jobs:
     name: Authorize (admins only)
     runs-on: ubuntu-latest
     permissions:
-      statuses: write
       pull-requests: read
     steps:
       - name: Require admin
@@ -71,106 +61,15 @@ jobs:
           head_sha="$(gh api "repos/${REPO}/pulls/${PR}" --jq .head.sha)"
           test "${head_sha}" = "${SHA}"
 
-      - name: Mark spot-e2e pending
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-          SHA: ${{ inputs.sha }}
-        run: |
-          gh api "repos/${REPO}/statuses/${SHA}" \
-            -f state=pending -f context=spot-e2e -f description="Spot E2E running"
-
-  e2e:
-    name: Spot E2E
+  run:
+    name: Run
     needs: authorize
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
+    uses: ./.github/workflows/spot-e2e-run.yml
+    with:
+      pr: ${{ inputs.pr }}
+      sha: ${{ inputs.sha }}
+    secrets: inherit
     permissions:
       contents: read
       id-token: write
-    env:
-      GCP_PROJECT: ${{ vars.GCP_PROJECT }}
-      GCP_ZONE: ${{ vars.GCP_ZONE }}
-      DATA_PLANE_DOMAIN: ${{ vars.E2E_DATA_PLANE_DOMAIN }}
-      CLOUDFLARE_ZONE_ID: ${{ vars.E2E_CLOUDFLARE_ZONE_ID }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.sha }}
-
-      - uses: actions/setup-go@v5
-        with:
-          go-version: "1.25"
-          cache-dependency-path: backend/go.sum
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "24"
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: Install cloudflared
-        run: |
-          set -euo pipefail
-          curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /usr/local/bin/cloudflared
-          sudo chmod +x /usr/local/bin/cloudflared
-
-      - id: auth
-        uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
-          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
-      - uses: google-github-actions/setup-gcloud@v2
-
-      - name: Load secrets from Secret Manager
-        env:
-          PROJECT: ${{ vars.GCP_PROJECT }}
-        run: |
-          set -euo pipefail
-          sm() { gcloud secrets versions access latest --secret="$1" --project="$PROJECT"; }
-          for pair in \
-            "CLOUDFLARE_API_TOKEN=OCM_CLOUDFLARE_API_TOKEN" \
-            "CLOUDFLARE_ACCOUNT_ID=OCM_CLOUDFLARE_ACCOUNT_ID" \
-            "CLOUDFLARE_KV_NAMESPACE_ID=OCM_CLOUDFLARE_KV_NAMESPACE_ID" \
-            "FC_AGENT_TOKEN=OCM_FC_AGENT_TOKEN" \
-            "SECRET_ENCRYPTION_KEY=OCM_SECRET_ENCRYPTION_KEY" \
-            "JWT_SECRET=OCM_JWT_SECRET"; do
-            name="${pair%%=*}"; secret="${pair##*=}"
-            val="$(sm "$secret")"
-            echo "::add-mask::${val}"
-            echo "${name}=${val}" >> "$GITHUB_ENV"
-          done
-
-      - name: Run spot E2E
-        run: bash ci/spot-e2e.sh
-
-      - name: Upload Playwright artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: spot-e2e-playwright
-          path: |
-            frontend/playwright-report
-            frontend/test-results
-          retention-days: 14
-          if-no-files-found: ignore
-
-  report:
-    name: Report spot-e2e status
-    needs: [authorize, e2e]
-    if: always()
-    runs-on: ubuntu-latest
-    permissions:
       statuses: write
-    steps:
-      - name: Post commit status
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-          SHA: ${{ inputs.sha }}
-          RESULT: ${{ needs.e2e.result }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          set -euo pipefail
-          if [ "$RESULT" = "success" ]; then state=success; desc="Spot E2E passed"; else state=failure; desc="Spot E2E ${RESULT}"; fi
-          gh api "repos/${REPO}/statuses/${SHA}" \
-            -f state="$state" -f context=spot-e2e -f description="$desc" -f target_url="$RUN_URL"

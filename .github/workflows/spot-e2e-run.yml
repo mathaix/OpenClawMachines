@@ -1,0 +1,113 @@
+name: Spot E2E (run)
+
+# Reusable heavy job: provision a real GCE spot host, run the Playwright smoke,
+# upload artifacts, tear down, and post the `spot-e2e` commit status. It performs
+# NO authorization — callers (spot-e2e.yml dispatch, comment-commands.yml) must
+# gate on admin before invoking it.
+on:
+  workflow_call:
+    inputs:
+      pr:
+        required: true
+        type: string
+      sha:
+        required: true
+        type: string
+
+jobs:
+  e2e:
+    name: Spot E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      id-token: write
+      statuses: write
+    env:
+      GCP_PROJECT: ${{ vars.GCP_PROJECT }}
+      GCP_ZONE: ${{ vars.GCP_ZONE }}
+      DATA_PLANE_DOMAIN: ${{ vars.E2E_DATA_PLANE_DOMAIN }}
+      CLOUDFLARE_ZONE_ID: ${{ vars.E2E_CLOUDFLARE_ZONE_ID }}
+    steps:
+      - name: Mark spot-e2e pending
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ inputs.sha }}
+        run: |
+          gh api "repos/${REPO}/statuses/${SHA}" \
+            -f state=pending -f context=spot-e2e -f description="Spot E2E running"
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.sha }}
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache-dependency-path: backend/go.sum
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install cloudflared
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /usr/local/bin/cloudflared
+          sudo chmod +x /usr/local/bin/cloudflared
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Load secrets from Secret Manager
+        env:
+          PROJECT: ${{ vars.GCP_PROJECT }}
+        run: |
+          set -euo pipefail
+          sm() { gcloud secrets versions access latest --secret="$1" --project="$PROJECT"; }
+          for pair in \
+            "CLOUDFLARE_API_TOKEN=OCM_CLOUDFLARE_API_TOKEN" \
+            "CLOUDFLARE_ACCOUNT_ID=OCM_CLOUDFLARE_ACCOUNT_ID" \
+            "CLOUDFLARE_KV_NAMESPACE_ID=OCM_CLOUDFLARE_KV_NAMESPACE_ID" \
+            "FC_AGENT_TOKEN=OCM_FC_AGENT_TOKEN" \
+            "SECRET_ENCRYPTION_KEY=OCM_SECRET_ENCRYPTION_KEY" \
+            "JWT_SECRET=OCM_JWT_SECRET"; do
+            name="${pair%%=*}"; secret="${pair##*=}"
+            val="$(sm "$secret")"
+            echo "::add-mask::${val}"
+            echo "${name}=${val}" >> "$GITHUB_ENV"
+          done
+
+      - name: Run spot E2E
+        run: bash ci/spot-e2e.sh
+
+      - name: Upload Playwright artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: spot-e2e-playwright
+          path: |
+            frontend/playwright-report
+            frontend/test-results
+          retention-days: 14
+          if-no-files-found: ignore
+
+      - name: Post spot-e2e status
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ inputs.sha }}
+          RESULT: ${{ job.status }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          if [ "$RESULT" = "success" ]; then state=success; desc="Spot E2E passed"; else state=failure; desc="Spot E2E ${RESULT}"; fi
+          gh api "repos/${REPO}/statuses/${SHA}" \
+            -f state="$state" -f context=spot-e2e -f description="$desc" -f target_url="$RUN_URL"
