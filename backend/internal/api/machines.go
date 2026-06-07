@@ -1812,6 +1812,11 @@ func (s *Server) handleStartMachine(w http.ResponseWriter, r *http.Request) {
 			Summary:   fmt.Sprintf("Failed to start '%s': %s", machine.Name, err),
 			ErrorMsg:  &errMsg,
 		})
+		if errors.Is(err, store.ErrNoEligibleHost) {
+			writeError(w, http.StatusConflict,
+				"No host available to run this machine. Register or enroll a host (Admin → Hosts) with enough free capacity, then try again.")
+			return
+		}
 		writeError(w, http.StatusServiceUnavailable, err.Error())
 		return
 	}

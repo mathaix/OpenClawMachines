@@ -3,8 +3,15 @@ package store
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"time"
 )
+
+// ErrNoEligibleHost is returned by placement when no registered host is ready
+// with enough capacity (and matching region/image) to run a machine. Callers
+// should surface this to the user as a clear "no host available" condition
+// rather than a generic server error.
+var ErrNoEligibleHost = errors.New("no host available with sufficient capacity")
 
 // ---- Entity types ----
 

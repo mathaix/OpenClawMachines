@@ -1626,7 +1626,10 @@ func (s *PostgresStore) PlaceMachineOnHost(ctx context.Context, machineID string
 		&h.Provider, &h.ProviderClass, &h.LifecycleMode, &h.AgentEndpoint, &h.AgentEndpointType,
 		&h.ProviderHostID, &h.ProviderMetadata, &h.Capabilities, &h.Labels, &h.AgentToken, &h.MaintenanceMode)
 	if err != nil {
-		return nil, "", fmt.Errorf("no host with matching image and sufficient capacity (expected=%s): %w", expectedImage, err)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, "", fmt.Errorf("%w (region=%q, image=%q)", ErrNoEligibleHost, region, expectedImage)
+		}
+		return nil, "", fmt.Errorf("place machine on host: %w", err)
 	}
 
 	// Allocate capacity

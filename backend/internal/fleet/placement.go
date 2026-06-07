@@ -125,7 +125,7 @@ func (ps *PlacementService) placeAutoSelect(ctx context.Context, machineID strin
 		return nil, nil, "", fmt.Errorf("list eligible hosts: %w", err)
 	}
 	if len(hosts) == 0 {
-		return nil, nil, "", fmt.Errorf("no hosts with sufficient capacity in region %s", region)
+		return nil, nil, "", fmt.Errorf("%w in region %q", store.ErrNoEligibleHost, region)
 	}
 
 	// 2. Rank by strategy (pure Go — unit testable)
@@ -149,7 +149,7 @@ func (ps *PlacementService) placeAutoSelect(ctx context.Context, machineID strin
 		return placement, &host, vmIP, nil
 	}
 
-	return nil, nil, "", fmt.Errorf("all %d eligible hosts at capacity or contended", len(ranked))
+	return nil, nil, "", fmt.Errorf("%w: all %d eligible hosts at capacity or contended", store.ErrNoEligibleHost, len(ranked))
 }
 
 func (ps *PlacementService) placeOnSpecificHost(ctx context.Context, machineID string, req PlacementRequest) (*store.Placement, *store.Host, string, error) {
