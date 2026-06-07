@@ -268,6 +268,8 @@ func main() {
 			Zone:                     cfg.GCPZone,
 			Region:                   cfg.GCPRegion,
 			Snapshot:                 cfg.SnapshotName,
+			HostImage:                cfg.HostImage,
+			ArtifactBucket:           cfg.ArtifactBucket,
 			ProvisioningModel:        cfg.HostProvisioningModel,
 			AgentToken:               cfg.AgentToken,
 			BackendURL:               cfg.BackendURL,

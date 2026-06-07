@@ -2,7 +2,9 @@ package provisioner
 
 import (
 	"context"
+	_ "embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -16,7 +18,17 @@ import (
 
 	compute "cloud.google.com/go/compute/apiv1"
 	computepb "cloud.google.com/go/compute/apiv1/computepb"
+	"google.golang.org/api/googleapi"
 )
+
+// hostStartupScript bootstraps a stock Ubuntu host on first boot when no
+// prebaked image (snapshot) is configured.
+//
+//go:embed host-startup.sh
+var hostStartupScript string
+
+// defaultHostImage is the stock image booted when no snapshot is set.
+const defaultHostImage = "projects/ubuntu-os-cloud/global/images/family/ubuntu-2404-lts-amd64"
 
 // Provisioner manages Host VM lifecycle — creating, configuring, and draining Hosts.
 type Provisioner struct {
@@ -28,6 +40,9 @@ type Provisioner struct {
 	zone                     string
 	region                   string
 	snapshot                 string
+	hostImage                string
+	artifactBucket           string
+	firewallEnsured          bool
 	provisioningModel        string
 	agentToken               string
 	backendURL               string
@@ -49,6 +64,8 @@ type Config struct {
 	Zone                     string
 	Region                   string
 	Snapshot                 string
+	HostImage                string
+	ArtifactBucket           string
 	ProvisioningModel        string
 	AgentToken               string
 	BackendURL               string
@@ -70,6 +87,8 @@ func New(cfg Config) *Provisioner {
 		zone:                     cfg.Zone,
 		region:                   cfg.Region,
 		snapshot:                 cfg.Snapshot,
+		hostImage:                strings.TrimSpace(cfg.HostImage),
+		artifactBucket:           strings.TrimRight(strings.TrimSpace(cfg.ArtifactBucket), "/"),
 		provisioningModel:        cfg.ProvisioningModel,
 		agentToken:               cfg.AgentToken,
 		backendURL:               cfg.BackendURL,
@@ -137,6 +156,10 @@ func (p *Provisioner) ProvisionHost(ctx context.Context, machineType string, phy
 	if p.tunnel == nil {
 		return nil, fmt.Errorf("tunnel manager not configured — cannot provision host without Cloudflare Tunnel")
 	}
+
+	// Ensure the firewall rule that lets the control plane reach the agent
+	// control/proxy ports exists (idempotent, once per process).
+	p.ensureAgentFirewall(ctx)
 
 	vmName := fmt.Sprintf("ocm-host-%d", time.Now().UnixMilli())
 
@@ -254,6 +277,28 @@ func (p *Provisioner) ProvisionHost(ctx context.Context, machineType string, phy
 		"version", p.browserRootfsVersion,
 		"enabled", p.browserRootfsGCSManifest != "")
 
+	// Image + bootstrap selection. With a prebaked snapshot, boot from it
+	// directly (fast path, no startup-script). Otherwise boot a stock image and
+	// inject a startup-script that installs the Firecracker host deps + agent on
+	// first boot — so provisioning works for any operator without a golden image.
+	sourceImage := fmt.Sprintf("projects/%s/global/images/%s", p.project, p.snapshot)
+	if p.snapshot == "" {
+		sourceImage = p.hostImage
+		if sourceImage == "" {
+			sourceImage = defaultHostImage
+		}
+		if p.artifactBucket != "" {
+			metadataItems = append(metadataItems,
+				&computepb.Items{Key: strPtr("artifact-bucket"), Value: strPtr(p.artifactBucket)},
+				&computepb.Items{Key: strPtr("kernel-gcs-path"), Value: strPtr(p.artifactBucket + "/vmlinux")},
+			)
+		}
+		metadataItems = append(metadataItems, &computepb.Items{
+			Key: strPtr("startup-script"), Value: strPtr(hostStartupScript),
+		})
+		slog.Info("host.provision.bootstrap", "vm_name", vmName, "image", sourceImage, "mode", "startup-script")
+	}
+
 	// Calculate disk sizes based on host capacity
 	bootDiskGB, dataDiskGB := diskSizes(memoryMB)
 	if p.dataDiskSizeGB > 0 {
@@ -283,7 +328,7 @@ func (p *Provisioner) ProvisionHost(ctx context.Context, machineType string, phy
 				AutoDelete: boolPtr(true),
 				Boot:       boolPtr(true),
 				InitializeParams: &computepb.AttachedDiskInitializeParams{
-					SourceImage: strPtr(fmt.Sprintf("projects/%s/global/images/%s", p.project, p.snapshot)),
+					SourceImage: strPtr(sourceImage),
 					DiskSizeGb:  int64Ptr(bootDiskGB),
 					DiskType:    strPtr(fmt.Sprintf("zones/%s/diskTypes/pd-ssd", zone)),
 				},
@@ -389,9 +434,14 @@ func (p *Provisioner) ProvisionHost(ctx context.Context, machineType string, phy
 		return failHost(fmt.Errorf("update host details: %w", err))
 	}
 
-	// Wait for agent health (poll)
-	slog.Info("host.provision.agent.health.waiting", "host_name", vmName, "host_id", host.ID)
-	health, err := p.waitForAgentHealth(ctx, host, 5*time.Minute)
+	// Wait for agent health (poll). Stock-image bootstrap (no prebaked snapshot)
+	// installs deps + downloads the agent on first boot, so it needs longer.
+	healthTimeout := 5 * time.Minute
+	if p.snapshot == "" {
+		healthTimeout = 12 * time.Minute
+	}
+	slog.Info("host.provision.agent.health.waiting", "host_name", vmName, "host_id", host.ID, "timeout", healthTimeout.String())
+	health, err := p.waitForAgentHealth(ctx, host, healthTimeout)
 	if err != nil {
 		slog.Error("host.provision.agent.health.failed", "host_name", vmName, "host_id", host.ID, "error", err)
 		return failHost(fmt.Errorf("agent health check: %w", err))
@@ -532,6 +582,59 @@ func (p *Provisioner) cleanupTunnel(ctx context.Context, vmName, tunnelHostname 
 }
 
 // waitForAgentHealth polls the agent's /health endpoint until it responds.
+// ensureAgentFirewall creates an idempotent INGRESS firewall rule allowing the
+// control plane to reach the agent control (:9090) and proxy (:9091) ports on
+// hosts tagged "ocm-agent" (the tag the provisioner applies). Runs once per
+// process. Best-effort: if it fails (e.g. the operator manages firewalls
+// out-of-band or lacks compute.firewalls.create), provisioning continues, but
+// the agent health check will fail unless those ports are reachable.
+func (p *Provisioner) ensureAgentFirewall(ctx context.Context) {
+	if p.firewallEnsured || p.project == "" {
+		return
+	}
+	p.firewallEnsured = true // attempt once regardless of outcome
+
+	client, err := compute.NewFirewallsRESTClient(ctx)
+	if err != nil {
+		slog.Warn("host.firewall.client_failed", "error", err)
+		return
+	}
+	defer func() { _ = client.Close() }()
+
+	const name = "ocm-agent"
+	if _, err := client.Get(ctx, &computepb.GetFirewallRequest{Project: p.project, Firewall: name}); err == nil {
+		return // already exists
+	} else {
+		var gerr *googleapi.Error
+		if !errors.As(err, &gerr) || gerr.Code != 404 {
+			slog.Warn("host.firewall.get_failed", "error", err)
+		}
+	}
+
+	rule := &computepb.Firewall{
+		Name:         strPtr(name),
+		Network:      strPtr("global/networks/default"),
+		Direction:    strPtr("INGRESS"),
+		TargetTags:   []string{"ocm-agent"},
+		SourceRanges: []string{"0.0.0.0/0"}, // agent ports are token-gated (CONTROL_ALLOWED_CIDRS + agent token)
+		Allowed: []*computepb.Allowed{{
+			IPProtocol: strPtr("tcp"),
+			Ports:      []string{"9090", "9091"},
+		}},
+		Description: strPtr("OCM agent control(:9090)/proxy(:9091) — matches provisioner tag ocm-agent"),
+	}
+	op, err := client.Insert(ctx, &computepb.InsertFirewallRequest{Project: p.project, FirewallResource: rule})
+	if err != nil {
+		slog.Warn("host.firewall.create_failed", "error", err)
+		return
+	}
+	if err := op.Wait(ctx); err != nil {
+		slog.Warn("host.firewall.create_wait_failed", "error", err)
+		return
+	}
+	slog.Info("host.firewall.created", "name", name, "ports", "9090,9091", "target_tag", "ocm-agent")
+}
+
 func (p *Provisioner) waitForAgentHealth(ctx context.Context, host *store.Host, timeout time.Duration) (*agentclient.HealthResponse, error) {
 	deadline := time.Now().Add(timeout)
 
