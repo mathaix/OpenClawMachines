@@ -52,6 +52,12 @@ cmd_up() {
     log "Adding OCM_ADMIN_EMAILS/OCM_SUPERUSER_EMAILS=dev@localhost"
     printf 'OCM_ADMIN_EMAILS=dev@localhost\nOCM_SUPERUSER_EMAILS=dev@localhost\n' >>"$ROOT_DIR/.env.local"
   fi
+  # Resolve OpenClaw runtime versions from artifact_releases (needed to stage the
+  # runtime so the in-VM gateway starts). See docs/local-firecracker-e2e.md.
+  if ! grep -q '^FF_RUNTIME_VERSION_RESOLVER=' "$ROOT_DIR/.env.local"; then
+    log "Adding FF_RUNTIME_VERSION_RESOLVER=1"
+    printf 'FF_RUNTIME_VERSION_RESOLVER=1\n' >>"$ROOT_DIR/.env.local"
+  fi
 
   # 2. Postgres + migrations + control plane (RUN_MODE=api, profile=local, dev auth)
   log "Starting Postgres"

@@ -112,17 +112,39 @@ These are on `issue-7-self-hosted-portability`:
 | `backend/internal/machines/runtime.go` | Set `machine.SigningKey` independently of whether a tunnel exists. |
 | `backend/internal/agentapi/handlers.go` | `validateVMRequest` no longer hard‑requires `tunnel_token` / `vm_hostname` (hosted‑only; the VM is reached via the agent proxy). |
 | `frontend/src/pages/MachineView.tsx` | Null‑guard the release lists (`openclawReleases?.[0]`, `!list ||`) — empty `artifact_releases` returned `null` and white‑screened the page. |
+| `scripts/init-openclaw.sh` | In‑VM init no longer fatals on empty `tunnel_token` / `vm_hostname`; skips cloudflared supervision when there is no tunnel. Requires a rootfs rebuild to take effect. |
 
-## Known gap — reaching `running`
+## Reaching a running workspace (OpenClaw gateway up)
 
-The microVM **boots**, but the in‑VM OpenClaw gateway does not come up:
-`"Auth proxy did not start — gateway unreachable"`, then
-`vm.health.failed: timeout waiting for 192.168.100.10:7681 after 5m` → the machine
-reverts to `stopped`. Cause: the **OpenClaw runtime is never staged** —
-`/var/lib/ocm/openclaw/` is empty and `artifact_releases` is empty
-(`runtime_source=artifact` resolves nothing), even though the runtime tarballs exist at
-`/var/lib/ocm/openclaw-artifacts/`. This is the host/agent path working correctly and the
-**artifact/gateway layer** being the remaining work (the integration suite boots working
-OpenClaw VMs via the orchestrator directly). To reach `running`: register a local
-`artifact_release` (or set `OPENCLAW_GCS_MANIFEST` / pre‑stage `/var/lib/ocm/openclaw`),
-and resolve why the in‑VM auth proxy needs CF certs.
+A bare VM boots, but reaching `running` (auth proxy `:8080` + OpenClaw gateway `:7681`
+ready) needs three more things — all because the runtime is **artifact‑only** and the
+rootfs init assumes a hosted (Cloudflare) deployment:
+
+1. **Enable the runtime resolver** so OpenClaw machines resolve a version from
+   `artifact_releases`: set `FF_RUNTIME_VERSION_RESOLVER=1` on the control plane.
+   Without it, `resolveRuntimeSelection` never runs for OpenClaw, so no runtime is
+   staged and the VM init fatals with `[FATAL] Artifact runtime binary is unavailable`.
+
+2. **Stage the OpenClaw runtime + register a release.** The agent attaches the runtime
+   as a read‑only `/dev/vdc` drive (mounted at `/ocm-runtime`); it only does so when the
+   release is staged at `OpenClawRuntimeDir/releases/<version>` with `bin/openclaw` +
+   the bundled‑plugins dir, and a matching `artifact_releases` row exists. Locally:
+   - extract a tarball from `/var/lib/ocm/openclaw-artifacts/openclaw-vX.Y.Z-…tar.zst`
+     into `/var/lib/ocm/openclaw/releases/vX.Y.Z/`;
+   - add a `manifest.json` there whose `runtime.bundled_plugins_relpath` points at
+     `node_modules/openclaw/dist/extensions` (this artifact differs from the
+     `dist/extensions` default), plus required `version`/`artifact_url`/`sha256`;
+   - `insert into artifact_releases (kind,version,channel,url,sha256) values
+     ('openclaw','vX.Y.Z','stable',…)`.
+
+3. **In‑VM tunnel fatal.** The rootfs init (`scripts/init-openclaw.sh`) hard‑required a
+   `tunnel_token`; fixed in this branch (see table above). It needs a `make build-rootfs`
+   to land in the image, or — for an already‑staged box — patch the line in the staged
+   base `/var/lib/ocm/vms/.base-rootfs.ext4` (mount rw) and delete the per‑VM clone
+   `/var/lib/ocm/vms/<machine_id>.ext4` so it re‑clones.
+
+With all three in place the VM boots to `[gateway] ready (N plugins)`, the machine goes
+`running`, and the **Workspace** page streams live gateway logs + a shell. Note: clones
+come from the **staged** base `/var/lib/ocm/vms/.base-rootfs.ext4` (created at agent
+startup), not `/var/lib/ocm/images/rootfs.ext4`; refresh the staged copy after any rootfs
+change.
