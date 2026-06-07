@@ -270,6 +270,7 @@ func main() {
 			Snapshot:                 cfg.SnapshotName,
 			HostImage:                cfg.HostImage,
 			ArtifactBucket:           cfg.ArtifactBucket,
+			ArtifactBaseURL:          cfg.ArtifactBaseURL,
 			ProvisioningModel:        cfg.HostProvisioningModel,
 			AgentToken:               cfg.AgentToken,
 			BackendURL:               cfg.BackendURL,

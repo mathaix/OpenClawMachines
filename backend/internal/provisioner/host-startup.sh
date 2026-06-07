@@ -28,12 +28,19 @@ BROWSER_ROOTFS_MANIFEST="$(md browser-rootfs-gcs-manifest)"
 BROWSER_ROOTFS_VERSION="$(md browser-rootfs-version)"
 ARTIFACT_BUCKET="$(md artifact-bucket)"
 KERNEL_GCS_PATH="$(md kernel-gcs-path)"
+ARTIFACT_BASE_URL="$(md artifact-base-url)"
 
-if [ -z "$ARTIFACT_BUCKET" ] && [ -z "$AGENT_MANIFEST" ]; then
-    echo "[ocm-startup] FATAL: no artifact-bucket or agent-gcs-manifest metadata; cannot fetch the agent"
+# Default to public HTTPS artifacts (GitHub Releases) unless an operator GCS
+# bucket is configured. USE_GCS=1 means pull via gsutil from ARTIFACT_BUCKET.
+USE_GCS=0
+if [ -n "$ARTIFACT_BUCKET" ]; then
+    USE_GCS=1
+    [ -z "$KERNEL_GCS_PATH" ] && KERNEL_GCS_PATH="${ARTIFACT_BUCKET%/}/vmlinux"
+fi
+if [ "$USE_GCS" = "0" ] && [ -z "$ARTIFACT_BASE_URL" ]; then
+    echo "[ocm-startup] FATAL: no artifact-base-url or artifact-bucket metadata; cannot fetch artifacts"
     exit 1
 fi
-[ -z "$KERNEL_GCS_PATH" ] && KERNEL_GCS_PATH="${ARTIFACT_BUCKET%/}/vmlinux"
 
 # ── 1. System packages ────────────────────────────────────────────────────────
 export DEBIAN_FRONTEND=noninteractive
@@ -41,8 +48,8 @@ apt-get update -qq
 apt-get install -y -qq curl jq zstd iptables iproute2 net-tools \
     xfsprogs e2fsprogs cpu-checker ca-certificates gnupg >/dev/null
 
-# Google Cloud SDK (gsutil) for artifact downloads via the instance service account
-if ! command -v gsutil >/dev/null 2>&1; then
+# Google Cloud SDK (gsutil) only when pulling artifacts from a GCS bucket
+if [ "$USE_GCS" = "1" ] && ! command -v gsutil >/dev/null 2>&1; then
     curl -sS https://packages.cloud.google.com/apt/doc/apt-key.gpg | gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg
     echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" > /etc/apt/sources.list.d/google-cloud-sdk.list
     apt-get update -qq && apt-get install -y -qq google-cloud-cli >/dev/null
@@ -86,19 +93,38 @@ mkdir -p "${OCM_BASE}"/{images,sockets,data,vms} /etc/ocm-agent
 
 # ── 6. Guest kernel ───────────────────────────────────────────────────────────
 if [ ! -f "${OCM_BASE}/vmlinux" ]; then
-    echo "[ocm-startup] fetching kernel from ${KERNEL_GCS_PATH}"
-    gsutil cp "$KERNEL_GCS_PATH" "${OCM_BASE}/vmlinux" && chmod 644 "${OCM_BASE}/vmlinux" \
-        || echo "[ocm-startup] WARNING: kernel download failed; supply ${OCM_BASE}/vmlinux"
+    if [ "$USE_GCS" = "1" ]; then
+        echo "[ocm-startup] fetching kernel from ${KERNEL_GCS_PATH}"
+        gsutil cp "$KERNEL_GCS_PATH" "${OCM_BASE}/vmlinux" && chmod 644 "${OCM_BASE}/vmlinux" \
+            || echo "[ocm-startup] WARNING: kernel download failed; supply ${OCM_BASE}/vmlinux"
+    else
+        echo "[ocm-startup] fetching kernel from ${ARTIFACT_BASE_URL}/vmlinux"
+        curl -fSL "${ARTIFACT_BASE_URL}/vmlinux" -o "${OCM_BASE}/vmlinux" && chmod 644 "${OCM_BASE}/vmlinux" \
+            || echo "[ocm-startup] WARNING: kernel download failed; supply ${OCM_BASE}/vmlinux"
+    fi
 fi
 
 # ── 7. Agent binary ───────────────────────────────────────────────────────────
-AGENT_SRC=""
-if [ -n "$AGENT_MANIFEST" ]; then
-    AGENT_SRC="$(gsutil cat "$AGENT_MANIFEST" 2>/dev/null | jq -r '.url // empty')"
+if [ "$USE_GCS" = "1" ]; then
+    AGENT_SRC=""
+    if [ -n "$AGENT_MANIFEST" ]; then
+        AGENT_SRC="$(gsutil cat "$AGENT_MANIFEST" 2>/dev/null | jq -r '.url // empty')"
+    fi
+    [ -z "$AGENT_SRC" ] && AGENT_SRC="${ARTIFACT_BUCKET%/}/agent/manifest.json"
+    case "$AGENT_SRC" in
+        *.json) AGENT_SRC="$(gsutil cat "$AGENT_SRC" 2>/dev/null | jq -r '.url // empty')" ;;
+    esac
+    echo "[ocm-startup] fetching agent from ${AGENT_SRC}"
+    gsutil cp "$AGENT_SRC" /usr/local/bin/ocm-agent
+else
+    echo "[ocm-startup] fetching agent from ${ARTIFACT_BASE_URL}/ocm-agent"
+    curl -fSL "${ARTIFACT_BASE_URL}/ocm-agent" -o /usr/local/bin/ocm-agent
+    if EXP="$(curl -fsSL "${ARTIFACT_BASE_URL}/ocm-agent.sha256" 2>/dev/null)"; then
+        GOT="$(sha256sum /usr/local/bin/ocm-agent | awk '{print $1}')"
+        [ "$EXP" = "$GOT" ] || { echo "[ocm-startup] FATAL: agent sha256 mismatch (exp=$EXP got=$GOT)"; exit 1; }
+        echo "[ocm-startup] agent sha256 verified"
+    fi
 fi
-[ -z "$AGENT_SRC" ] && AGENT_SRC="${ARTIFACT_BUCKET%/}/agent/ocm-agent"
-echo "[ocm-startup] fetching agent from ${AGENT_SRC}"
-gsutil cp "$AGENT_SRC" /usr/local/bin/ocm-agent
 chmod +x /usr/local/bin/ocm-agent
 
 # ── 8. Agent env + systemd unit ───────────────────────────────────────────────

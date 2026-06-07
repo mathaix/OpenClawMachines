@@ -42,6 +42,7 @@ type Provisioner struct {
 	snapshot                 string
 	hostImage                string
 	artifactBucket           string
+	artifactBaseURL          string
 	firewallEnsured          bool
 	provisioningModel        string
 	agentToken               string
@@ -66,6 +67,7 @@ type Config struct {
 	Snapshot                 string
 	HostImage                string
 	ArtifactBucket           string
+	ArtifactBaseURL          string
 	ProvisioningModel        string
 	AgentToken               string
 	BackendURL               string
@@ -89,6 +91,7 @@ func New(cfg Config) *Provisioner {
 		snapshot:                 cfg.Snapshot,
 		hostImage:                strings.TrimSpace(cfg.HostImage),
 		artifactBucket:           strings.TrimRight(strings.TrimSpace(cfg.ArtifactBucket), "/"),
+		artifactBaseURL:          strings.TrimRight(strings.TrimSpace(cfg.ArtifactBaseURL), "/"),
 		provisioningModel:        cfg.ProvisioningModel,
 		agentToken:               cfg.AgentToken,
 		backendURL:               cfg.BackendURL,
@@ -292,6 +295,11 @@ func (p *Provisioner) ProvisionHost(ctx context.Context, machineType string, phy
 				&computepb.Items{Key: strPtr("artifact-bucket"), Value: strPtr(p.artifactBucket)},
 				&computepb.Items{Key: strPtr("kernel-gcs-path"), Value: strPtr(p.artifactBucket + "/vmlinux")},
 			)
+		}
+		if p.artifactBaseURL != "" {
+			metadataItems = append(metadataItems, &computepb.Items{
+				Key: strPtr("artifact-base-url"), Value: strPtr(p.artifactBaseURL),
+			})
 		}
 		metadataItems = append(metadataItems, &computepb.Items{
 			Key: strPtr("startup-script"), Value: strPtr(hostStartupScript),

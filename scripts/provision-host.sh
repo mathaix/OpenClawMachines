@@ -26,8 +26,12 @@ set -euo pipefail
 # Point it at your own bucket, or use the public default and make it readable.
 
 FIRECRACKER_VERSION="${FIRECRACKER_VERSION:-v1.10.1}"
-OCM_ARTIFACT_BUCKET="${OCM_ARTIFACT_BUCKET:-gs://openclawmachines}"
-KERNEL_GCS_PATH="${OCM_KERNEL_GCS_PATH:-${OCM_ARTIFACT_BUCKET}/vmlinux}"
+# Artifact source. By default, artifacts (kernel, agent) are pulled over plain
+# HTTPS from the project's public GitHub Releases — no auth, works for any user.
+# Set OCM_ARTIFACT_BUCKET=gs://your-bucket to pull from your own GCS bucket.
+OCM_ARTIFACT_BASE_URL="${OCM_ARTIFACT_BASE_URL:-https://github.com/mathaix/OpenClawMachines/releases/latest/download}"
+OCM_ARTIFACT_BUCKET="${OCM_ARTIFACT_BUCKET:-}"
+KERNEL_GCS_PATH="${OCM_KERNEL_GCS_PATH:-${OCM_ARTIFACT_BUCKET:+${OCM_ARTIFACT_BUCKET}/vmlinux}}"
 OCM_BASE="${OCM_BASE:-/var/lib/ocm}"
 OCM_STATE_DIR="${OCM_STATE_DIR:-${OCM_BASE}/vms}"
 OCM_VM_STATE_XFS="${OCM_VM_STATE_XFS:-true}"
@@ -39,7 +43,7 @@ OCM_FORMAT_XFS="${OCM_FORMAT_XFS:-false}"
 OCM_BROWSER_XFS_DEVICE="${OCM_BROWSER_XFS_DEVICE:-}"
 OCM_FORMAT_BROWSER_XFS="${OCM_FORMAT_BROWSER_XFS:-false}"
 OCM_AGENT_ENV="${OCM_AGENT_ENV:-/etc/ocm-agent/agent.env}"
-OCM_BROWSER_ROOTFS_GCS_MANIFEST="${OCM_BROWSER_ROOTFS_GCS_MANIFEST:-${OCM_ARTIFACT_BUCKET}/kernel-browser-rootfs/manifest.json}"
+OCM_BROWSER_ROOTFS_GCS_MANIFEST="${OCM_BROWSER_ROOTFS_GCS_MANIFEST:-${OCM_ARTIFACT_BUCKET:+${OCM_ARTIFACT_BUCKET}/kernel-browser-rootfs/manifest.json}}"
 OCM_BROWSER_ROOTFS_VERSION="${OCM_BROWSER_ROOTFS_VERSION:-}"
 
 log() { echo "==> $*"; }
@@ -341,9 +345,9 @@ else
     log "Firecracker installed: $(/usr/local/bin/firecracker --version 2>&1 | head -1)"
 fi
 
-# ── 4. Install Google Cloud SDK (for GCS artifact downloads) ─────────────────
+# ── 4. Install Google Cloud SDK (only when pulling artifacts from a GCS bucket) ─
 
-if ! command -v gsutil &>/dev/null; then
+if [ -n "$OCM_ARTIFACT_BUCKET" ] && ! command -v gsutil &>/dev/null; then
     log "Installing Google Cloud SDK..."
     curl -sS https://packages.cloud.google.com/apt/doc/apt-key.gpg | \
         gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg
@@ -352,8 +356,10 @@ if ! command -v gsutil &>/dev/null; then
     apt-get update -qq
     apt-get install -y -qq google-cloud-cli > /dev/null
     log "gsutil installed: $(gsutil version 2>&1 | head -1)"
-else
+elif [ -n "$OCM_ARTIFACT_BUCKET" ]; then
     log "gsutil already installed: $(gsutil version 2>&1 | head -1)"
+else
+    log "Using HTTPS artifacts from ${OCM_ARTIFACT_BASE_URL} (no gsutil needed)"
 fi
 
 # ── 5. Configure OCM storage and create directory structure ──────────────────
@@ -407,15 +413,21 @@ fi
 KERNEL_PATH="${OCM_BASE}/vmlinux"
 if [ -f "$KERNEL_PATH" ]; then
     log "Kernel already present at ${KERNEL_PATH}"
-else
+elif [ -n "$OCM_ARTIFACT_BUCKET" ]; then
     log "Downloading Firecracker-compatible kernel from ${KERNEL_GCS_PATH}..."
     if gsutil cp "$KERNEL_GCS_PATH" "$KERNEL_PATH" 2>/dev/null; then
         chmod 644 "$KERNEL_PATH"
         log "Kernel downloaded to ${KERNEL_PATH} ($(du -h "$KERNEL_PATH" | cut -f1))"
     else
-        log "WARNING: Could not download kernel from ${KERNEL_GCS_PATH}. You'll need to supply one:"
-        log "  gsutil cp ${KERNEL_GCS_PATH} ${KERNEL_PATH}"
-        log "  (Requires read access to the artifact bucket, or build your own — see docs/getting-started.md)"
+        log "WARNING: Could not download kernel from ${KERNEL_GCS_PATH}. Supply ${KERNEL_PATH} manually."
+    fi
+else
+    log "Downloading Firecracker-compatible kernel from ${OCM_ARTIFACT_BASE_URL}/vmlinux..."
+    if curl -fSL "${OCM_ARTIFACT_BASE_URL}/vmlinux" -o "$KERNEL_PATH"; then
+        chmod 644 "$KERNEL_PATH"
+        log "Kernel downloaded to ${KERNEL_PATH} ($(du -h "$KERNEL_PATH" | cut -f1))"
+    else
+        log "WARNING: Could not download kernel from ${OCM_ARTIFACT_BASE_URL}/vmlinux. Supply ${KERNEL_PATH} manually (see docs/getting-started.md)."
     fi
 fi
 
@@ -500,8 +512,8 @@ echo ""
 echo "Next steps:"
 echo "  1. Enroll this host with the control plane:"
 echo "     curl -sL <BACKEND_URL>/api/agent/install | sudo bash -s -- <ENROLLMENT_TOKEN>"
-echo "  2. Download the agent binary:"
-echo "     sudo gsutil cp ${OCM_ARTIFACT_BUCKET}/agent/ocm-agent /usr/local/bin/ocm-agent"
+echo "  2. Download the agent binary (the install script does this automatically):"
+echo "     sudo curl -fSL ${OCM_ARTIFACT_BASE_URL}/ocm-agent -o /usr/local/bin/ocm-agent"
 echo "     sudo chmod +x /usr/local/bin/ocm-agent"
 echo "  3. Start the agent:"
 echo "     sudo systemctl daemon-reload"

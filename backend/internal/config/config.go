@@ -34,6 +34,7 @@ type Config struct {
 	HostProvisioningModel        string
 	HostImage                    string
 	ArtifactBucket               string
+	ArtifactBaseURL              string
 	LiteLLMMasterKey             string
 	BackendURL                   string
 	SnapshotName                 string
@@ -107,6 +108,7 @@ func Load() (*Config, error) {
 		HostProvisioningModel:   getEnv("HOST_PROVISIONING_MODEL", "STANDARD"),
 		HostImage:               os.Getenv("HOST_IMAGE"),
 		ArtifactBucket:          os.Getenv("OCM_ARTIFACT_BUCKET"),
+		ArtifactBaseURL:         getEnv("OCM_ARTIFACT_BASE_URL", "https://github.com/mathaix/OpenClawMachines/releases/latest/download"),
 		LiteLLMMasterKey:        os.Getenv("LITELLM_MASTER_KEY"),
 		BackendURL:              os.Getenv("BACKEND_URL"),
 		SnapshotName:            getEnv("FC_SNAPSHOT_NAME", os.Getenv("OCM_SNAPSHOT")),

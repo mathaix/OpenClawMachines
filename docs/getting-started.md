@@ -241,26 +241,32 @@ you control.
 
 ## Artifacts
 
-Hosts need two artifacts: the **`ocm-agent` binary** and a **Firecracker guest
-kernel (`vmlinux`)**. Both can be pulled from your `OCM_ARTIFACT_BUCKET`, or you
-can build them.
+Hosts need the **`ocm-agent` binary**, a **Firecracker guest kernel
+(`vmlinux`)**, and a **rootfs** image. By default the host bootstrap pulls these
+over **plain HTTPS from the project's public GitHub Releases** — no auth, no
+bucket, works for any operator:
 
-**Agent binary** (cross-compiled for Linux):
+- `OCM_ARTIFACT_BASE_URL` (default
+  `https://github.com/mathaix/OpenClawMachines/releases/latest/download`) — the
+  HTTPS source the GCP startup-script and `provision-host.sh` download from.
+- `OCM_ARTIFACT_BUCKET=gs://your-bucket` — **override** to pull from your own GCS
+  bucket instead (uses the instance service account / `gsutil`).
+
+The [`Release Artifacts` workflow](../.github/workflows/release-artifacts.yml)
+builds and publishes `ocm-agent` (+ `authproxy`, `ocm-secrets`, and a manifest)
+to the GitHub Release on each `v*` tag.
+
+**Build the agent yourself** (cross-compiled for Linux):
 
 ```bash
 make build-agent        # -> backend/agent-linux (GOOS=linux GOARCH=amd64)
-# publish to your bucket as agent/ocm-agent + a manifest the agent self-update reads
 ```
 
-**Guest kernel** — use a Firecracker-compatible `vmlinux` (see the
-[Firecracker docs](https://github.com/firecracker-microvm/firecracker/blob/main/docs/getting-started.md)
-for building one, or use a known-good prebuilt kernel) and place it at
-`/var/lib/ocm/vmlinux` on the host (or host it at `OCM_ARTIFACT_BUCKET/vmlinux`
-so `provision-host.sh` pulls it automatically).
-
-> A GitHub Action to build and publish `ocm-agent` + the kernel to the artifact
-> bucket is planned. Until then, build and upload them once, or point
-> `OCM_ARTIFACT_BUCKET` at a bucket that already has them.
+**Guest kernel + rootfs** — a Firecracker-compatible `vmlinux` (see the
+[Firecracker docs](https://github.com/firecracker-microvm/firecracker/blob/main/docs/getting-started.md))
+and the rootfs (`make build-rootfs`). Publishing these to GitHub Releases
+alongside the agent is in progress; until then, supply `/var/lib/ocm/vmlinux` on
+the host (or point `OCM_ARTIFACT_BUCKET` at a bucket that has them).
 
 ---
 
