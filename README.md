@@ -291,6 +291,8 @@ per-machine secrets, and built-in backups/snapshots.
 
 ## Project Docs
 
+- [**Getting Started**](docs/getting-started.md) — clone → run the control plane → enroll a GCP n2 host → provision a VM
+- [Architecture](docs/architecture.md) — data plane, routing, tunnels, lifecycle
 - [Contributing](CONTRIBUTING.md)
 - [Security policy](SECURITY.md)
 - [Code of conduct](CODE_OF_CONDUCT.md)
@@ -313,6 +315,10 @@ Check your host:
 ```bash
 make preflight
 ```
+
+**New here? Start with the [Getting Started guide](docs/getting-started.md)** —
+it walks you from a clone to a running agent on a GCP n2 host (the same path
+works on AWS, Hetzner, or bare metal).
 
 See [docs/local-setup.md](docs/local-setup.md) for local and BYO-host runtime
 setup expectations. For a production-like operator deployment that keeps the
