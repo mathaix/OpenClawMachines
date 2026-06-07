@@ -34,6 +34,15 @@ export default defineConfig({
       },
       dependencies: ["setup"],
     },
+    {
+      // Dev-auth: AUTH_MODE=dev auto-authenticates every request (no login
+      // form, no cookie/storageState, no setup dependency). Used by CI
+      // (ci/spot-e2e.sh) which runs the control plane in the local/dev profile.
+      name: "chromium-dev",
+      use: {
+        ...devices["Desktop Chrome"],
+      },
+    },
   ],
 
   webServer: process.env.PLAYWRIGHT_BASE_URL

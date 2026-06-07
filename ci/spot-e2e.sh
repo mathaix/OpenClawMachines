@@ -107,6 +107,6 @@ done
 log "running Playwright E2E"
 export PLAYWRIGHT_BASE_URL=http://localhost:5173 CI=1
 ( cd frontend && npx playwright install --with-deps chromium >/dev/null 2>&1 || true
-  npx playwright test e2e/machine-lifecycle.spec.ts --reporter=html )
+  npx playwright test e2e/spot-smoke.spec.ts --project=chromium-dev --reporter=html )
 
 log "E2E passed"
