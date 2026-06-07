@@ -557,7 +557,10 @@ func TestControlAPI_CreateVM_MissingSigningKey(t *testing.T) {
 	}
 }
 
-func TestControlAPI_CreateVM_MissingTunnelToken(t *testing.T) {
+// tunnel_token is only needed for the per-VM Cloudflare tunnel (hosted profile).
+// In local/self-hosted profiles it is omitted and the VM is reached via the agent
+// proxy, so VM creation must succeed without it.
+func TestControlAPI_CreateVM_AllowsMissingTunnelToken(t *testing.T) {
 	srv := NewServer("tok", newMockOrchestrator(), "", nil, "", nil, nil, nil, false, nil, "")
 	router := srv.ControlRouter()
 
@@ -570,7 +573,7 @@ func TestControlAPI_CreateVM_MissingTunnelToken(t *testing.T) {
 		GatewayToken: "gw-tok",
 		ProxyToken:   "px-tok",
 		SigningKey:   "test-key",
-		// TunnelToken deliberately omitted
+		// TunnelToken deliberately omitted (local/self-hosted)
 		VmHostname: "test.example.com",
 	})
 
@@ -580,15 +583,14 @@ func TestControlAPI_CreateVM_MissingTunnelToken(t *testing.T) {
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("expected 400 for missing tunnel_token, got %d: %s", w.Code, w.Body.String())
-	}
-	if !containsString(w.Body.String(), "tunnel_token") {
-		t.Errorf("error message should mention tunnel_token: %s", w.Body.String())
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201 with missing tunnel_token (local/self-hosted), got %d: %s", w.Code, w.Body.String())
 	}
 }
 
-func TestControlAPI_CreateVM_MissingVmHostname(t *testing.T) {
+// vm_hostname is only used for the per-VM tunnel hostname (hosted profile); VM
+// creation must succeed without it in local/self-hosted profiles.
+func TestControlAPI_CreateVM_AllowsMissingVmHostname(t *testing.T) {
 	srv := NewServer("tok", newMockOrchestrator(), "", nil, "", nil, nil, nil, false, nil, "")
 	router := srv.ControlRouter()
 
@@ -602,7 +604,7 @@ func TestControlAPI_CreateVM_MissingVmHostname(t *testing.T) {
 		ProxyToken:   "px-tok",
 		SigningKey:   "test-key",
 		TunnelToken:  "tunnel-tok",
-		// VmHostname deliberately omitted
+		// VmHostname deliberately omitted (local/self-hosted)
 	})
 
 	req := httptest.NewRequest("POST", "/vms", bytes.NewReader(body))
@@ -611,11 +613,8 @@ func TestControlAPI_CreateVM_MissingVmHostname(t *testing.T) {
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("expected 400 for missing vm_hostname, got %d: %s", w.Code, w.Body.String())
-	}
-	if !containsString(w.Body.String(), "vm_hostname") {
-		t.Errorf("error message should mention vm_hostname: %s", w.Body.String())
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201 with missing vm_hostname (local/self-hosted), got %d: %s", w.Code, w.Body.String())
 	}
 }
 
