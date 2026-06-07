@@ -148,3 +148,48 @@ With all three in place the VM boots to `[gateway] ready (N plugins)`, the machi
 come from the **staged** base `/var/lib/ocm/vms/.base-rootfs.ext4` (created at agent
 startup), not `/var/lib/ocm/images/rootfs.ext4`; refresh the staged copy after any rootfs
 change.
+
+## Host enrollment flow (agent‑driven vs deterministic)
+
+Enrolling a worker host is: **mint an enrollment token → register → the agent
+heartbeats → host flips to `ready`**. This is what `scripts/local-e2e-firecracker.sh up`
+does for host #1, and what `enroll-host [INDEX]` does for additional workers on the same
+box. The admin **Enroll Host** wizard (`AdminEnrollHost.tsx`, 4 steps: choose provider →
+generate token → run install command → verify) is **just UI over the same APIs** —
+`createEnrollmentToken` and the install script's `POST /api/agent/register`.
+
+**Deterministic (~90% — scripted by `enroll-host`):**
+
+| Step | Call | Notes |
+|------|------|-------|
+| Mint token | `POST /api/admin/hosts/enrollment-tokens` | exactly the wizard's "Generate" button; needs `OCM_ADMIN_EMAILS` |
+| Register | `POST /api/agent/register` (token + `agent_endpoint` + `capabilities`) | exactly the install script's core call; returns `host_id` + a per‑host `agent_token` |
+| Run agent | launch `ocm-agent` with a fixed env | install script does this on the real host; on one box, extra workers override ports/bridge/state dirs |
+| Promote | agent's first heartbeat → `POST /api/agent/heartbeat` | server auto‑promotes `provisioning → ready` (server‑side, no human) |
+| Verify / cleanup | `GET /api/admin/hosts`, `POST /api/admin/hosts/{id}/deregister` | poll for ready; deregister to remove |
+
+```bash
+scripts/local-e2e-firecracker.sh enroll-host 2      # token → register → isolated agent → ready
+scripts/local-e2e-firecracker.sh deregister-host 2  # stop agent + remove host
+```
+
+**Agent‑driven (the ~10% a human/agent does, not in the script):**
+
+- **The browser wizard itself** — clicking through provider → generate → install → verify.
+  This is the *operator UX being tested*, but it only drives the deterministic APIs above;
+  the token it shows is the same one `enroll-host` mints headlessly.
+- **One‑time discovery** of the multi‑agent isolation params: the VM subnet
+  `192.168.100.0/24` and IP allocation are hardcoded (`internal/network/network.go`:
+  `AllocateIP`, the `main.go` bridge subnet, and the placement query), but the bridge
+  **name/IP**, control/proxy **ports**, and **state dirs** are env‑configurable — so a
+  second agent can start and reach `ready` with `BRIDGE_NAME=ocm-br1`,
+  `BRIDGE_IP=192.168.101.1/24`, `CONTROL_PORT=9092`, `STATE_DIR=/var/lib/ocm/vms2`, etc.
+  That judgement is now frozen into `enroll-host`’s fixed offsets.
+- **Visual verification** in the fleet UI (`Admin → Hosts`) that the new host shows `ready`.
+
+**Single‑box limitation (not a bug):** a second host reaches `ready` and *appears*
+schedulable, but **cannot actually run a VM on the same box** — the hardcoded
+`192.168.100.x` VM subnet/IP allocation would collide across hosts. In production each
+host is its own machine, so this never arises. Supporting multiple VM‑running workers per
+box would need a `BRIDGE_SUBNET`‑style knob plumbed through `AllocateIP`/`BrowserVMIP` and
+the placement query — a separate change, out of scope for testing enrollment.
