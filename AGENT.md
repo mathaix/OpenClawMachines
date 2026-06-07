@@ -157,6 +157,11 @@ make test-integration-run TEST=TestName
 Public PR CI must stay limited to unprivileged checks on GitHub-hosted runners:
 `make check`, `make test`, `make typecheck`, and static secret scanning.
 
+Claude Code slash commands live in `.claude/commands/` and wrap these workflows:
+`/start`, `/stop`, `/status`, `/test`, `/verify`, `/pr`, `/currentfeature`,
+`/codex`, `/freshclone`. See `.claude/commands/README.md` (the private Cloud Run /
+GCS deploy commands are intentionally omitted).
+
 ## Local vs Operator Profiles
 
 `CONTROL_PLANE_PROFILE=local` is for trusted local development.
