@@ -18,10 +18,6 @@ Firecracker sandboxes locally or in a self-hosted/operator-hosted deployment.
 The `ocm` CLI lives in the separate
 [`mathaix/ocm-cli`](https://github.com/mathaix/ocm-cli) Apache-2.0 repository.
 
-The private overlay boundary is intentionally separate: billing, plan
-enforcement, commercial admin, enterprise-only hosted flows, launch/pricing
-material, and confidential infrastructure notes are not public-core scope.
-
 ## Why OpenClaw Machines
 
 - **Real isolation, not containers.** One Firecracker microVM per agent, with a
@@ -82,37 +78,62 @@ Think: a mini-cloud for AI agents, that you self-host.
 
 ### Architecture
 
-```mermaid
-flowchart TB
-    User["Browser / ocm CLI"]
+For the full design — data plane, routing, tunnels, lifecycle, config, and the
+build/release flow — see **[docs/architecture.md](docs/architecture.md)**.
 
-    subgraph Edge["Cloudflare edge (optional in local mode)"]
-        Worker["Worker<br/>auth check + KV route lookup"]
-        Tunnel["Tunnel<br/>secure path into your host"]
-    end
-
-    subgraph ControlPlane["Control plane (your infra)"]
-        API["Go backend API<br/>accounts · machines · hosts · placement"]
-        Proxy["LLM proxy<br/>keys + per-machine usage"]
-        DB[("Postgres")]
-        API --- DB
-        API --- Proxy
-    end
-
-    subgraph Host["Your Linux host (KVM)"]
-        WorkerAgent["Worker agent<br/>boots / stops microVMs"]
-        subgraph Machine["microVM — a &quot;Machine&quot;"]
-            Agent["OpenClaw agent"]
-            Term["terminal (ttyd :7681)"]
-            Browser["headless browser"]
-        end
-    end
-
-    User -->|create / manage| API
-    API -->|place + boot| WorkerAgent
-    WorkerAgent -->|Firecracker| Machine
-    User -->|access| Worker --> Tunnel --> WorkerAgent --> Machine
-    Agent -->|model calls| Proxy
+```text
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                              User Layer                                      │
+│   Browser (Dashboard + Workspace)              SSH (cloudflared access ssh)  │
+└─────────────────────┬──────────────────────────────────┬─────────────────────┘
+                      │                                  │
+┌─────────────────────▼──────────────────────────────────▼─────────────────────┐
+│                         Cloudflare Edge                                       │
+│   CF Access (edge auth)                    CF Tunnel Network                 │
+└──────┬──────────────────────────────────────────┬────────────────────────────┘
+       │ dashboard / API                          │ per-VM tunnel
+┌──────▼──────────────────────────────────────────│────────────────────────────┐
+│                   Control Plane                 │                            │
+│                                                 │                            │
+│   Go API :8080 ──► RuntimeService               │                            │
+│                       │                         │                            │
+│                  PlacementService                │                            │
+│                  (bin-pack placement)            │                            │
+│                       │                         │                            │
+│              HostReconciler ◄── heartbeat ──┐   │                            │
+│                       │                     │   │                            │
+│              Host Provisioner               │   │                            │
+│                                             │   │                            │
+│   ┌── Postgres ───────┐  ┌── Object store ─┐   │   │                          │
+│   │   + pgvector       │  │ rootfs          │   │   │                          │
+│   └────────────────────┘  │ agent           │   │   │                          │
+│                           │ backups         │   │   │                          │
+│                           └─────────────────┘   │   │                          │
+└─────────────────────┬───────────────────────│───│────────────────────────────┘
+                      │ HTTP :9090            │   │
+┌─────────────────────▼───────────────────────│───│────────────────────────────┐
+│              Host VM (GCP / OVH / Hetzner) × N  │                            │
+│                                                 │                            │
+│   Worker Agent ─────────────────────────────┘   │                            │
+│   :9090 control · :9091 proxy                   │                            │
+│                                                 │                            │
+│   LiteLLM Proxy (192.168.100.1:4000)            │                            │
+│   CDP Proxy     (192.168.100.1:9222)            │                            │
+│                                                 │                            │
+│   Bridge Network 192.168.100.0/24               │                            │
+│   ┌─────────────────────────────────────────────│───────────────────────────┐│
+│   │          Firecracker MicroVM × M per Host   │                          ││
+│   │                                             │                          ││
+│   │   cloudflared ◄─────────────────────────────┘                          ││
+│   │       │                                                                ││
+│   │   authproxy :8080 (machine token JWT)                                  ││
+│   │       ├──► PTY Server :7681 (terminal)                                 ││
+│   │       ├──► OpenClaw Gateway :18789                                     ││
+│   │       └──► User Ports                                                  ││
+│   │                                                                        ││
+│   │   [Optional] Browser VM (headful Chromium, CDP :9222, live view)       ││
+│   └────────────────────────────────────────────────────────────────────────┘│
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### The building blocks
@@ -127,9 +148,14 @@ flowchart TB
 3. **The microVM (a "Machine") — one isolated VM per agent.** Inside it runs:
    - the OpenClaw agent,
    - a terminal (ttyd on port 7681),
-   - browser automation (a headless browser the agent can drive),
    - and the runtime that wires it all together.
-4. **Routing / data plane — how a user reaches a running VM** from a browser,
+4. **Browser VMs — separate, account-scoped microVMs for browser automation.**
+   Each is its own Firecracker VM running **headful Chromium** with a live view
+   you can watch in a tab. A browser VM **pairs 1:1** with a machine at runtime;
+   the agent drives it over **CDP (Chrome DevTools Protocol, port 9222)**, routed
+   by a host-side CDP proxy to the paired VM. They have their own lifecycle, so a
+   browser can be created ahead of time and re-used across machine restarts.
+5. **Routing / data plane — how a user reaches a running VM** from a browser,
    securely.
 
 ### What happens when you create a machine
@@ -146,22 +172,28 @@ flowchart TB
 
 ### How you actually reach a running VM
 
+Each running VM gets its own subdomain (e.g. `m-<name>.yourdomain.com`) and its
+own Cloudflare Tunnel that terminates **inside the VM** — there's no proxy hop
+through the worker agent on the data path:
+
 ```text
 Your browser
-   → Cloudflare Worker        (checks your auth token, looks up which host/VM via KV)
-   → Cloudflare Tunnel        (secure path into your private host)
-   → Worker agent on the host (authorizes with a proxy token)
-   → the microVM              (terminal, web chat, or browser)
+   → Cloudflare Access   (edge auth — validates your session)
+   → Cloudflare Tunnel   (secure path straight into the VM)
+   → cloudflared         (running inside the VM)
+   → authproxy :8080     (verifies the machine token — HS256 JWT)
+   → service in the VM   (terminal :7681 · OpenClaw gateway :18789 · your ports)
 ```
 
 So you get a web chat with the agent, a live terminal, or a browser view — each
-scoped to one isolated VM, with auth enforced at the edge.
+scoped to one isolated VM, with auth enforced at the edge **and again inside the
+VM**.
 
 ### Supporting features that make it useful
 
-- **LLM proxy.** The platform proxies the agent's model calls (Nebius,
-  OpenRouter, Anthropic, etc.), so it can centralize keys, support BYO-keys, and
-  track token usage per machine/account.
+- **LLM proxy.** A per-host LiteLLM proxy on the bridge network handles the
+  agents' model calls (Nebius, OpenRouter, Anthropic, etc.), so you can centralize
+  keys, support BYO-keys, and track token usage per machine/account.
 - **Credentials & secrets.** Per-machine encrypted secrets and provider
   credentials, injected into the VM.
 - **Backups / snapshots.** Capture and restore a machine's state.
@@ -183,32 +215,35 @@ flowchart TB
     end
 
     subgraph L2["2 · Edge / data plane — Cloudflare"]
-        W["Worker (JS)<br/>auth (HS256 JWT) + request routing"]
-        KV["Workers KV<br/>hostname → host/VM route map"]
-        TUN["Tunnel (cloudflared)<br/>ingress into private hosts"]
+        CFA["CF Access<br/>edge auth"]
+        W["Worker (JS)<br/>route lookup (+ JWT check)"]
+        KV["Workers KV<br/>hostname → host/VM routes"]
+        TUN["Tunnel<br/>per-VM ingress (cloudflared in VM)"]
         W --- KV
     end
 
     subgraph L3["3 · Control plane — Go 1.25"]
         API["API<br/>go-chi router"]
         WF["Durable workflows<br/>DBOS"]
-        PROXY["LLM proxy<br/>Nebius · OpenRouter · Anthropic · Google"]
         AUTH["Auth<br/>Firebase · Cloudflare Access · dev"]
         DB[("PostgreSQL<br/>pgx · SQL migrations")]
         API --- WF
-        API --- PROXY
         API --- AUTH
         API --- DB
     end
 
     subgraph L4["4 · Host — your Linux box"]
-        WA["Worker agent (Go)"]
+        WA["Worker agent (Go)<br/>:9090 control · :9091 proxy"]
         ORCH["Firecracker orchestrator<br/>firecracker-go-sdk"]
+        LLM["LiteLLM proxy :4000<br/>Nebius · OpenRouter · Anthropic · Google"]
+        CDPX["CDP proxy :9222"]
         WA --- ORCH
     end
 
     subgraph L5["5 · Sandbox — one per agent"]
-        VM["Firecracker microVM (KVM)<br/>own kernel · XFS state · ttyd :7681 · headless browser<br/>runs the OpenClaw agent"]
+        VM["Machine — Firecracker microVM (KVM)<br/>own kernel · XFS state<br/>cloudflared · authproxy :8080 · ttyd :7681<br/>OpenClaw gateway :18789 · runs the OpenClaw agent"]
+        BVM["Browser VM — Firecracker microVM<br/>headful Chromium · CDP :9222 · live view"]
+        VM -->|drives over CDP| BVM
     end
 
     L1 --> L2 --> L3
@@ -230,20 +265,26 @@ flowchart TB
    secure and is optional in local mode.
 
 3. **Control plane (Go 1.25).** The backend serves the API with the **go-chi**
-   router, talks to **PostgreSQL** via **pgx** (with SQL migrations), runs
-   long-lived operations as **DBOS** durable workflows, and proxies model traffic
-   through the built-in **LLM proxy** (Nebius, OpenRouter, Anthropic, Google).
-   Auth pluggably supports **Firebase**, **Cloudflare Access**, or a dev mode.
-   Ships as a few Go binaries: `server`, `agent`, `authproxy`, `ocm-secrets`.
+   router, talks to **PostgreSQL** via **pgx** (with SQL migrations), and runs
+   long-lived operations as **DBOS** durable workflows. Auth pluggably supports
+   **Firebase**, **Cloudflare Access**, or a dev mode. Ships as a few Go binaries:
+   `server`, `agent`, `authproxy`, `ocm-secrets`.
 
 4. **Host (your Linux box).** A **worker agent** (Go) runs on each enrolled host
    and drives the **Firecracker orchestrator** (via `firecracker-go-sdk`) to boot,
-   stop, and reap microVMs on command from the control plane.
+   stop, and reap microVMs. On the host bridge network it also runs a **LiteLLM
+   proxy** (`:4000`) that handles the VMs' model traffic (Nebius, OpenRouter,
+   Anthropic, Google) and a **CDP proxy** (`:9222`) that routes Chrome DevTools
+   traffic to each machine's paired browser VM.
 
 5. **Sandbox (one per agent).** Each agent gets its own **Firecracker microVM**
-   on **KVM** — its own guest kernel, **XFS**-backed state storage, a **ttyd**
-   terminal on port 7681, and a headless browser the agent can drive. The
-   **OpenClaw** runtime runs inside.
+   on **KVM** — its own guest kernel, **XFS**-backed state storage, an in-VM
+   **cloudflared** tunnel and **authproxy** (`:8080`, machine-token JWT) guarding a
+   **ttyd** terminal (`:7681`) and the **OpenClaw gateway** (`:18789`), with the
+   **OpenClaw** runtime inside. For browser automation, a separate **browser VM**
+   (headful Chromium with a live view) pairs 1:1 with the machine, and the agent
+   drives it over **CDP** (Chrome DevTools Protocol, port 9222) via the host CDP
+   proxy.
 
 **Cross-cutting:** request tracing via **Opik** and **OpenTelemetry**, encrypted
 per-machine secrets, and built-in backups/snapshots.
