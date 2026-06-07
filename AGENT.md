@@ -70,6 +70,8 @@ enrollment/agent tokens and optional Cloudflare service tokens, not Firebase.
 - `ci/` and `.github/workflows/`: public CI and trusted KVM integration lanes.
 - `docs/`: public-core setup, operator, CI, and boundary documentation.
 - `llms/`: copy-pasteable operator runbooks for LLM-driven setup.
+- `.agents/`: repo-local agent skills and maintainer notes for repeatable
+  review, testing, debugging, and self-hosted workflows.
 
 The `ocm` CLI lives in the separate Apache-2.0 repository:
 <https://github.com/mathaix/ocm-cli>. Do not reintroduce or patch CLI
@@ -93,6 +95,18 @@ enrollment, Firecracker runtime, or public docs, read the relevant docs:
 - `llms/self-hosted-setup.txt`: operator setup workflow for LLM agents.
 
 When behavior changes, update the relevant docs in the same change.
+
+Repo-local agent skills live under `.agents/skills/`. Use them as focused
+workflow overlays after reading this guide:
+
+- `.agents/skills/ocm-testing/SKILL.md`: choosing the smallest safe proof.
+- `.agents/skills/ocm-review/SKILL.md`: PR/review-comment/code-review posture.
+- `.agents/skills/ocm-debugging/SKILL.md`: boundary-first debugging.
+- `.agents/skills/ocm-self-hosted/SKILL.md`: local/operator/self-hosted work.
+
+Maintainer notes under `.agents/maintainer-notes/` capture project decisions
+that should be enforced during review, especially routing and runtime
+invariants.
 
 ## Operating Rules
 
@@ -237,4 +251,3 @@ Use `llms/self-hosted-setup.txt` as the detailed operator runbook.
 - For public PRs, keep KVM and privileged checks maintainer-gated.
 - If a change touches both public-core primitives and private-overlay policy,
   keep the neutral primitive here and leave policy/UI to the overlay.
-
