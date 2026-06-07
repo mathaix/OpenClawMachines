@@ -28,6 +28,7 @@ type Provisioner struct {
 	zone                     string
 	region                   string
 	snapshot                 string
+	provisioningModel        string
 	agentToken               string
 	backendURL               string
 	dataPlaneDomain          string
@@ -48,6 +49,7 @@ type Config struct {
 	Zone                     string
 	Region                   string
 	Snapshot                 string
+	ProvisioningModel        string
 	AgentToken               string
 	BackendURL               string
 	DataPlaneDomain          string
@@ -68,6 +70,7 @@ func New(cfg Config) *Provisioner {
 		zone:                     cfg.Zone,
 		region:                   cfg.Region,
 		snapshot:                 cfg.Snapshot,
+		provisioningModel:        cfg.ProvisioningModel,
 		agentToken:               cfg.AgentToken,
 		backendURL:               cfg.BackendURL,
 		dataPlaneDomain:          strings.Trim(strings.TrimSpace(cfg.DataPlaneDomain), "."),
@@ -259,6 +262,19 @@ func (p *Provisioner) ProvisionHost(ctx context.Context, machineType string, phy
 	slog.Info("host.provision.disk_sizes", "boot_gb", bootDiskGB, "data_gb", dataDiskGB, "memory_mb", memoryMB)
 
 	enableNestedVirt := true
+
+	// Spot instances cost less and are reclaimable; on preemption GCE deletes
+	// the VM (the host reconciler then cleans up the stale record).
+	scheduling := &computepb.Scheduling{
+		OnHostMaintenance: strPtr("TERMINATE"),
+	}
+	if strings.EqualFold(p.provisioningModel, "SPOT") {
+		scheduling.ProvisioningModel = strPtr("SPOT")
+		scheduling.InstanceTerminationAction = strPtr("DELETE")
+		scheduling.AutomaticRestart = boolPtr(false)
+		slog.Info("host.provision.spot", "vm_name", vmName)
+	}
+
 	instance := &computepb.Instance{
 		Name:        &vmName,
 		MachineType: strPtr(fmt.Sprintf("zones/%s/machineTypes/%s", zone, machineType)),
@@ -312,9 +328,7 @@ func (p *Provisioner) ProvisionHost(ctx context.Context, machineType string, phy
 		Labels: map[string]string{
 			"ocm": "true",
 		},
-		Scheduling: &computepb.Scheduling{
-			OnHostMaintenance: strPtr("TERMINATE"),
-		},
+		Scheduling: scheduling,
 		AdvancedMachineFeatures: &computepb.AdvancedMachineFeatures{
 			EnableNestedVirtualization: &enableNestedVirt,
 		},
