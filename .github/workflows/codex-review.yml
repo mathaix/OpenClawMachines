@@ -1,5 +1,10 @@
 name: Codex Review
 
+# Admin-only Codex review (Actions-tab dispatch). Verifies the actor is a repo
+# admin, then calls the reusable codex-review-run workflow (it runs PR code with
+# OPENAI_API_KEY). PR-comment "/codex-review" triggers the same reusable job via
+# comment-commands.yml.
+
 on:
   workflow_dispatch:
     inputs:
@@ -8,65 +13,39 @@ on:
         required: true
         type: number
 
+permissions:
+  contents: read
+
 concurrency:
   group: codex-review-${{ inputs.pr_number }}
   cancel-in-progress: true
 
-permissions:
-  contents: read
-  pull-requests: write
-
 jobs:
-  review:
-    name: Codex Code Review
+  authorize:
+    name: Authorize (admins only)
     runs-on: ubuntu-latest
-    env:
-      PR_NUMBER: ${{ inputs.pr_number }}
     steps:
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "24"
-
-      - name: Install Codex
-        run: npm install -g @openai/codex@0.117.0
-        working-directory: /tmp
-
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Check out reviewed PR
+      - name: Require admin
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh pr checkout "$PR_NUMBER"
-
-      - name: Run Codex review
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          ACTOR: ${{ github.actor }}
         run: |
-          PROMPT="Focus on bugs, logic errors, security issues, and code quality. This is a Go + TypeScript project (Go backend, React frontend, Cloudflare Worker). Only report high-confidence issues."
-          if codex review --base origin/main "$PROMPT" > /tmp/review.md 2>/tmp/review.err; then
-            echo "CODEX_OK=1" >> "$GITHUB_ENV"
-          else
-            echo "CODEX_OK=0" >> "$GITHUB_ENV"
-          fi
+          set -euo pipefail
+          perm="$(gh api "repos/${REPO}/collaborators/${ACTOR}/permission" --jq .permission)"
+          echo "actor=${ACTOR} permission=${perm}"
+          case "$perm" in
+            admin) ;;
+            *) echo "Only repo admins can run Codex Review (actor has '${perm}')." >&2; exit 1 ;;
+          esac
 
-      - name: Post review comment
-        if: always()
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          if [ "${CODEX_OK:-0}" = "1" ] && [ -s /tmp/review.md ]; then
-            head -c 60000 /tmp/review.md > /tmp/review-trimmed.md
-            {
-              echo "## Codex Review"
-              echo ""
-              cat /tmp/review-trimmed.md
-              echo ""
-              echo "---"
-              echo "_Automated review by OpenAI Codex_"
-            } > /tmp/review-final.md
-            gh pr comment "$PR_NUMBER" --body-file /tmp/review-final.md
-          else
-            echo "Codex review did not produce output (see workflow logs)"
-          fi
+  run:
+    name: Run
+    needs: authorize
+    uses: ./.github/workflows/codex-review-run.yml
+    with:
+      pr_number: ${{ inputs.pr_number }}
+    secrets: inherit
+    permissions:
+      contents: read
+      pull-requests: write
