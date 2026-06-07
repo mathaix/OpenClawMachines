@@ -36,6 +36,19 @@ Mirrors the `kvm-integration` lane:
 
 ## One-time setup
 
+**Fast path — run the setup script** (creates WIF + service account + IAM,
+sets the repo variables and WIF secrets; idempotent):
+
+```bash
+REPO=owner/name GCP_PROJECT=my-proj GCP_ZONE=us-west1-b \
+DATA_PLANE_DOMAIN=example.com CLOUDFLARE_ZONE_ID=<zone id> \
+bash ci/setup-spot-e2e.sh
+# add SET_BRANCH_PROTECTION=1 to also require the `spot-e2e` check on the default branch
+```
+
+It still needs your **runtime secrets in Secret Manager** (it checks and lists
+any missing). The manual equivalents are below.
+
 ### 1. GCP auth — Workload Identity Federation (recommended)
 
 Create a WIF pool/provider for GitHub OIDC and a service account the workflow
