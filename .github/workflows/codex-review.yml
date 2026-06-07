@@ -23,6 +23,20 @@ jobs:
     env:
       PR_NUMBER: ${{ inputs.pr_number }}
     steps:
+      - name: Require admin
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          perm="$(gh api "repos/${REPO}/collaborators/${ACTOR}/permission" --jq .permission)"
+          echo "actor=${ACTOR} permission=${perm}"
+          case "$perm" in
+            admin) ;;
+            *) echo "Only repo admins can run Codex Review (actor has '${perm}')." >&2; exit 1 ;;
+          esac
+
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
