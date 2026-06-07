@@ -11,8 +11,9 @@ on:
         description: Exact pull request head SHA to test
         required: true
         type: string
-  push:
-    branches: [main]
+  # Dispatch-only: requires a maintainer-configured self-hosted KVM runner
+  # (OCM_KVM_RUNNER_* hooks). No push trigger, so merges to main don't fail when
+  # no runner is configured.
 
 permissions:
   contents: read
