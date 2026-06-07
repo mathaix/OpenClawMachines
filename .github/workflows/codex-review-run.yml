@@ -37,15 +37,28 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh pr checkout "$PR_NUMBER"
 
-      - name: Run Codex review
+      - name: Configure Codex auth (subscription)
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          CODEX_AUTH_JSON: ${{ secrets.CODEX_AUTH_JSON }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CODEX_AUTH_JSON:-}" ]; then
+            echo "::error::CODEX_AUTH_JSON secret is not set. Store your Codex auth.json (from 'codex login' / the subscription PKCE flow) as a repo/org secret — do NOT commit it." >&2
+            exit 1
+          fi
+          mkdir -p "$HOME/.codex"
+          printf '%s' "$CODEX_AUTH_JSON" > "$HOME/.codex/auth.json"
+          chmod 600 "$HOME/.codex/auth.json"
+
+      - name: Run Codex review
         run: |
           PROMPT="Focus on bugs, logic errors, security issues, and code quality. This is a Go + TypeScript project (Go backend, React frontend, Cloudflare Worker). Only report high-confidence issues."
           if codex review --base origin/main "$PROMPT" > /tmp/review.md 2>/tmp/review.err; then
             echo "CODEX_OK=1" >> "$GITHUB_ENV"
           else
             echo "CODEX_OK=0" >> "$GITHUB_ENV"
+            echo "::warning::codex review failed; see /tmp/review.err in logs"
+            sed -n '1,40p' /tmp/review.err || true
           fi
 
       - name: Post review comment
