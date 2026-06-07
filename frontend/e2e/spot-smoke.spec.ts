@@ -24,7 +24,7 @@ test.describe.serial("Spot host provisioning smoke", () => {
     await expect(page.getByText("stopped")).toBeVisible();
   });
 
-  test("start boots a Firecracker microVM (reaches running)", async ({ page }) => {
+  test("start boots a Firecracker microVM (reaches running)", async ({ page }, testInfo) => {
     test.setTimeout(300_000);
     await page.goto(machineUrl);
     await page.getByRole("button", { name: "Start" }).click();
@@ -33,6 +33,11 @@ test.describe.serial("Spot host provisioning smoke", () => {
     // The VM boots on the host and the machine flips to "running" — the
     // "Open Workspace" link is rendered only at status === running.
     await expect(page.getByRole("link", { name: "Open Workspace" })).toBeVisible({ timeout: 240_000 });
+    // Labeled validation evidence in the artifact/report.
+    await testInfo.attach("firecracker-running", {
+      body: await page.screenshot({ fullPage: true }),
+      contentType: "image/png",
+    });
   });
 
   test("stop and delete", async ({ page }) => {

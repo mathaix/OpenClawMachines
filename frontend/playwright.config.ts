@@ -38,9 +38,14 @@ export default defineConfig({
       // Dev-auth: AUTH_MODE=dev auto-authenticates every request (no login
       // form, no cookie/storageState, no setup dependency). Used by CI
       // (ci/spot-e2e.sh) which runs the control plane in the local/dev profile.
+      // Capture screenshot + video + trace on EVERY run (not just failures) so
+      // the uploaded artifact is real validation evidence for the spot E2E gate.
       name: "chromium-dev",
       use: {
         ...devices["Desktop Chrome"],
+        screenshot: "on",
+        video: "on",
+        trace: "on",
       },
     },
   ],
