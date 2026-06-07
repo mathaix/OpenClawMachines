@@ -85,7 +85,8 @@ fi
 log "Allowing $REPO to impersonate $SA_EMAIL"
 gcloud iam service-accounts add-iam-policy-binding "$SA_EMAIL" --project="$GCP_PROJECT" \
   --role=roles/iam.workloadIdentityUser \
-  --member="principalSet://iam.googleapis.com/projects/${PROJECT_NUM}/locations/global/workloadIdentityPools/${POOL}/attribute.repository/${REPO}" >/dev/null
+  --member="principalSet://iam.googleapis.com/projects/${PROJECT_NUM}/locations/global/workloadIdentityPools/${POOL}/attribute.repository/${REPO}" \
+  --condition=None >/dev/null
 
 WIF_PROVIDER="projects/${PROJECT_NUM}/locations/global/workloadIdentityPools/${POOL}/providers/${PROVIDER}"
 
