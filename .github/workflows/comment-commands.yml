@@ -1,0 +1,87 @@
+name: PR Commands
+
+# PR-comment "buttons": an admin comments `/spot-e2e` or `/codex-review` on a PR
+# to trigger the corresponding admin-gated lane. The parse job verifies the
+# commenter is a repo admin, resolves the PR head SHA, then calls the reusable
+# run workflows. Non-admin commands are ignored (with a thumbs-down reaction).
+#
+# issue_comment runs from the DEFAULT branch with secrets — the reusable jobs it
+# calls come from the default branch (trusted); only the app code checked out is
+# the PR head. Same admin-trust caveat as any maintainer-triggered E2E.
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-command-${{ github.event.issue.number }}-${{ github.event.comment.id }}
+  cancel-in-progress: false
+
+jobs:
+  parse:
+    if: ${{ github.event.issue.pull_request }}
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    outputs:
+      cmd: ${{ steps.p.outputs.cmd }}
+      pr: ${{ steps.p.outputs.pr }}
+      sha: ${{ steps.p.outputs.sha }}
+    steps:
+      - name: Parse command + authorize
+        id: p
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          ACTOR: ${{ github.event.comment.user.login }}
+          BODY: ${{ github.event.comment.body }}
+          PR: ${{ github.event.issue.number }}
+          COMMENT_ID: ${{ github.event.comment.id }}
+        run: |
+          set -euo pipefail
+          cmd=""
+          case "$BODY" in
+            /spot-e2e*) cmd=spot-e2e ;;
+            /codex-review*|/codex*) cmd=codex-review ;;
+            *) echo "no recognized command"; echo "cmd=" >> "$GITHUB_OUTPUT"; exit 0 ;;
+          esac
+          perm="$(gh api "repos/${REPO}/collaborators/${ACTOR}/permission" --jq .permission)"
+          echo "actor=${ACTOR} permission=${perm} cmd=${cmd}"
+          if [ "$perm" != "admin" ]; then
+            gh api "repos/${REPO}/issues/comments/${COMMENT_ID}/reactions" -f content='-1' >/dev/null 2>&1 || true
+            echo "Only admins can run /${cmd}; ignoring." ; echo "cmd=" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          sha="$(gh api "repos/${REPO}/pulls/${PR}" --jq .head.sha)"
+          gh api "repos/${REPO}/issues/comments/${COMMENT_ID}/reactions" -f content='eyes' >/dev/null 2>&1 || true
+          {
+            echo "cmd=${cmd}"
+            echo "pr=${PR}"
+            echo "sha=${sha}"
+          } >> "$GITHUB_OUTPUT"
+
+  spot-e2e:
+    needs: parse
+    if: ${{ needs.parse.outputs.cmd == 'spot-e2e' }}
+    uses: ./.github/workflows/spot-e2e-run.yml
+    with:
+      pr: ${{ needs.parse.outputs.pr }}
+      sha: ${{ needs.parse.outputs.sha }}
+    secrets: inherit
+    permissions:
+      contents: read
+      id-token: write
+      statuses: write
+
+  codex-review:
+    needs: parse
+    if: ${{ needs.parse.outputs.cmd == 'codex-review' }}
+    uses: ./.github/workflows/codex-review-run.yml
+    with:
+      pr_number: ${{ needs.parse.outputs.pr }}
+    secrets: inherit
+    permissions:
+      contents: read
+      pull-requests: write
