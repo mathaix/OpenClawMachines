@@ -151,17 +151,19 @@ func (s *Service) SetupRoute(ctx context.Context, req SetupRequest) (*SetupResul
 		SSHHostname: sshHostname,
 	}
 
-	if s.tunnel == nil {
-		return result, nil
-	}
-
-	// Generate a 32-byte signing key.
+	// Generate a 32-byte signing key up front. The in-VM gateway needs it to
+	// verify signed proxy/gateway tokens, so it must exist even when no
+	// Cloudflare tunnel is configured (local/operator profiles).
 	signingKeyBytes := make([]byte, 32)
 	if _, err := rand.Read(signingKeyBytes); err != nil {
 		return nil, fmt.Errorf("generate signing key: %w", err)
 	}
 	signingKey := hex.EncodeToString(signingKeyBytes)
 	result.SigningKey = signingKey
+
+	if s.tunnel == nil {
+		return result, nil
+	}
 
 	// Create the per-VM tunnel.
 	tunnelID, tunnelToken, err := s.tunnel.CreateVMTunnel(ctx, req.MachineSlug)

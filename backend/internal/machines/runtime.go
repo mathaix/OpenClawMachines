@@ -823,9 +823,13 @@ func (rs *RuntimeService) start(ctx context.Context, accountID int, machine *sto
 			slog.Error("machine.start.route.setup.failed", "machine_id", machine.ID, "error", err)
 		} else {
 			machine.TunnelToken = result.TunnelToken
+			// SigningKey is required by the agent for every VM (gateway token
+			// verification), independent of whether a Cloudflare tunnel exists.
+			if result.SigningKey != "" {
+				machine.SigningKey = &result.SigningKey
+			}
 			if result.TunnelID != "" {
 				machine.TunnelID = &result.TunnelID
-				machine.SigningKey = &result.SigningKey
 			}
 			if result.VMHostname != "" {
 				machine.TunnelHostname = &result.VMHostname
@@ -1361,9 +1365,13 @@ func (rs *RuntimeService) UpgradeWithOperation(ctx context.Context, accountID in
 			slog.Error("machine.upgrade.route.setup.failed", "machine_id", machine.ID, "error", err)
 		} else {
 			machine.TunnelToken = result.TunnelToken
+			// SigningKey is required by the agent for every VM (gateway token
+			// verification), independent of whether a Cloudflare tunnel exists.
+			if result.SigningKey != "" {
+				machine.SigningKey = &result.SigningKey
+			}
 			if result.TunnelID != "" {
 				machine.TunnelID = &result.TunnelID
-				machine.SigningKey = &result.SigningKey
 			}
 			if result.VMHostname != "" {
 				machine.TunnelHostname = &result.VMHostname

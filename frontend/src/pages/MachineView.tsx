@@ -87,8 +87,8 @@ export function MachineView() {
   const { toast } = useToast();
   const [openclawReleases, setOpenclawReleases] = useState<{ version: string; exact_version: string }[]>([]);
   const [rootfsReleases, setRootfsReleases] = useState<{ version: string; exact_version: string }[]>([]);
-  const latestRelease = openclawReleases[0] ?? null;
-  const latestRootfsRelease = rootfsReleases[0] ?? null;
+  const latestRelease = openclawReleases?.[0] ?? null;
+  const latestRootfsRelease = rootfsReleases?.[0] ?? null;
   const [upgrading, setUpgrading] = useState(false);
   const [upgradeDismissed, setUpgradeDismissed] = useState(false);
 
@@ -238,7 +238,7 @@ export function MachineView() {
   // in the list at all, it's an RC/dev/one-off build — offering to "upgrade" to
   // the latest stable would be a downgrade, so don't show the banner in that case.
   const isBehindLatestStable = (current: string, list: { exact_version: string }[]): boolean => {
-    if (!current || list.length === 0) return false;
+    if (!current || !list || list.length === 0) return false;
     const idx = list.findIndex((r) => r.exact_version === current);
     return idx > 0;
   };

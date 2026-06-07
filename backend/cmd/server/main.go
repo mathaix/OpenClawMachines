@@ -309,7 +309,16 @@ func main() {
 	kv := cloudflareKVStoreOrExit(cfg)
 
 	kvAdapter := routing.NewKVAdapter(kv)
-	routeSvc := routing.NewWithDomain(tunnelMgr, kvAdapter, db, cfg.DataPlaneDomain)
+	// Avoid a typed-nil interface: a nil *tunnel.Manager boxed into the
+	// routing.TunnelManager interface compares != nil, which defeats the
+	// nil-guard in routing.Service.SetupRoute and panics on machine start in
+	// profiles without a Cloudflare tunnel (local/operator). Mirror the same
+	// guard NewServer uses for tunnelCreator.
+	var routeTunnel routing.TunnelManager
+	if tunnelMgr != nil {
+		routeTunnel = tunnelMgr
+	}
+	routeSvc := routing.NewWithDomain(routeTunnel, kvAdapter, db, cfg.DataPlaneDomain)
 
 	// Start route projector (DB → KV sync every 60s)
 	if kvAdapter != nil {

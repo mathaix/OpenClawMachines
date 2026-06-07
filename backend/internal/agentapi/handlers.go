@@ -96,12 +96,11 @@ func validateVMRequest(req VMRequest) error {
 	if req.SigningKey == "" {
 		return fmt.Errorf("signing_key is required")
 	}
-	if req.TunnelToken == "" {
-		return fmt.Errorf("tunnel_token is required")
-	}
-	if req.VmHostname == "" {
-		return fmt.Errorf("vm_hostname is required")
-	}
+	// tunnel_token and vm_hostname are only used for Cloudflare-tunnel external
+	// access (hosted profile). In local/operator profiles without a tunnel they
+	// are empty and the VM is reached through the agent proxy instead, so they
+	// are not required. (The integration orchestrator path boots VMs the same
+	// way, with no tunnel.)
 	return nil
 }
 
