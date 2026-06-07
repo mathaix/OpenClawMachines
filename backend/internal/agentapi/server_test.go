@@ -2081,10 +2081,22 @@ func TestProxyAPI_FilesProxyNonExistentVM(t *testing.T) {
 }
 
 func TestProxyAPI_FilesProxyValidToken_UpstreamUnreachable(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, portStr, _ := net.SplitHostPort(listener.Addr().String())
+	port, _ := strconv.Atoi(portStr)
+	if err := listener.Close(); err != nil {
+		t.Fatal(err)
+	}
+
 	mock := newMockOrchestrator()
-	// Use localhost with a port that's not listening → fast connection refused
+	// Use localhost with a reserved-then-closed port so the upstream is
+	// reliably unreachable even when the developer backend is running on :8080.
 	mock.addVM("vm-001", "127.0.0.1", "secret-proxy-token")
 	srv := NewServer("agent-tok", mock, "", nil, "", nil, nil, nil, false, nil, "")
+	srv.vmProxyPort = port
 	router := srv.ProxyRouter()
 
 	req := httptest.NewRequest("GET", "/proxy/vm-001/files/", nil)
