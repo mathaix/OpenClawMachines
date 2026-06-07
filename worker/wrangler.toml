@@ -9,8 +9,9 @@ VERSION = "dev"
 BASE_DOMAIN = "example.com"
 # Origin hostnames that serve the operator UI and API. These must not point
 # back at the Worker route, or API/resolve fallback requests will loop.
-FRONTEND_ORIGIN_HOST = "example.com"
-BACKEND_ORIGIN_HOST = "api.example.com"
+# Leave empty until replacing with distinct origin hostnames outside Worker routes.
+FRONTEND_ORIGIN_HOST = ""
+BACKEND_ORIGIN_HOST = ""
 
 # KV namespace for subdomain route lookups
 # Create with: wrangler kv namespace create OCM_ROUTES

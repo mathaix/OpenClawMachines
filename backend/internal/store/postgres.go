@@ -1092,7 +1092,7 @@ func (s *PostgresStore) UpdateMachineActualVersions(ctx context.Context, hostID 
 
 func (s *PostgresStore) UpdateMachineTunnel(ctx context.Context, machineID, tunnelID, signingKey string) error {
 	_, err := s.pool.Exec(ctx,
-		`UPDATE machines SET tunnel_id = $2, signing_key = $3 WHERE id = $1`,
+		`UPDATE machines SET tunnel_id = NULLIF($2, ''), signing_key = NULLIF($3, '') WHERE id = $1`,
 		machineID, tunnelID, signingKey)
 	return err
 }

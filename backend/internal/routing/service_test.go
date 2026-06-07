@@ -195,6 +195,85 @@ func TestSetupRoute_CreatesTunnelDNSAndStoresInDB(t *testing.T) {
 	}
 }
 
+func TestSetupRoute_NilTunnelPersistsSigningKey(t *testing.T) {
+	store := &mockStore{}
+	svc := New(nil, nil, store)
+	req := SetupRequest{
+		MachineID:   "machine-1",
+		MachineSlug: "my-machine",
+	}
+
+	result, err := svc.SetupRoute(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.TunnelID != "" {
+		t.Errorf("expected empty TunnelID, got %q", result.TunnelID)
+	}
+	if len(result.SigningKey) != 64 {
+		t.Fatalf("expected 64-char signing key, got len=%d: %q", len(result.SigningKey), result.SigningKey)
+	}
+	if !store.updateTunnelCalled {
+		t.Fatal("expected UpdateMachineTunnel to be called")
+	}
+	if store.updateTunnelMachineID != "machine-1" {
+		t.Errorf("expected machine_id=machine-1, got %q", store.updateTunnelMachineID)
+	}
+	if store.updateTunnelID != "" {
+		t.Errorf("expected empty tunnel_id, got %q", store.updateTunnelID)
+	}
+	if store.updateTunnelSigningKey != result.SigningKey {
+		t.Error("expected stored signing key to match result")
+	}
+}
+
+func TestSetupRoute_TunnelCreateFailurePersistsSigningKey(t *testing.T) {
+	tunnel := &mockTunnel{createTunnelErr: errors.New("cloudflare unavailable")}
+	store := &mockStore{}
+	svc := New(tunnel, nil, store)
+	req := SetupRequest{
+		MachineID:   "machine-1",
+		MachineSlug: "my-machine",
+	}
+
+	result, err := svc.SetupRoute(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !tunnel.createCalled {
+		t.Fatal("expected CreateVMTunnel to be called")
+	}
+	if result.TunnelID != "" {
+		t.Errorf("expected empty TunnelID, got %q", result.TunnelID)
+	}
+	if !store.updateTunnelCalled {
+		t.Fatal("expected UpdateMachineTunnel to be called")
+	}
+	if store.updateTunnelID != "" {
+		t.Errorf("expected empty tunnel_id, got %q", store.updateTunnelID)
+	}
+	if store.updateTunnelSigningKey != result.SigningKey {
+		t.Error("expected stored signing key to match result")
+	}
+}
+
+func TestSetupRoute_PersistFailureReturnsError(t *testing.T) {
+	store := &mockStore{updateTunnelErr: errors.New("database unavailable")}
+	svc := New(nil, nil, store)
+	req := SetupRequest{
+		MachineID:   "machine-1",
+		MachineSlug: "my-machine",
+	}
+
+	result, err := svc.SetupRoute(context.Background(), req)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if result != nil {
+		t.Fatalf("expected nil result on persistence error, got %#v", result)
+	}
+}
+
 func TestTeardownRoute_DeletesKVAndTunnel(t *testing.T) {
 	tunnel := &mockTunnel{}
 	kv := &mockKV{}

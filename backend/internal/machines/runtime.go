@@ -821,6 +821,7 @@ func (rs *RuntimeService) start(ctx context.Context, accountID int, machine *sto
 		})
 		if err != nil {
 			slog.Error("machine.start.route.setup.failed", "machine_id", machine.ID, "error", err)
+			return nil, "", fmt.Errorf("failed to setup route: %w", err)
 		} else {
 			machine.TunnelToken = result.TunnelToken
 			// SigningKey is required by the agent for every VM (gateway token
@@ -1363,6 +1364,7 @@ func (rs *RuntimeService) UpgradeWithOperation(ctx context.Context, accountID in
 		})
 		if err != nil {
 			slog.Error("machine.upgrade.route.setup.failed", "machine_id", machine.ID, "error", err)
+			return nil, "", fmt.Errorf("failed to setup route: %w", err)
 		} else {
 			machine.TunnelToken = result.TunnelToken
 			// SigningKey is required by the agent for every VM (gateway token

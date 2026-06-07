@@ -161,7 +161,24 @@ func (s *Service) SetupRoute(ctx context.Context, req SetupRequest) (*SetupResul
 	signingKey := hex.EncodeToString(signingKeyBytes)
 	result.SigningKey = signingKey
 
+	persistRouteState := func(tunnelID string) error {
+		if s.store == nil {
+			return nil
+		}
+		if err := s.store.UpdateMachineTunnel(ctx, req.MachineID, tunnelID, signingKey); err != nil {
+			slog.Error("routing.setup.store_failed",
+				"machine_id", req.MachineID,
+				"tunnel_id", tunnelID,
+				"error", err)
+			return fmt.Errorf("persist route signing key: %w", err)
+		}
+		return nil
+	}
+
 	if s.tunnel == nil {
+		if err := persistRouteState(""); err != nil {
+			return nil, err
+		}
 		return result, nil
 	}
 
@@ -173,6 +190,9 @@ func (s *Service) SetupRoute(ctx context.Context, req SetupRequest) (*SetupResul
 			"machine_slug", req.MachineSlug,
 			"error", err)
 		// Non-fatal: return partial result with VMHostname set.
+		if err := persistRouteState(""); err != nil {
+			return nil, err
+		}
 		return result, nil
 	}
 	result.TunnelID = tunnelID
@@ -200,14 +220,10 @@ func (s *Service) SetupRoute(ctx context.Context, req SetupRequest) (*SetupResul
 			"error", err)
 	}
 
-	// Persist tunnel info to the database.
-	if s.store != nil {
-		if err := s.store.UpdateMachineTunnel(ctx, req.MachineID, tunnelID, signingKey); err != nil {
-			slog.Error("routing.setup.tunnel.store_failed",
-				"machine_id", req.MachineID,
-				"tunnel_id", tunnelID,
-				"error", err)
-		}
+	// Persist tunnel info to the database before returning route state that a
+	// caller may use to boot a VM.
+	if err := persistRouteState(tunnelID); err != nil {
+		return nil, err
 	}
 
 	slog.Info("routing.setup.done",
