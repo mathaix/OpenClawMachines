@@ -27,7 +27,19 @@ log() { echo "==> $*"; }
 
 TUNNEL_PID=""; BACKEND_PID=""; FRONTEND_PID=""; MACHINE_ID=""; HOST_ID=""
 cleanup() {
+  ec=$?
   set +e
+  # On failure, surface the diagnostics the lane otherwise swallows (host
+  # provisioning errors live in the backend log + the host record's status
+  # message, not in this script's stdout).
+  if [ "$ec" -ne 0 ]; then
+    log "FAILURE (exit ${ec}) — diagnostics:"
+    echo "----- /tmp/backend.log (tail 80) -----";  tail -n 80 /tmp/backend.log  2>/dev/null
+    echo "----- /tmp/cf.log (tail 20) -----";       tail -n 20 /tmp/cf.log       2>/dev/null
+    echo "----- /tmp/frontend.log (tail 20) -----"; tail -n 20 /tmp/frontend.log 2>/dev/null
+    echo "----- host records -----";                curl -s -m5 "$API/api/admin/hosts" 2>/dev/null | python3 -m json.tool 2>/dev/null
+    echo "--------------------------------------"
+  fi
   log "TEARDOWN"
   [ -n "$MACHINE_ID" ] && curl -s -m20 -X DELETE "$API/api/accounts/1/machines/$MACHINE_ID" >/dev/null 2>&1
   if [ -n "$HOST_ID" ]; then
