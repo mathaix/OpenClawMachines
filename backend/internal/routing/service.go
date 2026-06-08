@@ -151,17 +151,36 @@ func (s *Service) SetupRoute(ctx context.Context, req SetupRequest) (*SetupResul
 		SSHHostname: sshHostname,
 	}
 
-	if s.tunnel == nil {
-		return result, nil
-	}
-
-	// Generate a 32-byte signing key.
+	// Generate a 32-byte signing key up front. The in-VM gateway needs it to
+	// verify signed proxy/gateway tokens, so it must exist even when no
+	// Cloudflare tunnel is configured (local/operator profiles).
 	signingKeyBytes := make([]byte, 32)
 	if _, err := rand.Read(signingKeyBytes); err != nil {
 		return nil, fmt.Errorf("generate signing key: %w", err)
 	}
 	signingKey := hex.EncodeToString(signingKeyBytes)
 	result.SigningKey = signingKey
+
+	persistRouteState := func(tunnelID string) error {
+		if s.store == nil {
+			return nil
+		}
+		if err := s.store.UpdateMachineTunnel(ctx, req.MachineID, tunnelID, signingKey); err != nil {
+			slog.Error("routing.setup.store_failed",
+				"machine_id", req.MachineID,
+				"tunnel_id", tunnelID,
+				"error", err)
+			return fmt.Errorf("persist route signing key: %w", err)
+		}
+		return nil
+	}
+
+	if s.tunnel == nil {
+		if err := persistRouteState(""); err != nil {
+			return nil, err
+		}
+		return result, nil
+	}
 
 	// Create the per-VM tunnel.
 	tunnelID, tunnelToken, err := s.tunnel.CreateVMTunnel(ctx, req.MachineSlug)
@@ -171,6 +190,9 @@ func (s *Service) SetupRoute(ctx context.Context, req SetupRequest) (*SetupResul
 			"machine_slug", req.MachineSlug,
 			"error", err)
 		// Non-fatal: return partial result with VMHostname set.
+		if err := persistRouteState(""); err != nil {
+			return nil, err
+		}
 		return result, nil
 	}
 	result.TunnelID = tunnelID
@@ -198,14 +220,10 @@ func (s *Service) SetupRoute(ctx context.Context, req SetupRequest) (*SetupResul
 			"error", err)
 	}
 
-	// Persist tunnel info to the database.
-	if s.store != nil {
-		if err := s.store.UpdateMachineTunnel(ctx, req.MachineID, tunnelID, signingKey); err != nil {
-			slog.Error("routing.setup.tunnel.store_failed",
-				"machine_id", req.MachineID,
-				"tunnel_id", tunnelID,
-				"error", err)
-		}
+	// Persist tunnel info to the database before returning route state that a
+	// caller may use to boot a VM.
+	if err := persistRouteState(tunnelID); err != nil {
+		return nil, err
 	}
 
 	slog.Info("routing.setup.done",

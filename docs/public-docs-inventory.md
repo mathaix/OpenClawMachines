@@ -18,7 +18,10 @@ after the split from the private hosted overlay.
 | `docs/ci-release.md` | CI and release safety boundaries for public-core changes. |
 | `docs/kvm-integration-ci.md` | Maintainer-gated KVM integration lane for public PRs and `main` pushes. |
 | `docs/control-plane-profiles.md` | Local, operator, and hosted profile semantics without private defaults. |
+| `docs/self-hosted-control-plane.md` | Production-like self-hosted prerequisites and validation flow. |
+| `docs/self-hosted.env.example` | Redacted self-hosted operator environment template. |
 | `docs/overlay-boundary.md` | Public-core vs private-overlay ownership rule. |
+| `llms/self-hosted-setup.txt` | Copy-pasteable LLM operator runbook for self-hosted setup. |
 
 ## Removed From Public Core
 

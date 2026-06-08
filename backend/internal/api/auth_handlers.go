@@ -117,16 +117,7 @@ func (s *Server) handleAuthMe(w http.ResponseWriter, r *http.Request) {
 		// subdomain requests (Worker validates HS256 JWTs, not CF Access RS256).
 		if s.auth != nil {
 			if token, err := s.auth.GenerateToken(user.ID, user.Email); err == nil {
-				http.SetCookie(w, &http.Cookie{
-					Name:     "ocm_token",
-					Value:    token,
-					Path:     "/",
-					Domain:   s.cookieDomain(),
-					MaxAge:   86400,
-					HttpOnly: true,
-					Secure:   true,
-					SameSite: http.SameSiteNoneMode,
-				})
+				http.SetCookie(w, s.sessionCookie(r, token, 86400))
 			}
 		}
 		writeJSON(w, http.StatusOK, map[string]interface{}{"user": user})
@@ -283,16 +274,7 @@ func (s *Server) handleSessionExchange(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.SetCookie(w, &http.Cookie{
-		Name:     "ocm_token",
-		Value:    token,
-		Path:     "/",
-		Domain:   s.cookieDomain(),
-		MaxAge:   86400,
-		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteNoneMode,
-	})
+	http.SetCookie(w, s.sessionCookie(r, token, 86400))
 
 	s.activity.Log(r.Context(), events.LogParams{
 		Category:  "auth",
@@ -309,15 +291,24 @@ func (s *Server) handleSessionExchange(w http.ResponseWriter, r *http.Request) {
 
 // handleLogout clears the OCM session cookie.
 func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
-	http.SetCookie(w, &http.Cookie{
+	http.SetCookie(w, s.sessionCookie(r, "", -1))
+	writeJSON(w, http.StatusOK, map[string]string{"status": "logged_out"})
+}
+
+func (s *Server) sessionCookie(r *http.Request, value string, maxAge int) *http.Cookie {
+	secure := requestIsSecure(r)
+	sameSite := http.SameSiteLaxMode
+	if secure {
+		sameSite = http.SameSiteNoneMode
+	}
+	return &http.Cookie{
 		Name:     "ocm_token",
-		Value:    "",
+		Value:    value,
 		Path:     "/",
 		Domain:   s.cookieDomain(),
-		MaxAge:   -1,
+		MaxAge:   maxAge,
 		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteNoneMode,
-	})
-	writeJSON(w, http.StatusOK, map[string]string{"status": "logged_out"})
+		Secure:   secure,
+		SameSite: sameSite,
+	}
 }

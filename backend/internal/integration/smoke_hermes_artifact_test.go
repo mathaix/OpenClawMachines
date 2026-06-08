@@ -4,7 +4,6 @@ package integration
 
 import (
 	"encoding/json"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -18,8 +17,8 @@ import (
 //
 // Run:
 //
-//	TEST_HERMES_MANIFEST_URI=gs://example-ocm-artifacts/hermes/manifest-stable.json \
-//	TEST_HERMES_ROOTFS_MANIFEST_URI=gs://example-ocm-artifacts/hermes-rootfs/manifest.json \
+//	TEST_HERMES_MANIFEST_URI=gs://openclawmachines/hermes/manifest-stable.json \
+//	TEST_HERMES_ROOTFS_MANIFEST_URI=gs://openclawmachines/hermes-rootfs/manifest.json \
 //	go test -tags=integration ./internal/integration -run TestSmokeHermesArtifactRuntime -v
 func TestSmokeHermesArtifactRuntime(t *testing.T) {
 	cfg := skipIfNoPrereqs(t)
@@ -140,21 +139,5 @@ func discoverHermesRootfsVersion(t *testing.T) string {
 
 func readChannelManifest(t *testing.T, envKey, gcsObject string) []byte {
 	t.Helper()
-	if override := os.Getenv(envKey); override != "" {
-		localPath := strings.TrimPrefix(override, "file://")
-		b, err := os.ReadFile(localPath)
-		if err != nil {
-			t.Fatalf("read local manifest %s: %v", localPath, err)
-		}
-		return b
-	}
-	tmpFile := t.TempDir() + "/manifest.json"
-	if err := downloadFromGCS(t, gcsObject, tmpFile); err != nil {
-		t.Fatalf("download manifest %s: %v", gcsObject, err)
-	}
-	b, err := os.ReadFile(tmpFile)
-	if err != nil {
-		t.Fatalf("read downloaded manifest: %v", err)
-	}
-	return b
+	return readIntegrationManifest(t, envKey, gcsObject)
 }

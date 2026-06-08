@@ -288,6 +288,8 @@ func TestTunnel_Lifecycle(t *testing.T) {
 // ============================================================================
 
 func TestTunnel_HealthE2E(t *testing.T) {
+	skipIfNoTunnelCreds(t)
+
 	cfg := skipIfNoPrereqs(t)
 	setupTestDirs(t, cfg)
 
@@ -306,6 +308,7 @@ func TestTunnel_HealthE2E(t *testing.T) {
 
 	// Create VM
 	vmCfg := generateTestVMConfig(0)
+	withDefaultRuntimeSelection(t, &vmCfg)
 	if err := orch.Create(t.Context(), vmCfg); err != nil {
 		t.Fatalf("Failed to create VM: %v", err)
 	}
@@ -344,6 +347,8 @@ func TestTunnel_HealthE2E(t *testing.T) {
 }
 
 func TestTunnel_TerminalE2E(t *testing.T) {
+	skipIfNoTunnelCreds(t)
+
 	cfg := skipIfNoPrereqs(t)
 	setupTestDirs(t, cfg)
 
@@ -362,6 +367,7 @@ func TestTunnel_TerminalE2E(t *testing.T) {
 
 	// Create VM
 	vmCfg := generateTestVMConfig(0)
+	withDefaultRuntimeSelection(t, &vmCfg)
 	if err := orch.Create(t.Context(), vmCfg); err != nil {
 		t.Fatalf("Failed to create VM: %v", err)
 	}
@@ -428,6 +434,8 @@ func TestTunnel_TerminalE2E(t *testing.T) {
 }
 
 func TestTunnel_GatewayE2E(t *testing.T) {
+	skipIfNoTunnelCreds(t)
+
 	cfg := skipIfNoPrereqs(t)
 	setupTestDirs(t, cfg)
 
@@ -446,6 +454,7 @@ func TestTunnel_GatewayE2E(t *testing.T) {
 
 	// Create VM
 	vmCfg := generateTestVMConfig(0)
+	withDefaultRuntimeSelection(t, &vmCfg)
 	if err := orch.Create(t.Context(), vmCfg); err != nil {
 		t.Fatalf("Failed to create VM: %v", err)
 	}

@@ -4,7 +4,6 @@ package integration
 
 import (
 	"encoding/json"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -22,10 +21,7 @@ import (
 // Run: make smoke-test-artifact
 func TestSmokeArtifactRuntime(t *testing.T) {
 	// Resolve the stable channel manifest to get the current version.
-	manifestURI := os.Getenv("TEST_OPENCLAW_MANIFEST_URI")
-	if strings.TrimSpace(manifestURI) == "" {
-		manifestURI = "gs://example-ocm-artifacts/openclaw/manifest-stable.json"
-	}
+	manifestURI := getEnvOrDefault("TEST_OPENCLAW_MANIFEST_URI", defaultOpenClawManifestURI)
 
 	cfg := skipIfNoPrereqs(t)
 	setupTestDirs(t, cfg)
@@ -88,31 +84,12 @@ func TestSmokeArtifactRuntime(t *testing.T) {
 }
 
 // discoverStableOpenClawVersion reads the channel manifest to find the current stable version.
-// Respects TEST_OPENCLAW_MANIFEST_URI (file://…) so tests can target a locally-built
+// Respects TEST_OPENCLAW_MANIFEST_URI (gs://, file://, or local path) so tests can target a locally-built
 // artifact instead of the live GCS stable channel.
 func discoverStableOpenClawVersion(t *testing.T) string {
 	t.Helper()
 
-	var data []byte
-	if override := os.Getenv("TEST_OPENCLAW_MANIFEST_URI"); override != "" {
-		localPath := strings.TrimPrefix(override, "file://")
-		b, err := os.ReadFile(localPath)
-		if err != nil {
-			t.Fatalf("read local channel manifest %s: %v", localPath, err)
-		}
-		data = b
-	} else {
-		tmpFile := t.TempDir() + "/manifest-stable.json"
-		if err := downloadFromGCS(t, "openclaw/manifest-stable.json", tmpFile); err != nil {
-			t.Fatalf("download stable channel manifest: %v", err)
-		}
-		b, err := os.ReadFile(tmpFile)
-		if err != nil {
-			t.Fatalf("read channel manifest: %v", err)
-		}
-		data = b
-	}
-
+	data := readIntegrationManifest(t, "TEST_OPENCLAW_MANIFEST_URI", "openclaw/manifest-stable.json")
 	var manifest struct {
 		CurrentVersion string `json:"current_version"`
 	}

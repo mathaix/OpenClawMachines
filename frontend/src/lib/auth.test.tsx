@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
-import { AuthProvider, useAuth } from './auth';
+import { AuthProvider, configuredCookieDomains, useAuth } from './auth';
 import { ReactNode } from 'react';
 
 // Mock the api module so we can control auth calls
@@ -46,6 +46,10 @@ describe('useAuth hook', () => {
     mockListAccounts.mockResolvedValue([]);
     mockListPendingInvitations.mockResolvedValue([]);
     localStorage.clear();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   it('should initialize without user when no cookie/session', async () => {
@@ -148,5 +152,18 @@ describe('useAuth hook', () => {
 
     expect(result.current.user).toBe(null);
     expect(hrefSetter).toHaveBeenCalledWith('/signed-out');
+  });
+
+  it('prefers explicit cookie domain for logout cleanup', () => {
+    vi.stubEnv('VITE_DATA_PLANE_DOMAIN', 'example.com');
+    vi.stubEnv('VITE_COOKIE_DOMAIN', '.auth.example.com');
+
+    expect(configuredCookieDomains()).toEqual(['', '.auth.example.com']);
+  });
+
+  it('does not set a cookie domain for localhost logout cleanup', () => {
+    vi.stubEnv('VITE_DATA_PLANE_DOMAIN', 'localhost');
+
+    expect(configuredCookieDomains()).toEqual(['']);
   });
 });

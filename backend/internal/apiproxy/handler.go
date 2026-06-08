@@ -98,7 +98,28 @@ func (p *Proxy) handleProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 7. Pre-flight OAuth refresh: if token expires within 10 minutes, refresh proactively
+	// 7. Budget check — only for LLM providers.
+	if isLLM && cfg.BudgetMicrocents != nil {
+		spend := p.usage.GetSpend(cfg.MachineID)
+		if spend >= *cfg.BudgetMicrocents {
+			slog.Warn("apiproxy.budget_exceeded",
+				"machine_id", cfg.MachineID,
+				"provider", provider.Name,
+				"spend_microcents", spend,
+				"budget_microcents", *cfg.BudgetMicrocents,
+			)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusPaymentRequired)
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"error":             "budget exceeded",
+				"spend_microcents":  spend,
+				"budget_microcents": *cfg.BudgetMicrocents,
+			})
+			return
+		}
+	}
+
+	// 7b. Pre-flight OAuth refresh: if token expires within 10 minutes, refresh proactively
 	if credType == "oauth" && keyExpiresAt != nil && time.Until(*keyExpiresAt) < 10*time.Minute {
 		newToken, newExpiry, _, refreshErr := p.refreshCredential(cfg.MachineID, provider.Name)
 		if refreshErr != nil {

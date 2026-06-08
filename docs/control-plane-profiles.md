@@ -3,6 +3,11 @@
 `CONTROL_PLANE_PROFILE` makes the public control-plane startup boundary explicit.
 Valid values are `local`, `operator`, and `hosted`.
 
+For a production-like self-hosted control plane, use `operator` and configure
+the same Cloudflare Tunnel, Worker/KV data plane, and Firebase or Cloudflare
+Access auth shape used by the hosted control plane. The `local` profile is for
+trusted localhost development, not public access.
+
 ## `local`
 
 Default profile for the public core.
@@ -41,6 +46,9 @@ For an operator-hosted control plane on infrastructure they manage.
   `AGENT_GCS_MANIFEST`, `BROWSER_ROOTFS_GCS_MANIFEST`,
   `HERMES_GCS_MANIFEST`, and `HERMES_ROOTFS_GCS_MANIFEST` when they want
   control-plane responses to advertise remote artifacts.
+- When the operator wants hosted-parity behavior, Cloudflare Tunnel, Worker/KV,
+  `DATA_PLANE_DOMAIN`, and a real auth provider become deployment
+  prerequisites, even though they are not required merely to start the process.
 
 Minimum:
 

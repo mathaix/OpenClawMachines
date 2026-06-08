@@ -1023,15 +1023,14 @@ if [ -z "$SIGNING_KEY" ]; then
     echo "[FATAL] MACHINE_CONFIG keys: $(echo "$MACHINE_CONFIG" | jq -r 'keys | join(", ")' 2>/dev/null || echo '<parse failed>')"
     exit 1
 fi
+# tunnel_token and vm_hostname are only needed for the per-VM Cloudflare tunnel
+# (hosted profile). In local/self-hosted profiles without a tunnel they are
+# empty and the VM is reached through the agent proxy instead — warn, don't die.
 if [ -z "$TUNNEL_TOKEN" ]; then
-    echo "[FATAL] tunnel_token is empty — cloudflared cannot start, VM will be unreachable"
-    echo "[FATAL] MACHINE_CONFIG keys: $(echo "$MACHINE_CONFIG" | jq -r 'keys | join(", ")' 2>/dev/null || echo '<parse failed>')"
-    exit 1
+    echo "  [WARN] tunnel_token is empty — cloudflared disabled (VM reachable via agent proxy)"
 fi
 if [ -z "$VM_HOSTNAME" ]; then
-    echo "[FATAL] vm_hostname is empty — per-VM tunnel has no hostname"
-    echo "[FATAL] MACHINE_CONFIG keys: $(echo "$MACHINE_CONFIG" | jq -r 'keys | join(", ")' 2>/dev/null || echo '<parse failed>')"
-    exit 1
+    echo "  [WARN] vm_hostname is empty — per-VM tunnel has no hostname"
 fi
 
 touch /var/log/authproxy.log /var/log/cloudflared.log
@@ -1268,7 +1267,10 @@ for svc in gateway pty-server; do
     ln -sfn "/etc/sv/$svc" "/var/service/$svc"
 done
 
-if command -v cloudflared >/dev/null 2>&1; then
+if [ -z "$TUNNEL_TOKEN" ]; then
+    rm -f /var/service/cloudflared
+    echo "  [SKIP] cloudflared supervision (no tunnel_token — local/self-hosted)"
+elif command -v cloudflared >/dev/null 2>&1; then
     rm -f /etc/sv/cloudflared/down
     ln -sfn /etc/sv/cloudflared /var/service/cloudflared
 else

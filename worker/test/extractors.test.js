@@ -3,12 +3,27 @@ import { describe, it, expect } from "vitest";
 import {
   extractAccountSlug,
   extractMachinePath,
+  getBaseDomain,
   isAllowedOrigin,
 } from "../worker.js";
+
+describe("getBaseDomain", () => {
+  it("normalizes case and surrounding dots", () => {
+    expect(getBaseDomain({ BASE_DOMAIN: ".Example.Com." })).toBe("example.com");
+  });
+
+  it("falls back when the configured domain is blank after normalization", () => {
+    expect(getBaseDomain({ BASE_DOMAIN: "..." })).toBe("openclawmachines.com");
+  });
+});
 
 describe("extractAccountSlug", () => {
   it("extracts valid single-level subdomain", () => {
     expect(extractAccountSlug("myteam.openclawmachines.com")).toBe("myteam");
+  });
+
+  it("extracts valid single-level subdomain for custom base domain", () => {
+    expect(extractAccountSlug("myteam.example.com", "example.com")).toBe("myteam");
   });
 
   it("extracts numeric subdomain", () => {
@@ -103,6 +118,10 @@ describe("isAllowedOrigin", () => {
 
   it("allows https subdomain", () => {
     expect(isAllowedOrigin("https://acme.openclawmachines.com")).toBe(true);
+  });
+
+  it("allows https custom-domain subdomain", () => {
+    expect(isAllowedOrigin("https://acme.example.com", "example.com")).toBe(true);
   });
 
   it("rejects http (insecure)", () => {

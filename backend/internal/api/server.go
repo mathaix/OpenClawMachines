@@ -85,6 +85,7 @@ type Server struct {
 	// constructs Server via NewWorkerServer without an auth instance).
 	composioProxyTokenSigner func(machineID string) (string, error)
 	dataPlaneDomain          string
+	cookieDomainOverride     string
 	cfAccessAuthDomain       string
 	sshCAPrivateKey          string // platform SSH CA private key (PEM)
 
@@ -651,9 +652,6 @@ func NewServer(ctx context.Context, s store.Store, a *auth.Auth, authMode string
 		r.Get("/projects/{projectID}", srv.handleOpikGetProject)
 	})
 
-	// Start tunnel reaper to clean up orphaned VM tunnels
-	tunnel.StartReaper(ctx, tunnelMgr, s, 10*time.Minute)
-
 	// Reconcile host capacity to match the current oversubscription ratio.
 	// This ensures that if the ratio changes, existing hosts get updated.
 	srv.reconcileHostCapacity(ctx)
@@ -722,6 +720,10 @@ func (s *Server) SetDataPlaneDomain(d string) {
 	s.dataPlaneDomain = normalizeDomain(d)
 }
 
+func (s *Server) SetCookieDomain(d string) {
+	s.cookieDomainOverride = normalizeDomain(d)
+}
+
 func (s *Server) SetCfAccessAuthDomain(d string) {
 	s.cfAccessAuthDomain = d
 }
@@ -754,6 +756,12 @@ func (s *Server) accountDataPlaneHostname(slug string) string {
 }
 
 func (s *Server) cookieDomain() string {
+	if domain := normalizeDomain(s.cookieDomainOverride); domain != "" {
+		if domain == "localhost" || domain == "127.0.0.1" {
+			return ""
+		}
+		return "." + domain
+	}
 	domain := s.dataPlaneDomainOrLocal()
 	if domain == "localhost" || domain == "127.0.0.1" {
 		return ""

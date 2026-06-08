@@ -31,6 +31,10 @@ type Config struct {
 	GCPProject                   string
 	GCPZone                      string
 	GCPRegion                    string
+	HostProvisioningModel        string
+	HostImage                    string
+	ArtifactBucket               string
+	ArtifactBaseURL              string
 	LiteLLMMasterKey             string
 	BackendURL                   string
 	SnapshotName                 string
@@ -68,6 +72,7 @@ type Config struct {
 	NebiusAPIKey                 string // platform Nebius Token Factory key
 	FirebaseProjectID            string // Firebase project ID for ID token verification
 	DataPlaneDomain              string // domain for data-plane hostnames (e.g. "openclawmachines.com")
+	CookieDomain                 string // optional parent cookie domain override (e.g. ".example.com")
 	SSHCAPrivateKey              string // platform SSH CA private key (signs SSH certs) (pushed to VMs)
 	EnableRuntimeVersionResolver bool
 	OpenClawManifestURI          string
@@ -100,6 +105,10 @@ func Load() (*Config, error) {
 		GCPProject:              getEnv("GCP_PROJECT", defaults.GCPProject),
 		GCPZone:                 zone,
 		GCPRegion:               region,
+		HostProvisioningModel:   getEnv("HOST_PROVISIONING_MODEL", "STANDARD"),
+		HostImage:               os.Getenv("HOST_IMAGE"),
+		ArtifactBucket:          os.Getenv("OCM_ARTIFACT_BUCKET"),
+		ArtifactBaseURL:         getEnv("OCM_ARTIFACT_BASE_URL", "https://github.com/mathaix/OpenClawMachines/releases/latest/download"),
 		LiteLLMMasterKey:        os.Getenv("LITELLM_MASTER_KEY"),
 		BackendURL:              os.Getenv("BACKEND_URL"),
 		SnapshotName:            getEnv("FC_SNAPSHOT_NAME", os.Getenv("OCM_SNAPSHOT")),
@@ -143,6 +152,7 @@ func Load() (*Config, error) {
 	cfg.NebiusAPIKey = os.Getenv("NEBIUS_API_KEY")
 	cfg.FirebaseProjectID = os.Getenv("FIREBASE_PROJECT_ID")
 	cfg.DataPlaneDomain = getEnv("DATA_PLANE_DOMAIN", defaults.DataPlaneDomain)
+	cfg.CookieDomain = os.Getenv("COOKIE_DOMAIN")
 	cfg.SSHCAPrivateKey = os.Getenv("OCM_SSH_CA_PRIVATE_KEY")
 	cfg.EnableRuntimeVersionResolver = getEnv("FF_RUNTIME_VERSION_RESOLVER", "") == "1"
 	cfg.OpenClawManifestURI = os.Getenv("OPENCLAW_GCS_MANIFEST")

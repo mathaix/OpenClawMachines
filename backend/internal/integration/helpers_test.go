@@ -520,12 +520,18 @@ func latestModTime(dir string) time.Time {
 func downloadFromGCS(t *testing.T, filename, destPath string) error {
 	t.Helper()
 
+	return downloadFromGCSURI(t, fmt.Sprintf("gs://%s/%s", gcsBucket, filename), destPath)
+}
+
+// downloadFromGCSURI downloads a file from a concrete GCS URI.
+func downloadFromGCSURI(t *testing.T, gcsPath, destPath string) error {
+	t.Helper()
+
 	// Ensure parent directory exists
 	if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
 		return fmt.Errorf("create parent dir: %w", err)
 	}
 
-	gcsPath := fmt.Sprintf("gs://%s/%s", gcsBucket, filename)
 	t.Logf("Downloading %s to %s...", gcsPath, destPath)
 
 	cmd := exec.Command("gsutil", "cp", gcsPath, destPath)
@@ -534,8 +540,39 @@ func downloadFromGCS(t *testing.T, filename, destPath string) error {
 		return fmt.Errorf("gsutil cp failed: %s: %w", string(output), err)
 	}
 
-	t.Logf("Downloaded %s successfully", filename)
+	t.Logf("Downloaded %s successfully", gcsPath)
 	return nil
+}
+
+func readIntegrationManifest(t *testing.T, envKey, defaultGCSObject string) []byte {
+	t.Helper()
+	tmpFile := filepath.Join(t.TempDir(), "manifest.json")
+
+	if override := strings.TrimSpace(os.Getenv(envKey)); override != "" {
+		if strings.HasPrefix(override, "gs://") {
+			if err := downloadFromGCSURI(t, override, tmpFile); err != nil {
+				t.Fatalf("download manifest %s: %v", override, err)
+			}
+			return readFileOrFatal(t, tmpFile, "downloaded manifest")
+		}
+
+		localPath := strings.TrimPrefix(override, "file://")
+		return readFileOrFatal(t, localPath, "local manifest")
+	}
+
+	if err := downloadFromGCS(t, defaultGCSObject, tmpFile); err != nil {
+		t.Fatalf("download manifest %s: %v", defaultGCSObject, err)
+	}
+	return readFileOrFatal(t, tmpFile, "downloaded manifest")
+}
+
+func readFileOrFatal(t *testing.T, path, label string) []byte {
+	t.Helper()
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s %s: %v", label, path, err)
+	}
+	return b
 }
 
 // skipIfNoPrereqs checks all prerequisites and skips if any are missing.
@@ -618,14 +655,49 @@ func setupTestOrchestrator(t *testing.T, cfg *TestConfig, bridge *network.Bridge
 	if err != nil {
 		t.Fatalf("create orchestrator: %v", err)
 	}
+	testOrch := &defaultRuntimeOrchestrator{
+		Orchestrator: orch,
+		t:            t,
+	}
 
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		orch.Shutdown(ctx)
+		if err := testOrch.Drain(ctx); err != nil {
+			t.Logf("drain orchestrator during cleanup: %v", err)
+		}
+		if err := testOrch.Shutdown(ctx); err != nil {
+			t.Logf("shutdown orchestrator during cleanup: %v", err)
+		}
 	})
 
-	return orch
+	return testOrch
+}
+
+type defaultRuntimeOrchestrator struct {
+	orchestrator.Orchestrator
+	t *testing.T
+}
+
+func (o *defaultRuntimeOrchestrator) defaultRuntime(cfg *orchestrator.VMConfig) {
+	if cfg.RuntimeSelection == nil {
+		withDefaultRuntimeSelection(o.t, cfg)
+	}
+}
+
+func (o *defaultRuntimeOrchestrator) Create(ctx context.Context, cfg orchestrator.VMConfig) error {
+	o.defaultRuntime(&cfg)
+	return o.Orchestrator.Create(ctx, cfg)
+}
+
+func (o *defaultRuntimeOrchestrator) Upgrade(ctx context.Context, cfg orchestrator.VMConfig) error {
+	o.defaultRuntime(&cfg)
+	return o.Orchestrator.Upgrade(ctx, cfg)
+}
+
+func (o *defaultRuntimeOrchestrator) RegisterPending(cfg orchestrator.VMConfig) {
+	o.defaultRuntime(&cfg)
+	o.Orchestrator.RegisterPending(cfg)
 }
 
 // setupTestMetadataServer creates and starts a metadata server on the bridge
@@ -815,9 +887,9 @@ func generateTestSigningKey() string {
 }
 
 // defaultOpenClawManifestURI is the GCS manifest used for all integration tests.
-const defaultOpenClawManifestURI = "gs://example-ocm-artifacts/openclaw/manifest-stable.json"
-const defaultHermesManifestURI = "gs://example-ocm-artifacts/hermes/manifest-stable.json"
-const defaultHermesRootfsManifestURI = "gs://example-ocm-artifacts/hermes-rootfs/manifest.json"
+const defaultOpenClawManifestURI = "gs://openclawmachines/openclaw/manifest-stable.json"
+const defaultHermesManifestURI = "gs://openclawmachines/hermes/manifest-stable.json"
+const defaultHermesRootfsManifestURI = "gs://openclawmachines/hermes-rootfs/manifest.json"
 
 // cachedStableVersion caches the stable OpenClaw version across tests.
 var (

@@ -92,6 +92,7 @@ type MachineConfig struct {
 	LLMKeys          map[string]CredentialEntry `json:"-"`
 	Nonce            string                     `json:"-"` // not exposed via metadata API; used for request authentication
 	AccountID        int                        `json:"-"`
+	BudgetMicrocents *int64                     `json:"-"`
 	SigningKey       string                     `json:"signing_key,omitempty"`
 	VmHostname       string                     `json:"vm_hostname,omitempty"`
 	TunnelToken      string                     `json:"tunnel_token,omitempty"`

@@ -51,6 +51,9 @@ frontend/test-results/
 frontend/playwright-report/
 frontend/blob-report/
 frontend/e2e/.auth/
+# Playwright MCP scratch output + local E2E demo screenshots (not deliverables)
+.playwright-mcp/
+/[0-9][0-9]-*.png
 cli/ocm
 cli/bin/
 docs/architecture-blog.html

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -48,6 +49,12 @@ func (s *Server) handleCreateEnrollmentToken(w http.ResponseWriter, r *http.Requ
 		req.Labels = json.RawMessage(`{}`)
 	}
 
+	backendURL, ok := s.installBackendURL(r)
+	if !ok {
+		writeError(w, http.StatusInternalServerError, "BACKEND_URL is required to generate enrollment install command")
+		return
+	}
+
 	token := &store.EnrollmentToken{
 		Provider:      req.Provider,
 		ProviderClass: req.ProviderClass,
@@ -61,7 +68,7 @@ func (s *Server) handleCreateEnrollmentToken(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	installCmd := fmt.Sprintf("curl -sL %s/api/agent/install | bash -s -- %s", s.backendURL, token.Token)
+	installCmd := fmt.Sprintf("curl -sL %s/api/agent/install | bash -s -- %s", backendURL, token.Token)
 
 	writeJSON(w, http.StatusCreated, map[string]interface{}{
 		"token":           token.Token,
@@ -317,12 +324,10 @@ func (s *Server) handleDeregisterHost(w http.ResponseWriter, r *http.Request) {
 
 // handleInstallScript returns a bash install script for host enrollment.
 func (s *Server) handleInstallScript(w http.ResponseWriter, r *http.Request) {
-	backendURL := s.backendURL
-	if backendURL == "" {
-		backendURL = r.URL.Scheme + "://" + r.Host
-		if r.URL.Scheme == "" {
-			backendURL = "http://" + r.Host
-		}
+	backendURL, ok := s.installBackendURL(r)
+	if !ok {
+		writeError(w, http.StatusInternalServerError, "BACKEND_URL is required to serve the install script")
+		return
 	}
 
 	script := strings.ReplaceAll(installScriptTemplate, "{{BACKEND_URL}}", backendURL)
@@ -330,6 +335,35 @@ func (s *Server) handleInstallScript(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(script)) //nolint:errcheck
+}
+
+func (s *Server) installBackendURL(r *http.Request) (string, bool) {
+	if backendURL := strings.TrimRight(strings.TrimSpace(s.backendURL), "/"); backendURL != "" {
+		return backendURL, installBackendURLIsAllowed(backendURL)
+	}
+	if !isLoopbackHost(r.Host) {
+		return "", false
+	}
+	scheme := "http"
+	if requestIsSecure(r) {
+		scheme = "https"
+	}
+	return scheme + "://" + r.Host, true
+}
+
+func installBackendURLIsAllowed(raw string) bool {
+	u, err := url.Parse(raw)
+	if err != nil || u.Scheme == "" || u.Host == "" {
+		return false
+	}
+	switch strings.ToLower(u.Scheme) {
+	case "https":
+		return true
+	case "http":
+		return isLoopbackHost(u.Host)
+	default:
+		return false
+	}
 }
 
 const installScriptTemplate = `#!/bin/bash

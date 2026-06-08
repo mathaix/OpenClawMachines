@@ -1,0 +1,108 @@
+name: Release Artifacts
+
+# Builds the host artifacts and publishes them as public GitHub Release assets so
+# any operator can provision hosts without their own artifact bucket. The host
+# bootstrap (scripts/provision-host.sh, the provisioner startup-script) downloads
+# these over plain HTTPS from the release.
+#
+# Published now: ocm-agent, authproxy, ocm-secrets (+ agent-manifest.json).
+# TODO (tracked separately): publish the Firecracker guest kernel (vmlinux) and
+# the rootfs image — the kernel is not built by this repo and the rootfs build
+# (scripts/build-rootfs.sh) needs Docker; both are larger pipelines.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to publish to (e.g. v0.1.0). Created if absent."
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-artifacts-${{ github.event.inputs.tag || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-binaries:
+    name: Build + publish host binaries
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache-dependency-path: backend/go.sum
+
+      - name: Resolve version
+        id: ver
+        env:
+          TAG_INPUT: ${{ github.event.inputs.tag }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          TAG="${TAG_INPUT:-$REF_NAME}"
+          case "$TAG" in
+            v*) ;;
+            *) echo "Refusing to release non-v* tag: $TAG" >&2; exit 1 ;;
+          esac
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "commit=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Build linux/amd64 binaries
+        env:
+          VERSION: ${{ steps.ver.outputs.tag }}
+          GIT_COMMIT: ${{ steps.ver.outputs.commit }}
+        run: |
+          set -euo pipefail
+          make build-agent build-authproxy build-ocm-secrets
+          mkdir -p dist
+          cp backend/agent-linux dist/ocm-agent
+          cp backend/authproxy dist/authproxy
+          cp backend/ocm-secrets dist/ocm-secrets 2>/dev/null || true
+
+      - name: Generate checksums + agent manifest
+        working-directory: dist
+        env:
+          TAG: ${{ steps.ver.outputs.tag }}
+          COMMIT: ${{ steps.ver.outputs.commit }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          for f in ocm-agent authproxy ocm-secrets; do
+            [ -f "$f" ] && sha256sum "$f" | awk '{print $1}' > "$f.sha256"
+          done
+          REL_BASE="https://github.com/${REPO}/releases/download/${TAG}"
+          SHA="$(cat ocm-agent.sha256)"
+          SIZE="$(stat -c%s ocm-agent)"
+          cat > agent-manifest.json <<EOF
+          {
+            "version": "${TAG}",
+            "commit": "${COMMIT}",
+            "sha256": "${SHA}",
+            "size_bytes": ${SIZE},
+            "url": "${REL_BASE}/ocm-agent"
+          }
+          EOF
+          ls -la
+
+      - name: Publish to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.ver.outputs.tag }}
+          fail_on_unmatched_files: true
+          files: |
+            dist/ocm-agent
+            dist/ocm-agent.sha256
+            dist/authproxy
+            dist/authproxy.sha256
+            dist/ocm-secrets
+            dist/ocm-secrets.sha256
+            dist/agent-manifest.json

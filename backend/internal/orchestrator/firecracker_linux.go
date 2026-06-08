@@ -785,6 +785,7 @@ func (o *firecrackerOrchestrator) vmConfigForMachine(machineID string) (VMConfig
 		Secrets:          cloneStringMap(metaCfg.Secrets),
 		LLMKeys:          cloneCredentialMap(metaCfg.LLMKeys),
 		AccountID:        metaCfg.AccountID,
+		BudgetMicrocents: cloneInt64Ptr(metaCfg.BudgetMicrocents),
 		DataVolumeGB:     dataVolumeSizeGB(inst.DataVolumePath),
 		DataVersion:      dataVersion,
 		SigningKey:       metaCfg.SigningKey,
@@ -1142,6 +1143,7 @@ type persistedMetadataConfig struct {
 	LLMKeys          map[string]metadata.CredentialEntry `json:"llm_keys,omitempty"`
 	Nonce            string                              `json:"nonce,omitempty"`
 	AccountID        int                                 `json:"account_id,omitempty"`
+	BudgetMicrocents *int64                              `json:"budget_microcents,omitempty"`
 	SigningKey       string                              `json:"signing_key,omitempty"`
 	VmHostname       string                              `json:"vm_hostname,omitempty"`
 	TunnelToken      string                              `json:"tunnel_token,omitempty"`
@@ -1169,6 +1171,7 @@ func persistedMetadataConfigFromVMConfig(cfg VMConfig) persistedMetadataConfig {
 		LLMKeys:          cloneCredentialMap(cfg.LLMKeys),
 		Nonce:            cfg.MetadataNonce,
 		AccountID:        cfg.AccountID,
+		BudgetMicrocents: cloneInt64Ptr(cfg.BudgetMicrocents),
 		SigningKey:       cfg.SigningKey,
 		VmHostname:       cfg.VmHostname,
 		TunnelToken:      cfg.TunnelToken,
@@ -1197,6 +1200,7 @@ func (p persistedMetadataConfig) toMachineConfig() metadata.MachineConfig {
 		LLMKeys:          cloneCredentialMap(p.LLMKeys),
 		Nonce:            p.Nonce,
 		AccountID:        p.AccountID,
+		BudgetMicrocents: cloneInt64Ptr(p.BudgetMicrocents),
 		SigningKey:       p.SigningKey,
 		VmHostname:       p.VmHostname,
 		TunnelToken:      p.TunnelToken,
@@ -2120,6 +2124,14 @@ func cloneStringSlice(src []string) []string {
 		return nil
 	}
 	return append([]string(nil), src...)
+}
+
+func cloneInt64Ptr(src *int64) *int64 {
+	if src == nil {
+		return nil
+	}
+	v := *src
+	return &v
 }
 
 func cloneRuntimeSelection(src *metadata.RuntimeSelection) *metadata.RuntimeSelection {

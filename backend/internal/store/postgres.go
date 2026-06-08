@@ -459,7 +459,7 @@ func (s *PostgresStore) ExpireOldInvitations(ctx context.Context) (int64, error)
 const machineColumns = `id, account_id, kind, name, slug, preferred_region, status, status_message, vcpus, memory_mb,
 	host_id, vm_ip, tunnel_hostname, custom_domain, gateway_token, proxy_token,
 	provision_step, provisioning_started_at, provisioning_completed_at,
-	created_at, started_at, stopped_at, data_volume_gb,
+	budget_microcents, created_at, started_at, stopped_at, data_volume_gb,
 	desired_rootfs_version, desired_openclaw_version, desired_channel,
 	resolved_rootfs_version, resolved_openclaw_version, actual_rootfs_version, actual_openclaw_version, version_source, runtime_source,
 	rootfs_snapshot, openclaw_version, last_started_at, tunnel_id, signing_key,
@@ -470,7 +470,7 @@ func scanMachine(scan func(dest ...any) error) (*Machine, error) {
 	err := scan(&m.ID, &m.AccountID, &m.Kind, &m.Name, &m.Slug, &m.PreferredRegion, &m.Status, &m.StatusMessage,
 		&m.VCPUs, &m.MemoryMB, &m.HostID, &m.VMIP, &m.TunnelHostname, &m.CustomDomain,
 		&m.GatewayToken, &m.ProxyToken, &m.ProvisionStep, &m.ProvisioningStartedAt, &m.ProvisioningCompletedAt,
-		&m.CreatedAt, &m.StartedAt, &m.StoppedAt, &m.DataVolumeGB,
+		&m.BudgetMicrocents, &m.CreatedAt, &m.StartedAt, &m.StoppedAt, &m.DataVolumeGB,
 		&m.DesiredRootfsVersion, &m.DesiredOpenclawVersion, &m.DesiredChannel,
 		&m.ResolvedRootfsVersion, &m.ResolvedOpenclawVersion, &m.ActualRootfsVersion, &m.ActualOpenclawVersion, &m.VersionSource, &m.RuntimeSource,
 		&m.RootfsSnapshot, &m.OpenclawVersion, &m.LastStartedAt, &m.TunnelID, &m.SigningKey,
@@ -1092,7 +1092,7 @@ func (s *PostgresStore) UpdateMachineActualVersions(ctx context.Context, hostID 
 
 func (s *PostgresStore) UpdateMachineTunnel(ctx context.Context, machineID, tunnelID, signingKey string) error {
 	_, err := s.pool.Exec(ctx,
-		`UPDATE machines SET tunnel_id = $2, signing_key = $3 WHERE id = $1`,
+		`UPDATE machines SET tunnel_id = NULLIF($2, ''), signing_key = NULLIF($3, '') WHERE id = $1`,
 		machineID, tunnelID, signingKey)
 	return err
 }
@@ -1626,7 +1626,10 @@ func (s *PostgresStore) PlaceMachineOnHost(ctx context.Context, machineID string
 		&h.Provider, &h.ProviderClass, &h.LifecycleMode, &h.AgentEndpoint, &h.AgentEndpointType,
 		&h.ProviderHostID, &h.ProviderMetadata, &h.Capabilities, &h.Labels, &h.AgentToken, &h.MaintenanceMode)
 	if err != nil {
-		return nil, "", fmt.Errorf("no host with matching image and sufficient capacity (expected=%s): %w", expectedImage, err)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, "", fmt.Errorf("%w (region=%q, image=%q)", ErrNoEligibleHost, region, expectedImage)
+		}
+		return nil, "", fmt.Errorf("place machine on host: %w", err)
 	}
 
 	// Allocate capacity

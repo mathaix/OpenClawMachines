@@ -184,22 +184,24 @@ func normalizeErrorResponseBody(body []byte) []byte {
 	return normalized
 }
 
-// recordAndLogUsage records token usage and emits a single structured debug log
-// with provider, model, tokens, duration, and status.
+// recordAndLogUsage records a usage record and emits a single structured debug log
+// with the full call details: provider, model, tokens, cost, duration, status.
 func (p *Proxy) recordAndLogUsage(ctx *proxyCallContext, model string, inputTokens, outputTokens int) {
 	durationMs := time.Since(ctx.startTime).Milliseconds()
 	source := usageSource(ctx.provider.Name)
+	cost := CalculateCost(model, inputTokens, outputTokens)
 
 	if model != "" || inputTokens > 0 || outputTokens > 0 {
 		rec := UsageRecord{
-			AccountID:    ctx.accountID,
-			MachineID:    ctx.machineID,
-			Provider:     ctx.provider.Name,
-			Model:        model,
-			InputTokens:  inputTokens,
-			OutputTokens: outputTokens,
-			Source:       source,
-			Timestamp:    time.Now(),
+			AccountID:      ctx.accountID,
+			MachineID:      ctx.machineID,
+			Provider:       ctx.provider.Name,
+			Model:          model,
+			InputTokens:    inputTokens,
+			OutputTokens:   outputTokens,
+			CostMicrocents: cost,
+			Source:         source,
+			Timestamp:      time.Now(),
 		}
 		p.usage.Record(rec)
 		go p.reportUsageToBackend(rec)
@@ -216,6 +218,7 @@ func (p *Proxy) recordAndLogUsage(ctx *proxyCallContext, model string, inputToke
 		"input_tokens", inputTokens,
 		"output_tokens", outputTokens,
 		"total_tokens", inputTokens+outputTokens,
+		"cost_microcents", cost,
 		"status", ctx.status,
 		"method", ctx.method,
 		"path", ctx.path,

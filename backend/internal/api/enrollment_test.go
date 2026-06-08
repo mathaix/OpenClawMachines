@@ -172,9 +172,30 @@ func (m *mockTunnelManager) DeleteTunnelAndDNS(_ context.Context, tunnelID strin
 func newTestEnrollmentServer(ms *mockEnrollmentStore) *Server {
 	return &Server{
 		store:                    ms,
+		backendURL:               "https://api.example.test",
 		vcpuOversubRatio:         2, // default 2x oversubscription
 		browserRootfsGCSManifest: config.ExperimentalKernelBrowserManifestURI,
 		browserRootfsVersion:     config.StableKernelBrowserRootfsVersion,
+	}
+}
+
+func TestHandleCreateEnrollmentTokenRequiresTrustedBackendURL(t *testing.T) {
+	ms := &mockEnrollmentStore{}
+	srv := newTestEnrollmentServer(ms)
+	srv.backendURL = ""
+
+	req := httptest.NewRequest(http.MethodPost, "/api/admin/enrollment-tokens", strings.NewReader(`{}`))
+	req.Host = "attacker.example"
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	srv.handleCreateEnrollmentToken(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected status 500, got %d: %s", w.Code, w.Body.String())
+	}
+	if ms.createdToken != nil {
+		t.Fatal("expected no token to be created without a trusted backend URL")
 	}
 }
 
@@ -738,12 +759,12 @@ func TestHandleInstallScript(t *testing.T) {
 		wantContains []string
 	}{
 		{
-			name:       "default backend URL",
+			name:       "local request backend URL",
 			backendURL: "",
 			wantContains: []string{
 				"#!/bin/bash",
 				"ENROLLMENT_TOKEN",
-				"http://example.com",
+				"http://127.0.0.1:8080",
 				"curl",
 				"TUNNEL_TOKEN",
 				"cloudflared",
@@ -770,6 +791,9 @@ func TestHandleInstallScript(t *testing.T) {
 			srv.backendURL = tt.backendURL
 
 			req := httptest.NewRequest(http.MethodGet, "/api/agent/install", nil)
+			if tt.backendURL == "" {
+				req.Host = "127.0.0.1:8080"
+			}
 			w := httptest.NewRecorder()
 
 			srv.handleInstallScript(w, req)
@@ -790,6 +814,43 @@ func TestHandleInstallScript(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestHandleInstallScriptRejectsUntrustedHostFallback(t *testing.T) {
+	ms := &mockEnrollmentStore{}
+	srv := newTestEnrollmentServer(ms)
+	srv.backendURL = ""
+
+	req := httptest.NewRequest(http.MethodGet, "/api/agent/install", nil)
+	req.Host = "evil.example"
+	w := httptest.NewRecorder()
+
+	srv.handleInstallScript(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected status 500, got %d: %s", w.Code, w.Body.String())
+	}
+	if strings.Contains(w.Body.String(), "evil.example") {
+		t.Fatal("install script response reflected untrusted Host header")
+	}
+}
+
+func TestInstallBackendURLAllowsHTTPSOrLoopbackHTTP(t *testing.T) {
+	tests := []struct {
+		raw  string
+		want bool
+	}{
+		{raw: "https://api.example.com", want: true},
+		{raw: "http://localhost:8080", want: true},
+		{raw: "http://127.0.0.1:8080", want: true},
+		{raw: "http://api.example.com", want: false},
+		{raw: "api.example.com", want: false},
+	}
+	for _, tt := range tests {
+		if got := installBackendURLIsAllowed(tt.raw); got != tt.want {
+			t.Fatalf("installBackendURLIsAllowed(%q) = %v, want %v", tt.raw, got, tt.want)
+		}
 	}
 }
 

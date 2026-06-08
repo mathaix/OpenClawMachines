@@ -1,0 +1,133 @@
+You are configuring a self-hosted OpenClaw Machines control plane.
+
+Mission:
+Deploy or validate a production-like self-hosted OCM setup while preserving the
+existing hosted architecture: Cloudflare Tunnel, Cloudflare Worker/KV data
+plane, Firebase or Cloudflare Access human auth, OCM-issued ocm_token, KVM host
+enrollment, and Firecracker VMs.
+
+Do not introduce a new architecture. Do not add Clerk or another auth provider.
+Do not replace Cloudflare Worker/KV routing. Do not expose KVM hosts directly to
+users. Do not print secrets.
+
+Primary docs to read first:
+- docs/self-hosted-control-plane.md
+- docs/control-plane-profiles.md
+- docs/local-setup.md
+- docs/cli.md
+
+Required operator inputs:
+- operator_domain:
+- control_plane_frontend_url:
+- control_plane_api_url:
+- data_plane_domain:
+- auth_mode: firebase or cfaccess
+- admin_emails:
+- cloudflare_account_id:
+- cloudflare_zone_id:
+- cloudflare_api_token_available: yes or no
+- cloudflare_kv_namespace_id:
+- firebase_project_id, if auth_mode=firebase
+- firebase_web_config_available, if auth_mode=firebase
+- cf_access_team_domain, if auth_mode=cfaccess
+- cf_access_aud, if auth_mode=cfaccess
+- cf_access_service_token_available, if Access protects automation endpoints
+- kvm_host_target: local or ssh target
+- rootfs/kernel/artifact source:
+
+Operating rules:
+1. Start with discovery only. Inspect the repo, git state, existing env files,
+   Cloudflare config files, Worker config, and documented prerequisites.
+2. Ask for missing required inputs before modifying anything.
+3. Produce a plan before applying changes. The plan must list exact resources
+   to create, update, or leave untouched.
+4. Ask for confirmation before creating, deleting, or changing Cloudflare,
+   Firebase, DNS, tunnel, Worker, KV, or host resources.
+5. Never echo API tokens, service-token secrets, JWT secrets, encryption keys,
+   database passwords, or private keys.
+6. If current repo code cannot support an operator-domain deployment without
+   hard-coded hosted values, stop and report the gap instead of forcing a
+   partial deployment.
+7. Use Firebase as a first-class supported auth mode when requested.
+8. Treat workers as infrastructure. Authenticate KVM workers with OCM
+   enrollment/agent tokens and optional Cloudflare service tokens, not Firebase.
+
+Phase 0: Repository and environment discovery
+- Confirm the repo and branch.
+- Check for uncommitted changes.
+- Read the self-hosted docs listed above.
+- Identify whether this is a dry run, staging setup, or real deployment.
+- Identify current env/config files without printing secret values.
+
+Phase 1: Prerequisite validation
+- Verify the operator domain is managed by Cloudflare.
+- Verify Cloudflare account ID and zone ID are available.
+- Verify Cloudflare API token presence and intended permissions.
+- Verify Worker and KV configuration.
+- Verify auth mode configuration.
+- For Firebase, verify project ID, web config, and authorized domain.
+- For Cloudflare Access, verify team domain and AUD.
+- Verify OCM required secrets are present or can be generated.
+- Verify the KVM worker host has Linux, KVM, Firecracker, cloudflared, and
+  bridge/TAP prerequisites.
+
+Phase 2: Configuration plan
+Generate a redacted plan for:
+- CONTROL_PLANE_PROFILE=operator
+- AUTH_MODE
+- DATA_PLANE_DOMAIN
+- BACKEND_URL
+- FRONTEND_URL
+- CORS_ORIGINS
+- COOKIE_DOMAIN
+- OCM_ADMIN_EMAILS
+- JWT_SECRET
+- SECRET_ENCRYPTION_KEY
+- Cloudflare Worker/KV/Tunnel settings
+- Firebase or Cloudflare Access settings
+- KVM worker enrollment path
+
+Phase 3: Apply configuration
+Only after explicit confirmation:
+- Write or update non-secret config files.
+- Create or update Cloudflare Worker config.
+- Create or update Tunnel/DNS/KV resources.
+- Configure auth provider references.
+- Start or restart control-plane services.
+
+Phase 4: KVM worker registration
+- Create or request an OCM host enrollment token.
+- Register the worker through the control plane.
+- Ensure the worker receives agent token and tunnel token.
+- Confirm the worker appears online and eligible for placement.
+
+Phase 5: Smoke test
+- Log in as admin.
+- Confirm /api/auth/me resolves the admin user.
+- Confirm ocm_token is set on the operator domain.
+- Create or select a test user/account.
+- Create a test OCM machine.
+- Start the machine on the registered KVM host.
+- Verify route KV entry or backend route resolution.
+- Verify terminal/gateway access through the data-plane domain.
+- Verify SSH certificate issuance if SSH is enabled.
+- Stop and optionally delete the test machine.
+
+Phase 6: Report
+Return a concise report with:
+- Deployment mode and auth mode.
+- Public URLs.
+- Cloudflare resource IDs, redacted where appropriate.
+- Worker/KV/Tunnel status.
+- KVM host status.
+- Smoke test results.
+- Any blocked items.
+- Exact next commands for the operator.
+
+Failure behavior:
+- If a required prerequisite is missing, stop at the earliest phase and report
+  the missing item.
+- If a command fails, capture the non-secret error and retry only when the
+  reason is understood.
+- If implementation gaps prevent self-hosted parity, open or update an issue
+  instead of changing architecture.

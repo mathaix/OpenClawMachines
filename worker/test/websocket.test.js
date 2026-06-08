@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeAll, beforeEach } from "vitest";
 import { getWorkerInstance } from "./helpers/worker-instance.js";
 import { signJWT, validClaims } from "./helpers/jwt.js";
-import { setResolveHandler, resetHandlers } from "./helpers/mock-server.js";
+import { getLastAgentRequest, setResolveHandler, resetHandlers } from "./helpers/mock-server.js";
 
 let worker;
 let mockPort;
@@ -42,8 +42,14 @@ describe("WebSocket upgrade detection", () => {
         },
       }
     );
-    // Normal HTTP forward — not a 101 since no Upgrade header
-    expect(resp.status).not.toBe(101);
+    expect(resp.status).toBe(200);
+    const body = await resp.json();
+    expect(body.url).toBe("/proxy/vm-abc123/terminal/ws");
+    expect(body.headers["x-proxy-token"]).toBe("test-proxy-token");
+    expect(getLastAgentRequest()).toMatchObject({
+      method: "GET",
+      url: "/proxy/vm-abc123/terminal/ws",
+    });
   });
 
   it("WebSocket upgrade triggers proxy path", async () => {
@@ -70,8 +76,8 @@ describe("WebSocket upgrade detection", () => {
         },
       }
     );
-    // Worker enters proxyWebSocket path — either 101 (success) or 502 (upstream fail)
-    expect([101, 502]).toContain(resp.status);
+    expect(resp.status).toBe(101);
+    expect(resp.webSocket).toBeTruthy();
   });
 
   it("WebSocket request without auth returns 401", async () => {

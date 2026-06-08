@@ -463,6 +463,75 @@ func TestKeyOptionalProvider(t *testing.T) {
 	}
 }
 
+func TestNonLLMProviderBypassesBudgetGating(t *testing.T) {
+	budget := int64(100)
+
+	upstream := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	defer upstream.Close()
+	upstreamHost := upstream.Listener.Addr().String()
+
+	metaSrv := metadata.New("127.0.0.1", 0)
+	metaSrv.RegisterMachine("127.0.0.1", metadata.MachineConfig{
+		MachineID:        "test-machine",
+		AccountID:        1,
+		Nonce:            "test-nonce",
+		BudgetMicrocents: &budget,
+		LLMKeys: map[string]metadata.CredentialEntry{
+			"anthropic": {Value: "sk-ant-key", CredentialType: "api_key"},
+		},
+	})
+
+	makeProvider := func(name string) *Provider {
+		return &Provider{
+			Name:         name,
+			UpstreamHost: upstreamHost,
+			Scheme:       "https",
+			PathPrefix:   "/" + name,
+			AllowedHosts: []string{upstreamHost},
+			InjectKey: func(req *http.Request, key, credentialType string) {
+				req.Header.Set("x-api-key", key)
+			},
+			ExtractToken: func(req *http.Request) string {
+				return req.Header.Get("x-api-key")
+			},
+			ParseJSONUsage: func(body []byte) (string, int, int) { return "", 0, 0 },
+			ParseSSEEvent:  func(eventType, data string) (string, int, int, bool) { return "", 0, 0, false },
+		}
+	}
+
+	cdnProvider := makeProvider("cdn")
+	cdnProvider.KeyOptional = true
+
+	proxy := newTestProxy(map[string]*Provider{
+		"anthropic": makeProvider("anthropic"),
+		"cdn":       cdnProvider,
+	}, metaSrv)
+	proxy.client = upstream.Client()
+	proxy.usage.Record(UsageRecord{MachineID: "test-machine", CostMicrocents: 200})
+
+	req := httptest.NewRequest(http.MethodPost, "/anthropic/v1/messages", nil)
+	req.Header.Set("x-api-key", "test-nonce")
+	req.RemoteAddr = "127.0.0.1:12345"
+	rr := httptest.NewRecorder()
+	proxy.handleProxy(rr, req)
+	if rr.Code != http.StatusPaymentRequired {
+		t.Errorf("LLM provider with exceeded budget: got status %d, want 402; body: %s", rr.Code, rr.Body.String())
+	}
+
+	req2 := httptest.NewRequest(http.MethodPost, "/cdn/some-asset", nil)
+	req2.Header.Set("x-api-key", "test-nonce")
+	req2.RemoteAddr = "127.0.0.1:12345"
+	rr2 := httptest.NewRecorder()
+	proxy.handleProxy(rr2, req2)
+	if rr2.Code != http.StatusOK {
+		t.Errorf("non-LLM KeyOptional provider with exceeded budget: got status %d, want 200; body: %s", rr2.Code, rr2.Body.String())
+	}
+}
+
 func TestKeyOptionalProviderWithoutKey(t *testing.T) {
 	// Verify that a non-KeyOptional provider still rejects when no key
 	metaSrv := metadata.New("127.0.0.1", 0)

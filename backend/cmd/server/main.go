@@ -253,6 +253,10 @@ func main() {
 		Strategy:      fleet.Spread,
 	})
 	agentCli := agentclient.New(cfg.AgentToken)
+	if missing := hostedProvisionerMissingConfig(cfg); missing != "" {
+		slog.Error("host.provisioner.not_configured", "error", missing+" is required for CONTROL_PLANE_PROFILE=hosted")
+		os.Exit(1)
+	}
 	tunnelMgr := cloudflareTunnelManagerOrExit(cfg)
 	var prov *provisioner.Provisioner
 	if cfg.GCPProject != "" && tunnelMgr != nil {
@@ -264,6 +268,10 @@ func main() {
 			Zone:                     cfg.GCPZone,
 			Region:                   cfg.GCPRegion,
 			Snapshot:                 cfg.SnapshotName,
+			HostImage:                cfg.HostImage,
+			ArtifactBucket:           cfg.ArtifactBucket,
+			ArtifactBaseURL:          cfg.ArtifactBaseURL,
+			ProvisioningModel:        cfg.HostProvisioningModel,
 			AgentToken:               cfg.AgentToken,
 			BackendURL:               cfg.BackendURL,
 			DataPlaneDomain:          cfg.DataPlaneDomain,
@@ -305,7 +313,16 @@ func main() {
 	kv := cloudflareKVStoreOrExit(cfg)
 
 	kvAdapter := routing.NewKVAdapter(kv)
-	routeSvc := routing.NewWithDomain(tunnelMgr, kvAdapter, db, cfg.DataPlaneDomain)
+	// Avoid a typed-nil interface: a nil *tunnel.Manager boxed into the
+	// routing.TunnelManager interface compares != nil, which defeats the
+	// nil-guard in routing.Service.SetupRoute and panics on machine start in
+	// profiles without a Cloudflare tunnel (local/operator). Mirror the same
+	// guard NewServer uses for tunnelCreator.
+	var routeTunnel routing.TunnelManager
+	if tunnelMgr != nil {
+		routeTunnel = tunnelMgr
+	}
+	routeSvc := routing.NewWithDomain(routeTunnel, kvAdapter, db, cfg.DataPlaneDomain)
 
 	// Start route projector (DB → KV sync every 60s)
 	if kvAdapter != nil {
@@ -359,7 +376,9 @@ func main() {
 	activityResolver := events.NewStoreResolver(db)
 	activityLogger := events.New(db, activityResolver)
 	srv.SetActivity(activityLogger)
-	prov.SetActivity(activityLogger)
+	if prov != nil {
+		prov.SetActivity(activityLogger)
+	}
 	slog.Info("activity.configured")
 
 	if cfg.ResendAPIKey != "" {
@@ -368,7 +387,9 @@ func main() {
 	}
 	srv.SetFrontendURL(cfg.FrontendURL)
 	srv.SetDataPlaneDomain(cfg.DataPlaneDomain)
+	srv.SetCookieDomain(cfg.CookieDomain)
 	srv.SetCfAccessAuthDomain(cfg.CfAccessTeamDomain)
+	tunnel.StartReaper(ctx, tunnelMgr, db, 10*time.Minute, cfg.DataPlaneDomain)
 	if cfg.SSHCAPrivateKey != "" {
 		srv.SetSSHCAPrivateKey(cfg.SSHCAPrivateKey)
 		slog.Info("ssh_ca.configured")
@@ -485,6 +506,13 @@ func cloudflareTunnelManagerOrExit(cfg *config.Config) *tunnel.Manager {
 		return nil
 	}
 	return tunnel.New(cfg.CloudflareAPIToken, cfg.CloudflareAccountID, cfg.CloudflareZoneID)
+}
+
+func hostedProvisionerMissingConfig(cfg *config.Config) string {
+	if cfg.RequiresHostedIntegrations() && strings.TrimSpace(cfg.GCPProject) == "" {
+		return "GCP_PROJECT"
+	}
+	return ""
 }
 
 func cloudflareKVStoreOrExit(cfg *config.Config) *kvstore.KVStore {

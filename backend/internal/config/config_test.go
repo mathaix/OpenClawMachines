@@ -12,6 +12,7 @@ func TestLoadDefaultsToLocalProfileWithoutHostedDefaults(t *testing.T) {
 	unsetEnv(t, "GCP_PROJECT")
 	unsetEnv(t, "GCP_ZONE")
 	unsetEnv(t, "DATA_PLANE_DOMAIN")
+	unsetEnv(t, "COOKIE_DOMAIN")
 	unsetEnv(t, "BACKUP_GCS_BUCKET")
 	unsetEnv(t, "BROWSER_ROOTFS_GCS_MANIFEST")
 	unsetEnv(t, "BROWSER_ROOTFS_VERSION")
@@ -55,6 +56,7 @@ func TestLoadHostedProfileDoesNotInjectPrivateDefaults(t *testing.T) {
 	unsetEnv(t, "GCP_PROJECT")
 	unsetEnv(t, "GCP_ZONE")
 	unsetEnv(t, "DATA_PLANE_DOMAIN")
+	unsetEnv(t, "COOKIE_DOMAIN")
 	unsetEnv(t, "BACKUP_GCS_BUCKET")
 	unsetEnv(t, "BROWSER_ROOTFS_GCS_MANIFEST")
 	unsetEnv(t, "BROWSER_ROOTFS_VERSION")
@@ -118,6 +120,7 @@ func TestLoadOperatorProfileUsesExplicitAuthModeAndNeutralDefaults(t *testing.T)
 	unsetEnv(t, "GCP_PROJECT")
 	unsetEnv(t, "GCP_ZONE")
 	unsetEnv(t, "DATA_PLANE_DOMAIN")
+	unsetEnv(t, "COOKIE_DOMAIN")
 	unsetEnv(t, "BACKUP_GCS_BUCKET")
 	unsetEnv(t, "BROWSER_ROOTFS_GCS_MANIFEST")
 	unsetEnv(t, "HERMES_GCS_MANIFEST")
@@ -134,8 +137,24 @@ func TestLoadOperatorProfileUsesExplicitAuthModeAndNeutralDefaults(t *testing.T)
 	if cfg.GCPProject != "" || cfg.GCPZone != "" || cfg.DataPlaneDomain != "" {
 		t.Fatalf("expected neutral operator defaults, got project=%q zone=%q data_plane_domain=%q", cfg.GCPProject, cfg.GCPZone, cfg.DataPlaneDomain)
 	}
+	if cfg.CookieDomain != "" {
+		t.Fatalf("expected no operator cookie domain default, got %q", cfg.CookieDomain)
+	}
 	if cfg.RequiresHostedIntegrations() {
 		t.Fatalf("operator profile must not require hosted integrations")
+	}
+}
+
+func TestLoadCookieDomain(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://test")
+	t.Setenv("COOKIE_DOMAIN", ".example.com")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.CookieDomain != ".example.com" {
+		t.Fatalf("expected cookie domain from env, got %q", cfg.CookieDomain)
 	}
 }
 

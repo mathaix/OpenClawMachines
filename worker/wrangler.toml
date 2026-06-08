@@ -7,6 +7,9 @@ compatibility_flags = ["nodejs_compat"]
 [vars]
 VERSION = "dev"
 BASE_DOMAIN = "example.com"
+# Origin hostnames that serve the operator UI and API. These must not point
+# back at the Worker route, or API/resolve fallback requests will loop.
+# Leave empty until replacing with distinct origin hostnames outside Worker routes.
 FRONTEND_ORIGIN_HOST = ""
 BACKEND_ORIGIN_HOST = ""
 
