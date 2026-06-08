@@ -69,6 +69,18 @@ export DATABASE_URL="postgres://ocm:ocm@localhost:5432/ocm?sslmode=disable"
 for _ in $(seq 1 30); do docker exec ocm-e2e-pg pg_isready -U ocm >/dev/null 2>&1 && break; sleep 2; done
 bash scripts/run-migrations.sh
 
+# Stage the latest stable artifact releases so FF_RUNTIME_VERSION_RESOLVER can
+# resolve the guest rootfs + openclaw runtime versions (it reads artifact_releases
+# from the DB; the fetcher builds the GCS URI from the *_GCS_MANIFEST {version}
+# templates + the resolved version). Versions = newest stable in gs://openclawmachines.
+log "seeding artifact_releases (latest stable rootfs + openclaw)"
+docker exec -i ocm-e2e-pg psql -v ON_ERROR_STOP=1 -U ocm -d ocm >/dev/null <<'SQL'
+INSERT INTO artifact_releases (kind, version, channel, url, sha256, size_bytes) VALUES
+  ('rootfs','ce1c3df-20260601T214501Z','stable','gs://openclawmachines/rootfs/rootfs-ce1c3df-20260601T214501Z.ext4.zst','9092ca21760c90818d078064622bfa37193e826ec1a199e976fb084bb7047b4a',3828350976),
+  ('openclaw','v2026.5.28-r4','stable','gs://openclawmachines/openclaw/releases/v2026.5.28-r4/openclaw-v2026.5.28-r4-linux-amd64.tar.zst','79ae823476afd6ad42a0656be58d67dfdadbbb2279c70f8337ad5c4c76fc2ebe',156995560)
+ON CONFLICT (kind, version) DO NOTHING;
+SQL
+
 # ── 2. cloudflared tunnel for a publicly-reachable BACKEND_URL ────────────────
 log "starting cloudflared tunnel"
 cloudflared tunnel --url http://localhost:8080 >/tmp/cf.log 2>&1 & TUNNEL_PID=$!
@@ -90,6 +102,14 @@ export CONTROL_PLANE_PROFILE=operator AUTH_MODE=dev OCM_ALLOW_DEV_AUTH=1 \
   OCM_ADMIN_EMAILS=dev@localhost OCM_SUPERUSER_EMAILS=dev@localhost \
   PORT=8080 FRONTEND_URL=http://localhost:5173 CORS_ORIGINS=http://localhost:5173 \
   HOST_PROVISIONING_MODEL=SPOT FF_RUNTIME_VERSION_RESOLVER=1
+# Host artifacts (agent + guest kernel/rootfs/openclaw) are pulled from the GCS
+# bucket; the spot host reads them via its default-SA devstorage.read_only scope.
+# AGENT_GCS_MANIFEST pins the host agent; the {version} templates are filled by
+# the fetcher from the resolved (staged) release versions above.
+export OCM_ARTIFACT_BUCKET=gs://openclawmachines \
+  AGENT_GCS_MANIFEST=gs://openclawmachines/agent/manifest-299a7fe-20260527T142532Z.json \
+  ROOTFS_GCS_MANIFEST='gs://openclawmachines/rootfs/manifest-{version}.json' \
+  OPENCLAW_GCS_MANIFEST='gs://openclawmachines/openclaw/releases/{version}/manifest.json'
 ./backend/server >/tmp/backend.log 2>&1 & BACKEND_PID=$!
 for _ in $(seq 1 30); do curl -fsS -m3 "$API/health" >/dev/null 2>&1 && break; sleep 2; done
 
