@@ -61,7 +61,10 @@ bash scripts/run-migrations.sh
 log "starting cloudflared tunnel"
 cloudflared tunnel --url http://localhost:8080 >/tmp/cf.log 2>&1 & TUNNEL_PID=$!
 for _ in $(seq 1 20); do
-  BACKEND_URL="$(grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' /tmp/cf.log | head -1)"
+  # `|| true`: under `set -euo pipefail`, grep exits 1 while /tmp/cf.log has no
+  # URL yet, which would abort the whole script on the first poll instead of
+  # waiting for cloudflared to come up.
+  BACKEND_URL="$(grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' /tmp/cf.log | head -1 || true)"
   [ -n "$BACKEND_URL" ] && break; sleep 2
 done
 [ -n "${BACKEND_URL:-}" ] || { echo "no tunnel URL"; exit 1; }
@@ -95,7 +98,10 @@ curl -fsS -m20 -X POST "$API/api/admin/hosts" -H 'Content-Type: application/json
   -d "{\"machine_type\":\"$MACHINE_TYPE\",\"zone\":\"$GCP_ZONE\"}" >/dev/null
 deadline=$(( $(date +%s) + HOST_READY_TIMEOUT ))
 while :; do
-  read -r HOST_ID STATUS < <(curl -s -m5 "$API/api/admin/hosts" | python3 -c 'import sys,json;d=json.load(sys.stdin);h=max(d,key=lambda x:x["id"]) if d else None;print((str(h["id"])+" "+h["status"]) if h else "0 none")')
+  # `|| true`: a transient empty/non-JSON response makes the pipeline (and thus
+  # `read`) exit non-zero; without this `set -e` would abort instead of polling
+  # until the deadline below.
+  read -r HOST_ID STATUS < <(curl -s -m5 "$API/api/admin/hosts" | python3 -c 'import sys,json;d=json.load(sys.stdin);h=max(d,key=lambda x:x["id"]) if d else None;print((str(h["id"])+" "+h["status"]) if h else "0 none")') || true
   log "host $HOST_ID: $STATUS"
   [ "$STATUS" = "ready" ] && break
   [ "$STATUS" = "error" ] && { echo "host provisioning failed"; exit 1; }
