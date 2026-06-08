@@ -108,7 +108,7 @@ export CONTROL_PLANE_PROFILE=operator AUTH_MODE=dev OCM_ALLOW_DEV_AUTH=1 \
 # the fetcher from the resolved (staged) release versions above.
 export OCM_ARTIFACT_BUCKET=gs://openclawmachines \
   AGENT_GCS_MANIFEST=gs://openclawmachines/agent/manifest-299a7fe-20260527T142532Z.json \
-  ROOTFS_GCS_MANIFEST='gs://openclawmachines/rootfs/manifest-{version}.json' \
+  ROOTFS_GCS_MANIFEST=gs://openclawmachines/rootfs/manifest-ce1c3df-20260601T214501Z.json \
   OPENCLAW_GCS_MANIFEST='gs://openclawmachines/openclaw/releases/{version}/manifest.json'
 ./backend/server >/tmp/backend.log 2>&1 & BACKEND_PID=$!
 for _ in $(seq 1 30); do curl -fsS -m3 "$API/health" >/dev/null 2>&1 && break; sleep 2; done

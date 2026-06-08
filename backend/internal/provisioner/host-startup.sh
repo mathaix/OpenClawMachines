@@ -16,7 +16,9 @@ FIRECRACKER_VERSION="v1.10.1"
 OCM_BASE="/var/lib/ocm"
 
 MD="http://metadata.google.internal/computeMetadata/v1/instance/attributes"
-md() { curl -s -H "Metadata-Flavor: Google" "$MD/$1" 2>/dev/null || true; }
+# -f so a missing metadata key returns empty, not the metadata server's 404 HTML
+# page (which otherwise lands in agent.env and corrupts later assignments).
+md() { curl -fs -H "Metadata-Flavor: Google" "$MD/$1" 2>/dev/null || true; }
 
 AGENT_TOKEN="$(md agent-token)"
 BACKEND_URL="$(md backend-url)"
