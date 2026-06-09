@@ -107,8 +107,9 @@ jobs:
           # OCM_HOST_VM once the host is provisioned; delete only that instance so
           # concurrent spot-e2e runs never affect each other.
           if [ -n "${OCM_HOST_VM:-}" ]; then
-            echo "ensuring ${OCM_HOST_VM} is deleted"
-            gcloud compute instances delete "$OCM_HOST_VM" --zone="$ZONE" --project="$PROJECT" --quiet || true
+            echo "ensuring ${OCM_HOST_VM} (+ its data disk) is deleted"
+            gcloud compute instances delete "$OCM_HOST_VM" --zone="$ZONE" --project="$PROJECT" --delete-disks=all --quiet || true
+            gcloud compute disks delete "${OCM_HOST_VM}-data" --zone="$ZONE" --project="$PROJECT" --quiet || true
           else
             echo "no OCM_HOST_VM recorded; nothing to delete"
           fi

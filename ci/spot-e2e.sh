@@ -54,8 +54,11 @@ cleanup() {
   fi
   # Backstop: delete THIS run's instance if the API delete didn't finish. Scoped
   # to HOST_VM so concurrent spot-e2e runs never delete each other's host.
+  # --delete-disks=all + the explicit data-disk delete prevent the <vm>-data SSD
+  # disk (autoDelete=false) from leaking and eventually exhausting the SSD quota.
   if [ -n "$HOST_VM" ] && [ "$HOST_VM" != "-" ]; then
-    gcloud compute instances delete "$HOST_VM" --zone="$GCP_ZONE" --project="$GCP_PROJECT" --quiet >/dev/null 2>&1
+    gcloud compute instances delete "$HOST_VM" --zone="$GCP_ZONE" --project="$GCP_PROJECT" --delete-disks=all --quiet >/dev/null 2>&1
+    gcloud compute disks delete "${HOST_VM}-data" --zone="$GCP_ZONE" --project="$GCP_PROJECT" --quiet >/dev/null 2>&1
   fi
   [ -n "$BACKEND_PID" ] && kill "$BACKEND_PID" 2>/dev/null
   [ -n "$FRONTEND_PID" ] && kill "$FRONTEND_PID" 2>/dev/null
