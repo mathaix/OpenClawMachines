@@ -163,7 +163,7 @@ export PLAYWRIGHT_BASE_URL=http://localhost:5173 CI=1 DEBIAN_FRONTEND=noninterac
   # so warm runs are instant).
   pw_ok=0
   for i in 1 2 3; do
-    if timeout 240 npx playwright install chromium; then pw_ok=1; break; fi
+    if timeout 240 npx playwright install chrome; then pw_ok=1; break; fi
     echo "playwright install attempt $i timed out/failed; retrying"
   done
   [ "$pw_ok" = 1 ] || { echo "playwright install failed after retries"; exit 1; }

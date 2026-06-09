@@ -43,6 +43,7 @@ export default defineConfig({
       name: "chromium-dev",
       use: {
         ...devices["Desktop Chrome"],
+        channel: "chrome",
         screenshot: "on",
         video: "on",
         trace: "on",
