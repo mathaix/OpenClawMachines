@@ -84,6 +84,14 @@ jobs:
             echo "${name}=${val}" >> "$GITHUB_ENV"
           done
 
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ms-playwright-${{ hashFiles('frontend/package-lock.json') }}
+          restore-keys: |
+            ms-playwright-
+
       - name: Run spot E2E
         run: bash ci/spot-e2e.sh
 

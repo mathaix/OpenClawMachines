@@ -148,7 +148,15 @@ export PLAYWRIGHT_BASE_URL=http://localhost:5173 CI=1 DEBIAN_FRONTEND=noninterac
   # Browser only — the GitHub runner image already ships the OS libs. `--with-deps`
   # runs apt and hung the job to the 45m timeout (leaking the spot host). Time-bound
   # both steps so a stall fails fast (→ trap tears the host down) instead of hanging.
-  timeout 300 npx playwright install chromium || { echo "playwright install failed/timed out"; exit 1; }
+  # Chrome download from cdn.playwright.dev can be slow/stall on cold CI runners;
+  # retry a few bounded attempts (the workflow also caches ~/.cache/ms-playwright
+  # so warm runs are instant).
+  pw_ok=0
+  for i in 1 2 3; do
+    if timeout 240 npx playwright install chromium; then pw_ok=1; break; fi
+    echo "playwright install attempt $i timed out/failed; retrying"
+  done
+  [ "$pw_ok" = 1 ] || { echo "playwright install failed after retries"; exit 1; }
   timeout 600 npx playwright test e2e/spot-smoke.spec.ts --project=chromium-dev --reporter=html )
 
 log "E2E passed"
