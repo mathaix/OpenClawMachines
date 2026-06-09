@@ -25,7 +25,7 @@ API="http://localhost:8080"
 
 log() { echo "==> $*"; }
 
-TUNNEL_PID=""; BACKEND_PID=""; FRONTEND_PID=""; MACHINE_ID=""; HOST_ID=""
+TUNNEL_PID=""; BACKEND_PID=""; FRONTEND_PID=""; MACHINE_ID=""; HOST_ID=""; HOST_VM=""
 cleanup() {
   ec=$?
   set +e
@@ -44,16 +44,19 @@ cleanup() {
   [ -n "$MACHINE_ID" ] && curl -s -m20 -X DELETE "$API/api/accounts/1/machines/$MACHINE_ID" >/dev/null 2>&1
   if [ -n "$HOST_ID" ]; then
     curl -s -m30 -X DELETE "$API/api/admin/hosts/$HOST_ID" >/dev/null 2>&1
-    # Wait briefly for the spot instance to be deleted (DestroyHost is async).
-    for _ in $(seq 1 12); do
-      n="$(gcloud compute instances list --project="$GCP_PROJECT" --filter='name~ocm-host AND status!=TERMINATED' --format='value(name)' 2>/dev/null | wc -l | tr -d ' ')"
-      [ "$n" = "0" ] && break; sleep 10
-    done
+    # Wait briefly for THIS run's spot instance to be deleted (DestroyHost async).
+    if [ -n "$HOST_VM" ] && [ "$HOST_VM" != "-" ]; then
+      for _ in $(seq 1 12); do
+        gcloud compute instances describe "$HOST_VM" --project="$GCP_PROJECT" --zone="$GCP_ZONE" >/dev/null 2>&1 || break
+        sleep 10
+      done
+    fi
   fi
-  # Backstop: delete any ocm-host instance this run may have leaked.
-  for inst in $(gcloud compute instances list --project="$GCP_PROJECT" --filter='name~ocm-host AND status!=TERMINATED' --format='value(name,zone)' 2>/dev/null | awk '{print $1":"$2}'); do
-    gcloud compute instances delete "${inst%%:*}" --zone="${inst##*:}" --project="$GCP_PROJECT" --quiet >/dev/null 2>&1
-  done
+  # Backstop: delete THIS run's instance if the API delete didn't finish. Scoped
+  # to HOST_VM so concurrent spot-e2e runs never delete each other's host.
+  if [ -n "$HOST_VM" ] && [ "$HOST_VM" != "-" ]; then
+    gcloud compute instances delete "$HOST_VM" --zone="$GCP_ZONE" --project="$GCP_PROJECT" --quiet >/dev/null 2>&1
+  fi
   [ -n "$BACKEND_PID" ] && kill "$BACKEND_PID" 2>/dev/null
   [ -n "$FRONTEND_PID" ] && kill "$FRONTEND_PID" 2>/dev/null
   [ -n "$TUNNEL_PID" ] && kill "$TUNNEL_PID" 2>/dev/null
@@ -129,12 +132,19 @@ log "provisioning spot host ($MACHINE_TYPE in $GCP_ZONE)"
 curl -fsS -m20 -X POST "$API/api/admin/hosts" -H 'Content-Type: application/json' \
   -d "{\"machine_type\":\"$MACHINE_TYPE\",\"zone\":\"$GCP_ZONE\"}" >/dev/null
 deadline=$(( $(date +%s) + HOST_READY_TIMEOUT ))
+vm_recorded=0
 while :; do
   # `|| true`: a transient empty/non-JSON response makes the pipeline (and thus
   # `read`) exit non-zero; without this `set -e` would abort instead of polling
   # until the deadline below.
-  read -r HOST_ID STATUS < <(curl -s -m5 "$API/api/admin/hosts" | python3 -c 'import sys,json;d=json.load(sys.stdin);h=max(d,key=lambda x:x["id"]) if d else None;print((str(h["id"])+" "+h["status"]) if h else "0 none")') || true
-  log "host $HOST_ID: $STATUS"
+  read -r HOST_ID STATUS HOST_VM < <(curl -s -m5 "$API/api/admin/hosts" | python3 -c 'import sys,json;d=json.load(sys.stdin);h=max(d,key=lambda x:x["id"]) if d else None;print((str(h["id"])+" "+h["status"]+" "+(h.get("vm_name") or "-")) if h else "0 none -")') || true
+  # Record this run's host name once, so teardown + the workflow if:always cleanup
+  # only ever delete THIS run's instance (safe for concurrent spot-e2e runs).
+  if [ "$vm_recorded" = 0 ] && [ -n "${HOST_VM:-}" ] && [ "$HOST_VM" != "-" ]; then
+    vm_recorded=1
+    [ -n "${GITHUB_ENV:-}" ] && echo "OCM_HOST_VM=$HOST_VM" >> "$GITHUB_ENV"
+  fi
+  log "host $HOST_ID: $STATUS ($HOST_VM)"
   [ "$STATUS" = "ready" ] && break
   [ "$STATUS" = "error" ] && { echo "host provisioning failed"; exit 1; }
   [ "$(date +%s)" -ge "$deadline" ] && { echo "timeout waiting for host ready"; exit 1; }

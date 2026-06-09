@@ -95,21 +95,23 @@ jobs:
       - name: Run spot E2E
         run: bash ci/spot-e2e.sh
 
-      - name: Tear down any leaked spot hosts
+      - name: Tear down this run's spot host
         if: always()
         env:
           PROJECT: ${{ vars.GCP_PROJECT }}
+          ZONE: ${{ vars.GCP_ZONE }}
         run: |
           set -uo pipefail
           # Defense in depth: ci/spot-e2e.sh's trap tears the host down on normal
-          # exit, but a cancellation/timeout SIGKILLs it first and leaks the GCE
-          # instance. Delete any ocm-host left behind (prod workers aren't on GCE).
-          for inst in $(gcloud compute instances list --project="$PROJECT" \
-              --filter='name~ocm-host AND status!=TERMINATED' \
-              --format='value(name,zone)' 2>/dev/null | awk '{print $1":"$2}'); do
-            echo "deleting leaked ${inst%%:*}"
-            gcloud compute instances delete "${inst%%:*}" --zone="${inst##*:}" --project="$PROJECT" --quiet || true
-          done
+          # exit, but a cancellation/timeout SIGKILLs it first. The script exports
+          # OCM_HOST_VM once the host is provisioned; delete only that instance so
+          # concurrent spot-e2e runs never affect each other.
+          if [ -n "${OCM_HOST_VM:-}" ]; then
+            echo "ensuring ${OCM_HOST_VM} is deleted"
+            gcloud compute instances delete "$OCM_HOST_VM" --zone="$ZONE" --project="$PROJECT" --quiet || true
+          else
+            echo "no OCM_HOST_VM recorded; nothing to delete"
+          fi
 
       - name: Upload Playwright artifacts
         if: always()
