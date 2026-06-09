@@ -143,11 +143,12 @@ done
 
 # ── 6. Playwright E2E (drives create -> Firecracker boot, captures on failure) ─
 log "running Playwright E2E"
-export PLAYWRIGHT_BASE_URL=http://localhost:5173 CI=1
+export PLAYWRIGHT_BASE_URL=http://localhost:5173 CI=1 DEBIAN_FRONTEND=noninteractive
 ( cd frontend
-  if ! npx playwright install --with-deps chromium >/dev/null 2>&1; then
-    true
-  fi
-  npx playwright test e2e/spot-smoke.spec.ts --project=chromium-dev --reporter=html )
+  # Browser only — the GitHub runner image already ships the OS libs. `--with-deps`
+  # runs apt and hung the job to the 45m timeout (leaking the spot host). Time-bound
+  # both steps so a stall fails fast (→ trap tears the host down) instead of hanging.
+  timeout 300 npx playwright install chromium || { echo "playwright install failed/timed out"; exit 1; }
+  timeout 600 npx playwright test e2e/spot-smoke.spec.ts --project=chromium-dev --reporter=html )
 
 log "E2E passed"

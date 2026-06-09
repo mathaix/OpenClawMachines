@@ -87,6 +87,22 @@ jobs:
       - name: Run spot E2E
         run: bash ci/spot-e2e.sh
 
+      - name: Tear down any leaked spot hosts
+        if: always()
+        env:
+          PROJECT: ${{ vars.GCP_PROJECT }}
+        run: |
+          set -uo pipefail
+          # Defense in depth: ci/spot-e2e.sh's trap tears the host down on normal
+          # exit, but a cancellation/timeout SIGKILLs it first and leaks the GCE
+          # instance. Delete any ocm-host left behind (prod workers aren't on GCE).
+          for inst in $(gcloud compute instances list --project="$PROJECT" \
+              --filter='name~ocm-host AND status!=TERMINATED' \
+              --format='value(name,zone)' 2>/dev/null | awk '{print $1":"$2}'); do
+            echo "deleting leaked ${inst%%:*}"
+            gcloud compute instances delete "${inst%%:*}" --zone="${inst##*:}" --project="$PROJECT" --quiet || true
+          done
+
       - name: Upload Playwright artifacts
         if: always()
         uses: actions/upload-artifact@v4
