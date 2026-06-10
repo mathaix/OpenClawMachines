@@ -161,19 +161,6 @@ func getNestedMap(m map[string]interface{}, keys ...string) map[string]interface
 	return current
 }
 
-// getNestedString traverses a nested map and returns the string at that path.
-func getNestedString(m map[string]interface{}, keys ...string) string {
-	if len(keys) == 0 {
-		return ""
-	}
-	parent := getNestedMap(m, keys[:len(keys)-1]...)
-	if parent == nil {
-		return ""
-	}
-	s, _ := parent[keys[len(keys)-1]].(string)
-	return s
-}
-
 // getNestedValue traverses a nested map and returns the value at that path.
 func getNestedValue(m map[string]interface{}, keys ...string) interface{} {
 	if len(keys) == 0 {
