@@ -383,17 +383,34 @@ func handleRestartGateway(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if step, err := signalGatewayRestart(); err != nil {
+		switch step {
+		case "clear_crash_loop":
+			http.Error(w, "failed to clear crash-loop latch", http.StatusInternalServerError)
+		case "marker_write":
+			http.Error(w, "failed to arm restart marker", http.StatusInternalServerError)
+		default:
+			http.Error(w, "failed to restart gateway", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "restart-signaled"})
+}
+
+// signalGatewayRestart arms the manual-restart marker and restarts the gateway
+// via the root-owned helper. Returns the failing step name on error.
+func signalGatewayRestart() (string, error) {
 	if err := writeFile(gatewayCrashLoopPath, []byte("0\n"), 0o644); err != nil {
 		slog.Error("pty.restart_gateway_signal_failed", "error", err, "step", "clear_crash_loop")
-		http.Error(w, "failed to clear crash-loop latch", http.StatusInternalServerError)
-		return
+		return "clear_crash_loop", err
 	}
 
 	marker := []byte(strconv.FormatInt(nowUnix(), 10) + " 2\n")
 	if err := writeFile(gatewayManualRestartPath, marker, 0o644); err != nil {
 		slog.Error("pty.restart_gateway_signal_failed", "error", err, "step", "marker_write")
-		http.Error(w, "failed to arm restart marker", http.StatusInternalServerError)
-		return
+		return "marker_write", err
 	}
 
 	// ocmptyd runs as openclaw; the dedicated root-owned helper preserves the
@@ -402,12 +419,9 @@ func handleRestartGateway(w http.ResponseWriter, r *http.Request) {
 	out, err := svRestartCommand("sudo", "-n", "/usr/local/bin/ocm-restart-gateway").CombinedOutput()
 	if err != nil {
 		slog.Error("pty.restart_gateway_signal_failed", "error", err, "output", string(out), "step", "sv_restart")
-		http.Error(w, "failed to restart gateway", http.StatusInternalServerError)
-		return
+		return "sv_restart", err
 	}
-
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]string{"status": "restart-signaled"})
+	return "", nil
 }
 
 func handleSession(conn *websocket.Conn, sess *ptySession, sm *sessionManager) {

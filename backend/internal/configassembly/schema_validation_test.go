@@ -26,6 +26,10 @@ func TestAssembledConfig_PassesOpenClawSchema(t *testing.T) {
 		t.Skipf("openclaw not built at %s — skipping schema validation", entryJS)
 	}
 
+	// The codex provider api value is version-keyed; the assembled config must
+	// match the openclaw build we validate against.
+	openclawVersion := openclawPackageVersion(t, openclawDir)
+
 	mc := testModelCatalog()
 	tests := []struct {
 		name   string
@@ -53,6 +57,35 @@ func TestAssembledConfig_PassesOpenClawSchema(t *testing.T) {
 				Credentials:  map[string]string{"anthropic": "present", "openai": "present", "google": "present"},
 				ProxyBaseURL: "http://192.168.100.1:4000",
 				DefaultModel: "anthropic/claude-sonnet-4-6",
+			},
+		},
+		{
+			// Codex OAuth: a credential flag in the DB triggers injection of
+			// providers["openai-codex"] + auth.profiles["openai-codex:default"].
+			// 2026.6.x renamed the provider to "openai" in the *store*; the
+			// config block must stay schema-valid across both generations.
+			name: "with_codex_credential",
+			params: AssemblyParams{
+				MachineID:               "m-test",
+				ModelCatalog:            mc,
+				Credentials:             map[string]string{"openai-codex": "present"},
+				ProxyBaseURL:            "http://192.168.100.1:4000",
+				ResolvedOpenclawVersion: openclawVersion,
+			},
+		},
+		{
+			// No DefaultModel here: setting one makes the assembler emit
+			// agents.defaults.models entries with agentRuntime for codex
+			// models — valid on 2026.5.28 and 2026.6.5, but rejected by
+			// unreleased 2026.6.9-alpha dev builds. Revisit at the next
+			// runtime upgrade.
+			name: "with_codex_and_api_providers",
+			params: AssemblyParams{
+				MachineID:               "m-test",
+				ModelCatalog:            mc,
+				Credentials:             map[string]string{"openai-codex": "present", "anthropic": "present"},
+				ProxyBaseURL:            "http://192.168.100.1:4000",
+				ResolvedOpenclawVersion: openclawVersion,
 			},
 		},
 		{
@@ -148,6 +181,25 @@ func TestAssembledConfig_PassesOpenClawSchema(t *testing.T) {
 }
 
 func strPtr(s string) *string { return &s }
+
+// openclawPackageVersion reads the version of the openclaw build under test.
+func openclawPackageVersion(t *testing.T, openclawDir string) string {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join(openclawDir, "package.json"))
+	if err != nil {
+		t.Fatalf("read openclaw package.json: %v", err)
+	}
+	var pkg struct {
+		Version string `json:"version"`
+	}
+	if err := json.Unmarshal(data, &pkg); err != nil {
+		t.Fatalf("parse openclaw package.json: %v", err)
+	}
+	if pkg.Version == "" {
+		t.Fatal("openclaw package.json has no version")
+	}
+	return pkg.Version
+}
 
 func prettyJSON(data []byte) string {
 	var buf bytes.Buffer

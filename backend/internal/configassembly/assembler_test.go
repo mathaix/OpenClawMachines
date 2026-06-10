@@ -2930,6 +2930,74 @@ func TestAssembleConfig_PluginAllowListMerge(t *testing.T) {
 	}
 }
 
+func TestCodexAPIForVersion(t *testing.T) {
+	tests := []struct {
+		version string
+		want    string
+	}{
+		{"v2026.5.28-r4", "openai-codex-responses"},
+		{"2026.5.28", "openai-codex-responses"},
+		{"2026.4.2", "openai-codex-responses"},
+		{"v2026.6.5-r1", "openai-chatgpt-responses"},
+		{"2026.6.5", "openai-chatgpt-responses"},
+		{"2026.6.5-beta.2", "openai-chatgpt-responses"},
+		{"2026.12.1", "openai-chatgpt-responses"},
+		{"2027.1.0", "openai-chatgpt-responses"},
+		// Unknown → legacy shape (matches the currently deployed fleet)
+		{"", "openai-codex-responses"},
+		{"unknown", "openai-codex-responses"},
+	}
+	for _, tt := range tests {
+		if got := codexAPIForVersion(tt.version); got != tt.want {
+			t.Errorf("codexAPIForVersion(%q) = %q, want %q", tt.version, got, tt.want)
+		}
+	}
+}
+
+func TestAssembleConfig_CodexProviderVersionKeyed(t *testing.T) {
+	assemble := func(version string) map[string]interface{} {
+		t.Helper()
+		data, err := AssembleConfig(AssemblyParams{
+			MachineID:               "m-test",
+			ModelCatalog:            testModelCatalog(),
+			Credentials:             map[string]string{"openai-codex": "present"},
+			ProxyBaseURL:            "http://192.168.100.1:4000",
+			ResolvedOpenclawVersion: version,
+		})
+		if err != nil {
+			t.Fatalf("AssembleConfig: %v", err)
+		}
+		var cfg map[string]interface{}
+		if err := json.Unmarshal(data, &cfg); err != nil {
+			t.Fatalf("parse config: %v", err)
+		}
+		models, _ := cfg["models"].(map[string]interface{})
+		providers, _ := models["providers"].(map[string]interface{})
+		codex, _ := providers["openai-codex"].(map[string]interface{})
+		if codex == nil {
+			t.Fatalf("openai-codex provider missing from config: %s", data)
+		}
+		return codex
+	}
+
+	legacy := assemble("v2026.5.28-r4")
+	if api, _ := legacy["api"].(string); api != "openai-codex-responses" {
+		t.Errorf("5.28 codex api = %q, want openai-codex-responses", api)
+	}
+
+	current := assemble("v2026.6.5-r1")
+	if api, _ := current["api"].(string); api != "openai-chatgpt-responses" {
+		t.Errorf("6.5 codex api = %q, want openai-chatgpt-responses", api)
+	}
+	// Model entries carry the same version-keyed api value.
+	if entries, _ := current["models"].([]interface{}); len(entries) > 0 {
+		first, _ := entries[0].(map[string]interface{})
+		if api, _ := first["api"].(string); api != "openai-chatgpt-responses" {
+			t.Errorf("6.5 codex model api = %q, want openai-chatgpt-responses", api)
+		}
+	}
+}
+
 func TestChannelTokenFields_TelegramMapping(t *testing.T) {
 	fields, ok := ChannelTokenFields["telegram"]
 	if !ok {

@@ -323,6 +323,18 @@ func (s *Server) assembleConfigForMachine(ctx context.Context, machineID string,
 		accountHostname = s.accountDataPlaneHostname(account.Slug)
 	}
 
+	// The Codex provider api value is keyed on the machine's OpenClaw runtime
+	// version (renamed in 2026.6.x). Prefer the version the VM actually runs.
+	var resolvedOpenclawVersion string
+	if m, err := s.store.GetMachine(ctx, machineID); err == nil {
+		for _, v := range []*string{m.ActualOpenclawVersion, m.ResolvedOpenclawVersion, m.OpenclawVersion} {
+			if v != nil && *v != "" {
+				resolvedOpenclawVersion = *v
+				break
+			}
+		}
+	}
+
 	// 1. Load capabilities
 	caps, err := s.store.ListMachineCapabilities(ctx, machineID)
 	if err != nil {
@@ -600,6 +612,7 @@ func (s *Server) assembleConfigForMachine(ctx context.Context, machineID string,
 		Agents:                   agentDefs,
 		Plugins:                  pluginSelections,
 		NativeMode:               true, // all machines use native config mode with exec secret refs
+		ResolvedOpenclawVersion:  resolvedOpenclawVersion,
 		ModelCatalog:             catalogModels,
 		ProviderCatalog:          catalogProviders,
 		SearchProvider:           searchProvider,

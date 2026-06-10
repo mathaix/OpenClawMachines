@@ -181,6 +181,11 @@ type vmBootstrap struct {
 	storeCustomProviders []store.CustomProvider
 	providerCredentials  map[string]string
 	channelCredentials   map[string]string
+
+	// resolvedOpenclawVersion is the runtime version this boot will use,
+	// set after runtime selection. Keys version-sensitive seed config
+	// (Codex provider api value). Empty emits the legacy shape.
+	resolvedOpenclawVersion string
 }
 
 // loadSecrets fetches and decrypts machine secrets.
@@ -566,6 +571,7 @@ func (b *vmBootstrap) assembleSeedConfig() error {
 		OpikAPIKey:               opikAPIKey,
 		ComposioAPIURL:           b.rs.composioAPIURL,
 		ComposioProxyTokenSigner: b.rs.composioProxyTokenSigner,
+		ResolvedOpenclawVersion:  b.resolvedOpenclawVersion,
 	})
 	if err != nil {
 		return fmt.Errorf("assemble seed config: %w", err)
@@ -884,6 +890,11 @@ func (rs *RuntimeService) start(ctx context.Context, accountID int, machine *sto
 			"version_source", runtimeSelection.VersionSource,
 			"runtime_source", runtimeSelection.RuntimeSource,
 		)
+	}
+	if runtimeSelection != nil && runtimeSelection.ResolvedOpenClawVersion != "" {
+		b.resolvedOpenclawVersion = runtimeSelection.ResolvedOpenClawVersion
+	} else {
+		b.resolvedOpenclawVersion = firstNonEmptyPtr(machine.ActualOpenclawVersion, machine.ResolvedOpenclawVersion, machine.OpenclawVersion)
 	}
 
 	var placement *store.Placement
