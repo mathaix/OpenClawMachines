@@ -11,12 +11,14 @@ import { test, expect } from "@playwright/test";
 test.describe.serial("Spot host provisioning smoke", () => {
   // One machine on one spot host: a Playwright retry would create a second
   // machine that can't be placed (host capacity), so disable retries here.
-  test.describe.configure({ retries: 0 });
+  // Timeout must be set HERE, not via test.setTimeout() in the body: it covers
+  // "Before Hooks" (first browser launch took 31.7s on the loaded 2-core
+  // runner in run 27372764292, blowing the default 30s before the body ran).
+  test.describe.configure({ retries: 0, timeout: 300_000 });
   const name = `ci-${Date.now()}`;
   let machineUrl = "";
 
   test("create a machine (placed on the spot host) and it boots", async ({ page }, testInfo) => {
-    test.setTimeout(300_000);
     await page.goto("/dashboard");
 
     // Open the create modal (CreateMachineModal) and submit. Defaults are fine:
@@ -32,9 +34,11 @@ test.describe.serial("Spot host provisioning smoke", () => {
     machineUrl = page.url();
     await expect(page.getByRole("heading", { name })).toBeVisible();
 
-    // The VM boots on the spot host; the detail page shows the "Stop" button only
-    // once the machine reaches running.
-    await expect(page.getByRole("button", { name: "Stop" })).toBeVisible({ timeout: 240_000 });
+    // The VM boots on the spot host. NOT the "Stop" button: that also renders
+    // during provisioning/starting as an abort escape hatch (run 27372764292
+    // matched it in 36ms with the machine still booting). The "Workspace" link
+    // renders only in the status === "running" branch of MachineView.
+    await expect(page.getByRole("link", { name: "Workspace" })).toBeVisible({ timeout: 240_000 });
 
     // Labeled validation evidence in the artifact/report.
     await testInfo.attach("firecracker-running", {
