@@ -38,11 +38,24 @@ test.describe.serial("Spot host provisioning smoke", () => {
     machineUrl = page.url();
     await expect(page.getByRole("heading", { name })).toBeVisible();
 
-    // The VM boots on the spot host. NOT the "Stop" button: that also renders
-    // during provisioning/starting as an abort escape hatch (run 27372764292
-    // matched it in 36ms with the machine still booting). The "Workspace" link
-    // renders only in the status === "running" branch of MachineView.
-    await expect(page.getByRole("link", { name: "Workspace" })).toBeVisible({ timeout: 240_000 });
+    // The VM boots on the spot host. Wait for running via the API, not the
+    // live page: two runs (27373609550, 27374764109) froze exactly ~70s into a
+    // UI-only wait and never recovered despite the machine reaching running
+    // (page.request bypasses the renderer). NOT the "Stop" button either: it
+    // also renders during provisioning/starting as an abort escape hatch (run
+    // 27372764292 matched it in 36ms with the machine still booting).
+    const machineId = machineUrl.split("/").pop()!;
+    await expect
+      .poll(async () => {
+        const resp = await page.request.get(`/api/accounts/1/machines/${machineId}`);
+        return resp.ok() ? ((await resp.json()).status as string) : `http-${resp.status()}`;
+      }, { timeout: 240_000, intervals: [5_000] })
+      .toBe("running");
+
+    // Then assert the running UI on a fresh load: the "Workspace" link renders
+    // only in the status === "running" branch of MachineView.
+    await page.reload();
+    await expect(page.getByRole("link", { name: "Workspace" })).toBeVisible({ timeout: 30_000 });
 
     // Labeled validation evidence in the artifact/report.
     await testInfo.attach("firecracker-running", {
