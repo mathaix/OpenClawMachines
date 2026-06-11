@@ -8,10 +8,11 @@ self-hosted runner.
 
 - `.github/workflows/test.yml` runs free CI on pull requests and pushes to
   `main`.
-- `.github/workflows/kvm-integration.yml` runs KVM integration tests on pushes
-  to `main`.
-- Maintainers can manually run `KVM Integration` for a pull request by entering
-  the PR number and exact head SHA.
+- `.github/workflows/kvm-integration.yml` runs KVM integration tests
+  dispatch-only — there is no push trigger, so merges to `main` never block on a
+  KVM runner being configured.
+- Maintainers run `KVM Integration` for a pull request by entering the PR number
+  and exact head SHA.
 
 The KVM workflow does not run automatically for public pull requests. This
 prevents untrusted fork code from executing on a self-hosted runner.
