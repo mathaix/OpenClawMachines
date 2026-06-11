@@ -25,23 +25,41 @@ API="http://localhost:8080"
 
 log() { echo "==> $*"; }
 
-TUNNEL_PID=""; BACKEND_PID=""; FRONTEND_PID=""; MACHINE_ID=""; HOST_ID=""
+TUNNEL_PID=""; BACKEND_PID=""; FRONTEND_PID=""; MACHINE_ID=""; HOST_ID=""; HOST_VM=""
 cleanup() {
+  ec=$?
   set +e
+  # On failure, surface the diagnostics the lane otherwise swallows (host
+  # provisioning errors live in the backend log + the host record's status
+  # message, not in this script's stdout).
+  if [ "$ec" -ne 0 ]; then
+    log "FAILURE (exit ${ec}) — diagnostics:"
+    echo "----- /tmp/backend.log (tail 80) -----";  tail -n 80 /tmp/backend.log  2>/dev/null
+    echo "----- /tmp/cf.log (tail 20) -----";       tail -n 20 /tmp/cf.log       2>/dev/null
+    echo "----- /tmp/frontend.log (tail 20) -----"; tail -n 20 /tmp/frontend.log 2>/dev/null
+    echo "----- host records -----";                curl -s -m5 "$API/api/admin/hosts" 2>/dev/null | python3 -m json.tool 2>/dev/null
+    echo "--------------------------------------"
+  fi
   log "TEARDOWN"
   [ -n "$MACHINE_ID" ] && curl -s -m20 -X DELETE "$API/api/accounts/1/machines/$MACHINE_ID" >/dev/null 2>&1
   if [ -n "$HOST_ID" ]; then
     curl -s -m30 -X DELETE "$API/api/admin/hosts/$HOST_ID" >/dev/null 2>&1
-    # Wait briefly for the spot instance to be deleted (DestroyHost is async).
-    for _ in $(seq 1 12); do
-      n="$(gcloud compute instances list --project="$GCP_PROJECT" --filter='name~ocm-host AND status!=TERMINATED' --format='value(name)' 2>/dev/null | wc -l | tr -d ' ')"
-      [ "$n" = "0" ] && break; sleep 10
-    done
+    # Wait briefly for THIS run's spot instance to be deleted (DestroyHost async).
+    if [ -n "$HOST_VM" ] && [ "$HOST_VM" != "-" ]; then
+      for _ in $(seq 1 12); do
+        gcloud compute instances describe "$HOST_VM" --project="$GCP_PROJECT" --zone="$GCP_ZONE" >/dev/null 2>&1 || break
+        sleep 10
+      done
+    fi
   fi
-  # Backstop: delete any ocm-host instance this run may have leaked.
-  for inst in $(gcloud compute instances list --project="$GCP_PROJECT" --filter='name~ocm-host AND status!=TERMINATED' --format='value(name,zone)' 2>/dev/null | awk '{print $1":"$2}'); do
-    gcloud compute instances delete "${inst%%:*}" --zone="${inst##*:}" --project="$GCP_PROJECT" --quiet >/dev/null 2>&1
-  done
+  # Backstop: delete THIS run's instance if the API delete didn't finish. Scoped
+  # to HOST_VM so concurrent spot-e2e runs never delete each other's host.
+  # --delete-disks=all + the explicit data-disk delete prevent the <vm>-data SSD
+  # disk (autoDelete=false) from leaking and eventually exhausting the SSD quota.
+  if [ -n "$HOST_VM" ] && [ "$HOST_VM" != "-" ]; then
+    gcloud compute instances delete "$HOST_VM" --zone="$GCP_ZONE" --project="$GCP_PROJECT" --delete-disks=all --quiet >/dev/null 2>&1
+    gcloud compute disks delete "${HOST_VM}-data" --zone="$GCP_ZONE" --project="$GCP_PROJECT" --quiet >/dev/null 2>&1
+  fi
   [ -n "$BACKEND_PID" ] && kill "$BACKEND_PID" 2>/dev/null
   [ -n "$FRONTEND_PID" ] && kill "$FRONTEND_PID" 2>/dev/null
   [ -n "$TUNNEL_PID" ] && kill "$TUNNEL_PID" 2>/dev/null
@@ -57,11 +75,26 @@ export DATABASE_URL="postgres://ocm:ocm@localhost:5432/ocm?sslmode=disable"
 for _ in $(seq 1 30); do docker exec ocm-e2e-pg pg_isready -U ocm >/dev/null 2>&1 && break; sleep 2; done
 bash scripts/run-migrations.sh
 
+# Stage the latest stable artifact releases so FF_RUNTIME_VERSION_RESOLVER can
+# resolve the guest rootfs + openclaw runtime versions (it reads artifact_releases
+# from the DB; the fetcher builds the GCS URI from the *_GCS_MANIFEST {version}
+# templates + the resolved version). Versions = newest stable in gs://openclawmachines.
+log "seeding artifact_releases (latest stable rootfs + openclaw)"
+docker exec -i ocm-e2e-pg psql -v ON_ERROR_STOP=1 -U ocm -d ocm >/dev/null <<'SQL'
+INSERT INTO artifact_releases (kind, version, channel, url, sha256, size_bytes) VALUES
+  ('rootfs','ce1c3df-20260601T214501Z','stable','gs://openclawmachines/rootfs/rootfs-ce1c3df-20260601T214501Z.ext4.zst','9092ca21760c90818d078064622bfa37193e826ec1a199e976fb084bb7047b4a',3828350976),
+  ('openclaw','v2026.5.28-r4','stable','gs://openclawmachines/openclaw/releases/v2026.5.28-r4/openclaw-v2026.5.28-r4-linux-amd64.tar.zst','79ae823476afd6ad42a0656be58d67dfdadbbb2279c70f8337ad5c4c76fc2ebe',156995560)
+ON CONFLICT (kind, version) DO NOTHING;
+SQL
+
 # ── 2. cloudflared tunnel for a publicly-reachable BACKEND_URL ────────────────
 log "starting cloudflared tunnel"
 cloudflared tunnel --url http://localhost:8080 >/tmp/cf.log 2>&1 & TUNNEL_PID=$!
 for _ in $(seq 1 20); do
-  BACKEND_URL="$(grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' /tmp/cf.log | head -1)"
+  # `|| true`: under `set -euo pipefail`, grep exits 1 while /tmp/cf.log has no
+  # URL yet, which would abort the whole script on the first poll instead of
+  # waiting for cloudflared to come up.
+  BACKEND_URL="$(grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' /tmp/cf.log | head -1 || true)"
   [ -n "$BACKEND_URL" ] && break; sleep 2
 done
 [ -n "${BACKEND_URL:-}" ] || { echo "no tunnel URL"; exit 1; }
@@ -75,6 +108,14 @@ export CONTROL_PLANE_PROFILE=operator AUTH_MODE=dev OCM_ALLOW_DEV_AUTH=1 \
   OCM_ADMIN_EMAILS=dev@localhost OCM_SUPERUSER_EMAILS=dev@localhost \
   PORT=8080 FRONTEND_URL=http://localhost:5173 CORS_ORIGINS=http://localhost:5173 \
   HOST_PROVISIONING_MODEL=SPOT FF_RUNTIME_VERSION_RESOLVER=1
+# Host artifacts (agent + guest kernel/rootfs/openclaw) are pulled from the GCS
+# bucket; the spot host reads them via its default-SA devstorage.read_only scope.
+# AGENT_GCS_MANIFEST pins the host agent; the {version} templates are filled by
+# the fetcher from the resolved (staged) release versions above.
+export OCM_ARTIFACT_BUCKET=gs://openclawmachines \
+  AGENT_GCS_MANIFEST=gs://openclawmachines/agent/manifest-299a7fe-20260527T142532Z.json \
+  ROOTFS_GCS_MANIFEST=gs://openclawmachines/rootfs/manifest-ce1c3df-20260601T214501Z.json \
+  OPENCLAW_GCS_MANIFEST='gs://openclawmachines/openclaw/releases/{version}/manifest.json'
 ./backend/server >/tmp/backend.log 2>&1 & BACKEND_PID=$!
 for _ in $(seq 1 30); do curl -fsS -m3 "$API/health" >/dev/null 2>&1 && break; sleep 2; done
 
@@ -94,9 +135,19 @@ log "provisioning spot host ($MACHINE_TYPE in $GCP_ZONE)"
 curl -fsS -m20 -X POST "$API/api/admin/hosts" -H 'Content-Type: application/json' \
   -d "{\"machine_type\":\"$MACHINE_TYPE\",\"zone\":\"$GCP_ZONE\"}" >/dev/null
 deadline=$(( $(date +%s) + HOST_READY_TIMEOUT ))
+vm_recorded=0
 while :; do
-  read -r HOST_ID STATUS < <(curl -s -m5 "$API/api/admin/hosts" | python3 -c 'import sys,json;d=json.load(sys.stdin);h=max(d,key=lambda x:x["id"]) if d else None;print((str(h["id"])+" "+h["status"]) if h else "0 none")')
-  log "host $HOST_ID: $STATUS"
+  # `|| true`: a transient empty/non-JSON response makes the pipeline (and thus
+  # `read`) exit non-zero; without this `set -e` would abort instead of polling
+  # until the deadline below.
+  read -r HOST_ID STATUS HOST_VM < <(curl -s -m5 "$API/api/admin/hosts" | python3 -c 'import sys,json;d=json.load(sys.stdin);h=max(d,key=lambda x:x["id"]) if d else None;print((str(h["id"])+" "+h["status"]+" "+(h.get("vm_name") or "-")) if h else "0 none -")') || true
+  # Record this run's host name once, so teardown + the workflow if:always cleanup
+  # only ever delete THIS run's instance (safe for concurrent spot-e2e runs).
+  if [ "$vm_recorded" = 0 ] && [ -n "${HOST_VM:-}" ] && [ "$HOST_VM" != "-" ]; then
+    vm_recorded=1
+    [ -n "${GITHUB_ENV:-}" ] && echo "OCM_HOST_VM=$HOST_VM" >> "$GITHUB_ENV"
+  fi
+  log "host $HOST_ID: $STATUS ($HOST_VM)"
   [ "$STATUS" = "ready" ] && break
   [ "$STATUS" = "error" ] && { echo "host provisioning failed"; exit 1; }
   [ "$(date +%s)" -ge "$deadline" ] && { echo "timeout waiting for host ready"; exit 1; }
@@ -105,11 +156,27 @@ done
 
 # ── 6. Playwright E2E (drives create -> Firecracker boot, captures on failure) ─
 log "running Playwright E2E"
-export PLAYWRIGHT_BASE_URL=http://localhost:5173 CI=1
+export PLAYWRIGHT_BASE_URL=http://localhost:5173 CI=1 DEBIAN_FRONTEND=noninteractive
 ( cd frontend
-  if ! npx playwright install --with-deps chromium >/dev/null 2>&1; then
-    true
+  # channel:"chrome" uses the system Google Chrome, which the GitHub runner
+  # image ships preinstalled — `playwright install` is only a fallback for
+  # other environments. Avoid it when possible: its ffmpeg companion download
+  # from cdn.playwright.dev stalls on CI runners (all 3 bounded attempts timed
+  # out in run 27371571014; video is off in playwright.config.ts so ffmpeg is
+  # not needed). `--with-deps` is also avoided — it runs apt and once hung the
+  # job to the 45m timeout (leaking the spot host). Time-bound everything so a
+  # stall fails fast (→ trap tears the host down) instead of hanging.
+  if ! command -v google-chrome >/dev/null 2>&1; then
+    pw_ok=0
+    for i in 1 2 3; do
+      if timeout 240 npx playwright install chrome; then pw_ok=1; break; fi
+      echo "playwright install attempt $i timed out/failed; retrying"
+    done
+    [ "$pw_ok" = 1 ] || { echo "playwright install failed after retries"; exit 1; }
   fi
-  npx playwright test e2e/spot-smoke.spec.ts --project=chromium-dev --reporter=html )
+  # --timeout/--retries on the CLI (highest precedence, also covers hooks):
+  # the spec's describe-level timeout was inexplicably ignored on the runner
+  # (runs 27372764292/27373609550 timed out claiming a 30000ms budget).
+  timeout 600 npx playwright test e2e/spot-smoke.spec.ts --project=chromium-dev --reporter=html --timeout=300000 --retries=0 )
 
 log "E2E passed"
