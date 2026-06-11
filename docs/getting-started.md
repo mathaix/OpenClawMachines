@@ -256,8 +256,12 @@ The install script registers the host (`/api/agent/register`), which creates the
 per-host Cloudflare tunnel, mints the agent token, downloads + verifies the
 `ocm-agent` binary, installs the `ocm-agent` systemd unit, and starts it.
 
-**Verify:** the host appears in **Admin → Hosts** as `ready` within ~60s. On the
-host:
+**Verify:** the host appears in **Admin → Hosts** as `ready` within ~60s, with
+its capacity bars and heartbeat visible:
+
+![Admin fleet view with enrolled hosts ready](images/fleet-hosts.png)
+
+On the host:
 
 ```bash
 gcloud compute ssh ocm-host-1 --zone=us-central1-b --command \

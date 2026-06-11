@@ -14,6 +14,8 @@ execute agent-generated and untrusted code on infrastructure you control.
 
 Think: a mini-cloud for AI agents, that you self-host.
 
+![An OpenClaw machine running in a Firecracker microVM](docs/images/machine-running.png)
+
 ## Why OpenClaw Machines
 
 - **Real isolation, not containers.** One Firecracker microVM per agent, with a
@@ -125,10 +127,17 @@ make preflight
 - [CI and release lanes](docs/ci-release.md) — safety boundaries for CI
 - [`ocm` CLI project](https://github.com/mathaix/ocm-cli)
 
+## Community & support
+
+- **[GitHub Discussions](https://github.com/mathaix/OpenClawMachines/discussions)** — questions, ideas, show & tell
+- **[Issues](https://github.com/mathaix/OpenClawMachines/issues)** — bugs and feature requests
+- **[Roadmap](https://github.com/mathaix/OpenClawMachines/issues/25)** — the open-source readiness tracker: what's done, what's next
+- Found a vulnerability? See the [security policy](SECURITY.md).
+
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md), the [security policy](SECURITY.md), and
-the [code of conduct](CODE_OF_CONDUCT.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md) and the
+[code of conduct](CODE_OF_CONDUCT.md).
 
 ## License
 
