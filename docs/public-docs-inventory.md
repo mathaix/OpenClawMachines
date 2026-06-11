@@ -15,7 +15,6 @@ after the split from the private hosted overlay.
 | `CODE_OF_CONDUCT.md` | Community conduct and reporting expectations. |
 | `docs/getting-started.md` | Three-stage setup guide: local evaluation, Cloudflare + dedicated host, full workflow. |
 | `docs/tech-stack.md` | The five implementation layers, from browser to sandbox (moved out of `README.md`). |
-| `docs/comparison.md` | OpenClaw Machines vs. local, VPS, and managed ways to run OpenClaw (moved out of `README.md`). |
 | `docs/local-setup.md` | Local and BYO-host setup expectations. |
 | `docs/cli.md` | Relationship to the separate `mathaix/ocm-cli` Apache-2.0 project. |
 | `docs/ci-release.md` | CI and release safety boundaries for public-core changes. |

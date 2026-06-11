@@ -28,9 +28,39 @@ Think: a mini-cloud for AI agents, that you self-host.
 - **Built for agents.** Terminal, web chat, browser automation, per-VM routing,
   and OpenClaw runtime integration.
 
-Compared with running OpenClaw on your laptop, a VPS, or a managed service: one
-bare-metal server plus OpenClaw Machines gives you many hardware-isolated agents
-for one flat server cost. See **[the comparison](docs/comparison.md)**.
+## Ways to run OpenClaw
+
+If you run OpenClaw today, you have a few options:
+
+1. **Local hardware** — run it on your own laptop or desktop.
+2. **A VPS** (e.g. Hostinger, DigitalOcean) — rent a virtual server and run it
+   there.
+3. **A managed service** (e.g. KiloClaw) — spin up a hosted OpenClaw instance and
+   pay per instance.
+
+OpenClaw Machines adds a **fourth option**: rent a **bare-metal server** from a
+provider like **OVHcloud** or **Hetzner**, point OpenClaw Machines at it, and
+spin up **as many isolated OpenClaw instances as you need** — for one flat server
+cost.
+
+| Feature | Local hardware | VPS (Hostinger) | Managed (KiloClaw) | **OpenClaw Machines** |
+|---|---|---|---|---|
+| Setup effort | Low | Medium | Lowest | Medium (provision + enroll host) |
+| Per-agent isolation | Process-level | Shared-kernel / container | Per instance (managed) | **Hardware — Firecracker microVM** |
+| Run many agents | Limited by your box | Limited by VPS size | Yes — but pay for each | **Yes — as many as the server fits** |
+| Multi-user / teams | No | Manual | Varies | **Yes — built-in accounts & teams** |
+| Cost model | Your own hardware | Pay per VPS | Pay per instance | **Pay per server (flat)** |
+| Cost at scale | Doesn't scale | Rises with size | Highest (linear per agent) | **Lowest per agent** |
+| Hardware control | Full (but limited) | Virtualized, shared | None | **Full — dedicated bare metal** |
+| Data & keys stay yours | Yes | Mostly | No (their infra) | **Yes — your hardware** |
+| Backups / snapshots | Manual | Provider snapshots | Managed | **Built-in** |
+| Ops / maintenance | You | You | None | You (self-hosted control plane) |
+
+In short: the **managed** route is easiest but priced per agent; **local** and
+**VPS** are cheap to start but don't isolate or scale well. **OpenClaw Machines**
+trades a little more setup for the best economics and isolation once you're
+running more than a couple of agents — one server, many hardware-isolated agents,
+all yours.
 
 ## How it works
 
@@ -89,7 +119,6 @@ make preflight
 - [Getting Started](docs/getting-started.md) — the three-stage setup guide
 - [Architecture](docs/architecture.md) — data plane, routing, tunnels, lifecycle
 - [Tech stack](docs/tech-stack.md) — the five layers, from browser to sandbox
-- [Comparison](docs/comparison.md) — vs. local, VPS, and managed OpenClaw
 - [Control plane profiles](docs/control-plane-profiles.md) — `local` / `operator` / `hosted`
 - [Self-hosted control plane](docs/self-hosted-control-plane.md) — Cloudflare + auth prerequisites
 - [Host enrollment](docs/host-enrollment.md) — the enrollment path in depth
