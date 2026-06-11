@@ -158,18 +158,22 @@ done
 log "running Playwright E2E"
 export PLAYWRIGHT_BASE_URL=http://localhost:5173 CI=1 DEBIAN_FRONTEND=noninteractive
 ( cd frontend
-  # Browser only — the GitHub runner image already ships the OS libs. `--with-deps`
-  # runs apt and hung the job to the 45m timeout (leaking the spot host). Time-bound
-  # both steps so a stall fails fast (→ trap tears the host down) instead of hanging.
-  # Chrome download from cdn.playwright.dev can be slow/stall on cold CI runners;
-  # retry a few bounded attempts (the workflow also caches ~/.cache/ms-playwright
-  # so warm runs are instant).
-  pw_ok=0
-  for i in 1 2 3; do
-    if timeout 240 npx playwright install chrome; then pw_ok=1; break; fi
-    echo "playwright install attempt $i timed out/failed; retrying"
-  done
-  [ "$pw_ok" = 1 ] || { echo "playwright install failed after retries"; exit 1; }
+  # channel:"chrome" uses the system Google Chrome, which the GitHub runner
+  # image ships preinstalled — `playwright install` is only a fallback for
+  # other environments. Avoid it when possible: its ffmpeg companion download
+  # from cdn.playwright.dev stalls on CI runners (all 3 bounded attempts timed
+  # out in run 27371571014; video is off in playwright.config.ts so ffmpeg is
+  # not needed). `--with-deps` is also avoided — it runs apt and once hung the
+  # job to the 45m timeout (leaking the spot host). Time-bound everything so a
+  # stall fails fast (→ trap tears the host down) instead of hanging.
+  if ! command -v google-chrome >/dev/null 2>&1; then
+    pw_ok=0
+    for i in 1 2 3; do
+      if timeout 240 npx playwright install chrome; then pw_ok=1; break; fi
+      echo "playwright install attempt $i timed out/failed; retrying"
+    done
+    [ "$pw_ok" = 1 ] || { echo "playwright install failed after retries"; exit 1; }
+  fi
   timeout 600 npx playwright test e2e/spot-smoke.spec.ts --project=chromium-dev --reporter=html )
 
 log "E2E passed"
