@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"reflect"
 	"strings"
+
+	"github.com/mathaix/openclawmachines/backend/internal/openclawver"
 )
 
 // CatalogProvider represents a provider from the provider_catalog database table.
@@ -160,19 +162,31 @@ func buildOpenRouterModelsFromCatalog(catalog []CatalogModel) []interface{} {
 }
 
 // buildCodexProviderConfig returns the provider config block for openai-codex.
-func buildCodexProviderConfig(catalog []CatalogModel) map[string]interface{} {
+func buildCodexProviderConfig(catalog []CatalogModel, resolvedOpenclawVersion string) map[string]interface{} {
 	return map[string]interface{}{
 		"baseUrl": "https://chatgpt.com/backend-api",
-		"api":     "openai-codex-responses",
-		"models":  buildCodexModelsFromCatalog(catalog),
+		"api":     codexAPIForVersion(resolvedOpenclawVersion),
+		"models":  buildCodexModelsFromCatalog(catalog, resolvedOpenclawVersion),
 	}
+}
+
+// codexAPIForVersion returns the model api identifier for the Codex provider.
+// OpenClaw 2026.6.x renamed "openai-codex-responses" to
+// "openai-chatgpt-responses" and removed the old value from the config schema;
+// 2026.5.x and earlier only accept the old value. Unknown versions default to
+// the legacy value, matching the currently deployed fleet.
+func codexAPIForVersion(resolvedOpenclawVersion string) string {
+	if atLeast, ok := openclawver.AtLeast(resolvedOpenclawVersion, 2026, 6); ok && atLeast {
+		return "openai-chatgpt-responses"
+	}
+	return "openai-codex-responses"
 }
 
 // buildCodexModelsFromCatalog returns model entries for the openai-codex provider config.
 // The gateway's built-in openai-codex plugin resolves models dynamically, but explicit
 // entries ensure the gateway knows which models are available without relying solely on
 // the plugin's resolveDynamicModel callback.
-func buildCodexModelsFromCatalog(catalog []CatalogModel) []interface{} {
+func buildCodexModelsFromCatalog(catalog []CatalogModel, resolvedOpenclawVersion string) []interface{} {
 	models := make([]interface{}, 0)
 	for _, m := range catalog {
 		if m.Provider != "openai-codex" || m.Source != "subscription" {
@@ -186,7 +200,7 @@ func buildCodexModelsFromCatalog(catalog []CatalogModel) []interface{} {
 		entry := map[string]interface{}{
 			"id":            bareID,
 			"name":          m.Label,
-			"api":           "openai-codex-responses",
+			"api":           codexAPIForVersion(resolvedOpenclawVersion),
 			"reasoning":     true,
 			"input":         []string{"text"},
 			"contextWindow": 1050000,
@@ -517,6 +531,10 @@ type AssemblyParams struct {
 	// for tests/dev; production callers must always set this).
 	ComposioProxyTokenSigner func(machineID string) (string, error)
 	RuntimeSource            string // Always "artifact" — plugins are bundled in the artifact.
+	// ResolvedOpenclawVersion is the machine's resolved OpenClaw runtime
+	// version (e.g. "v2026.5.28-r4"). Version-sensitive config (the Codex
+	// provider api value) is keyed on it; empty emits the legacy shape.
+	ResolvedOpenclawVersion string
 }
 
 // CapabilityWithTemplate pairs a machine capability with its registry entry's config template.
@@ -673,10 +691,11 @@ func AssembleConfig(params AssemblyParams) ([]byte, error) {
 		}
 		// When a codex credential flag exists in the DB (set by frontend after OAuth),
 		// inject the provider config and auth.profiles so the gateway uses native OAuth.
-		// The actual token lives on the VM in auth-profiles.json, not in the backend DB.
+		// The actual token lives on the VM (auth-profiles.json on ≤2026.5 runtimes,
+		// openclaw-agent.sqlite on ≥2026.6), not in the backend DB.
 		if _, hasCodexCred := params.Credentials["openai-codex"]; hasCodexCred {
 			if _, exists := providerConfigs["openai-codex"]; !exists {
-				providerConfigs["openai-codex"] = buildCodexProviderConfig(params.ModelCatalog)
+				providerConfigs["openai-codex"] = buildCodexProviderConfig(params.ModelCatalog, params.ResolvedOpenclawVersion)
 			}
 			auth := getOrCreateMap(result, "auth")
 			authProfiles := getOrCreateMap(auth, "profiles")
@@ -1044,6 +1063,9 @@ type SeedParams struct {
 	// AssemblyParams.ComposioProxyTokenSigner.
 	ComposioProxyTokenSigner func(machineID string) (string, error)
 	RuntimeSource            string // Always "artifact"
+	// ResolvedOpenclawVersion keys version-sensitive config (Codex provider
+	// api value). Empty emits the legacy shape. See AssemblyParams.
+	ResolvedOpenclawVersion string
 }
 
 // providerExecIDs maps provider names to their exec secret ref IDs.
@@ -1415,10 +1437,10 @@ func AssembleSeedConfig(params SeedParams) ([]byte, error) {
 		providerConfigs[provider] = provCfg
 	}
 	// openai-codex uses native OpenClaw OAuth — gateway calls chatgpt.com directly.
-	// No proxy, no exec secret ref. Auth comes from auth-profiles.json.
+	// No proxy, no exec secret ref. Auth comes from the on-VM auth store.
 	// Handled separately since it has no providerExecIDs entry.
 	if providerSet["openai-codex"] {
-		providerConfigs["openai-codex"] = buildCodexProviderConfig(params.ModelCatalog)
+		providerConfigs["openai-codex"] = buildCodexProviderConfig(params.ModelCatalog, params.ResolvedOpenclawVersion)
 	}
 
 	// Search provider selection for seed config. Search providers are exposed via

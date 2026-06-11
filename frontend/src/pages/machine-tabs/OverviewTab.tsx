@@ -5,8 +5,9 @@ import {
   Brain, Plug, Globe, ArrowUpCircle, ArrowDownCircle,
 } from "lucide-react";
 import type { Machine } from "../../lib/types";
-import { listMachineCapabilities, upgradeMachineOpenClaw, rollbackMachineOpenClaw, listOpenClawReleases, upgradeMachineRootfs, rollbackMachineRootfs, listRootfsReleases } from "../../lib/api";
+import { listMachineCapabilities, upgradeMachineOpenClaw, rollbackMachineOpenClaw, listOpenClawReleases, upgradeMachineRootfs, rollbackMachineRootfs, listRootfsReleases, listAdminOpenClawReleases, listAdminRootfsReleases } from "../../lib/api";
 import type { MachineCapability, RuntimeRelease } from "../../lib/api";
+import { useAuth } from "../../lib/auth";
 import { useSizes } from "../../lib/useSizes";
 import { SetupCard } from "../../components/SetupCard";
 import { StatusBadge } from "../../components/StatusBadge";
@@ -31,8 +32,20 @@ function formatUptime(startedAt: string | undefined): string {
   return `${m}m`;
 }
 
+// Superadmin sees every release across stable + rc (channel-labelled) so an
+// rc pair can be applied to an existing machine; end users only see stable.
+// Hermes machines keep the account-scoped lists — the admin endpoints only
+// cover openclaw-kind artifacts.
+const adminReleaseToRuntimeRelease = (r: { version: string; channel: string; created_at: string }): RuntimeRelease => ({
+  version: r.channel === "stable" ? r.version : `${r.version} (${r.channel})`,
+  exact_version: r.version,
+  channel: r.channel,
+  created_at: r.created_at,
+});
+
 function RuntimeVersionSection({ machine, accountId }: { machine: Machine; accountId: number }) {
   type RuntimeTarget = "openclaw" | "rootfs";
+  const { isAdmin } = useAuth();
   const [expanded, setExpanded] = useState(false);
   const [targetKind, setTargetKind] = useState<RuntimeTarget>("openclaw");
   const [targetVersion, setTargetVersion] = useState("");
@@ -95,13 +108,20 @@ function RuntimeVersionSection({ machine, accountId }: { machine: Machine; accou
       if (rootfsReleases.length === 0) setRootfsReleasesLoaded(false);
       return;
     }
+    const useAdminLists = isAdmin && !isHermesMachine;
     if (!isHermesMachine && !openClawReleasesLoaded) {
-      listOpenClawReleases(accountId, "stable", machineKind).then(setOpenClawReleases).catch(() => {}).finally(() => setOpenClawReleasesLoaded(true));
+      const fetchOpenClaw = useAdminLists
+        ? listAdminOpenClawReleases().then((resp) => resp.releases.map(adminReleaseToRuntimeRelease))
+        : listOpenClawReleases(accountId, "stable", machineKind);
+      fetchOpenClaw.then(setOpenClawReleases).catch(() => {}).finally(() => setOpenClawReleasesLoaded(true));
     }
     if (!rootfsReleasesLoaded) {
-      listRootfsReleases(accountId, "stable", machineKind).then(setRootfsReleases).catch(() => {}).finally(() => setRootfsReleasesLoaded(true));
+      const fetchRootfs = useAdminLists
+        ? listAdminRootfsReleases().then((resp) => resp.releases.map(adminReleaseToRuntimeRelease))
+        : listRootfsReleases(accountId, "stable", machineKind);
+      fetchRootfs.then(setRootfsReleases).catch(() => {}).finally(() => setRootfsReleasesLoaded(true));
     }
-  }, [expanded, openClawReleasesLoaded, rootfsReleasesLoaded, accountId, machineKind, isHermesMachine, openClawReleases.length, rootfsReleases.length]);
+  }, [expanded, openClawReleasesLoaded, rootfsReleasesLoaded, accountId, machineKind, isHermesMachine, isAdmin, openClawReleases.length, rootfsReleases.length]);
 
   useEffect(() => {
     setTargetVersion("");

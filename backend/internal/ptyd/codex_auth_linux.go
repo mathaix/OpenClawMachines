@@ -4,15 +4,18 @@ package ptyd
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"strings"
 	"time"
 )
@@ -23,7 +26,11 @@ const (
 	codexAuthURL     = "https://auth.openai.com/oauth/authorize"
 	codexTokenURL    = "https://auth.openai.com/oauth/token"
 
-	authProfilesPath = "/home/openclaw/.openclaw/agents/main/agent/auth-profiles.json"
+	authProfilesDir     = "/home/openclaw/.openclaw/agents/main/agent"
+	authProfilesPath    = authProfilesDir + "/auth-profiles.json"
+	authStoreSQLitePath = authProfilesDir + "/openclaw-agent.sqlite"
+	authImportTimeout   = 90 * time.Second
+	authReadTimeout     = 15 * time.Second
 )
 
 var codexHTTPClient = &http.Client{Timeout: 15 * time.Second}
@@ -59,6 +66,112 @@ func readAuthProfiles() (map[string]any, error) {
 	return profiles, nil
 }
 
+// currentAuthStoreGeneration decides where the gateway reads auth profiles on
+// this VM: the legacy JSON file (openclaw ≤2026.5.x) or the agent SQLite store
+// (≥2026.6). Version comes from the pty-server envdir; when missing (older
+// rootfs init), fall back to detecting the SQLite store on disk.
+func currentAuthStoreGeneration() authStoreGeneration {
+	return authStoreGenerationForVersion(os.Getenv("OCM_RESOLVED_OPENCLAW_VERSION"), func() bool {
+		_, err := os.Stat(authStoreSQLitePath)
+		return err == nil
+	})
+}
+
+// readAuthProfilesFromSQLite reads the auth profile store document out of the
+// agent SQLite database. It shells out to node (always present on the VM — the
+// gateway runs on it) instead of linking a Go SQLite driver into the static
+// ptyd binary. Read-only: writes go through `openclaw doctor --fix` import.
+func readAuthProfilesFromSQLite() (map[string]any, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), authReadTimeout)
+	defer cancel()
+	script := `const {DatabaseSync}=require("node:sqlite");` +
+		`const db=new DatabaseSync(process.argv[1],{readOnly:true});` +
+		`const row=db.prepare("SELECT store_json FROM auth_profile_store WHERE store_key='primary'").get();` +
+		`if(row&&row.store_json)process.stdout.write(String(row.store_json));`
+	out, err := exec.CommandContext(ctx, "node", "-e", script, authStoreSQLitePath).Output()
+	if err != nil {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			return nil, fmt.Errorf("read auth store sqlite: %s", truncateStr(string(exitErr.Stderr), 300))
+		}
+		return nil, fmt.Errorf("read auth store sqlite: %w", err)
+	}
+	if len(out) == 0 {
+		return map[string]any{"version": float64(1), "profiles": map[string]any{}}, nil
+	}
+	return parseAuthStoreJSON(out)
+}
+
+// readAuthProfilesForRuntime returns the auth profile document from wherever
+// the current runtime generation keeps it. On the SQLite generation, a token
+// that was just written as JSON but not yet imported (or a pre-migration boot)
+// is still surfaced via the JSON fallback when the SQLite store has no codex
+// profile.
+func readAuthProfilesForRuntime() (map[string]any, error) {
+	if currentAuthStoreGeneration() == authStoreJSON {
+		return readAuthProfiles()
+	}
+	doc, err := readAuthProfilesFromSQLite()
+	if err == nil {
+		if _, found := findCodexProfile(doc); found {
+			return doc, nil
+		}
+	} else {
+		fmt.Fprintf(os.Stderr, "codex-auth: sqlite store read failed, falling back to JSON: %v\n", err)
+	}
+	jsonDoc, jsonErr := readAuthProfiles()
+	if jsonErr != nil {
+		if err != nil {
+			return nil, err
+		}
+		return doc, nil
+	}
+	if _, found := findCodexProfile(jsonDoc); found {
+		return jsonDoc, nil
+	}
+	if err != nil {
+		return jsonDoc, nil
+	}
+	return doc, nil
+}
+
+// importAuthProfilesToStore imports a freshly written auth-profiles.json into
+// the agent SQLite store via openclaw's own migration (`doctor --fix`), then
+// restarts the gateway so the running process picks up the new credential.
+func importAuthProfilesToStore() error {
+	ctx, cancel := context.WithTimeout(context.Background(), authImportTimeout)
+	defer cancel()
+
+	openclawBin := os.Getenv("OPENCLAW_BIN")
+	if openclawBin == "" {
+		openclawBin = "openclaw"
+	}
+	cmd := exec.CommandContext(ctx, openclawBin, "doctor", "--fix", "--non-interactive")
+	cmd.Env = append(os.Environ(), "HOME=/home/openclaw")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("doctor --fix import failed: %w: %s", err, truncateStr(string(out), 500))
+	}
+
+	// Verify the credential actually landed in the SQLite store.
+	doc, err := readAuthProfilesFromSQLite()
+	if err != nil {
+		return fmt.Errorf("verify sqlite import: %w", err)
+	}
+	if _, found := findCodexProfile(doc); !found {
+		return fmt.Errorf("doctor --fix ran but codex profile missing from sqlite store")
+	}
+	fmt.Fprintln(os.Stderr, "codex-auth: imported profile into sqlite store")
+
+	// The gateway snapshots the auth store at startup; restart it so the new
+	// credential is picked up.
+	if step, err := signalGatewayRestart(); err != nil {
+		return fmt.Errorf("gateway restart after auth import failed at %s: %w", step, err)
+	}
+	fmt.Fprintln(os.Stderr, "codex-auth: gateway restart signaled")
+	return nil
+}
+
 func writeCodexAuthProfile(accessToken, refreshToken string, expiresAt time.Time) error {
 	authProfiles, err := readAuthProfiles()
 	if err != nil {
@@ -82,24 +195,31 @@ func writeCodexAuthProfile(accessToken, refreshToken string, expiresAt time.Time
 	if err != nil {
 		return fmt.Errorf("marshal auth-profiles: %w", err)
 	}
-	if err := os.WriteFile(authProfilesPath, data, 0o644); err != nil {
+	if err := os.WriteFile(authProfilesPath, data, 0o600); err != nil {
 		return fmt.Errorf("write auth-profiles.json: %w", err)
 	}
 	fmt.Fprintf(os.Stderr, "codex-auth: wrote OAuth profile to %s (expires=%s)\n",
 		authProfilesPath, expiresAt.Format(time.RFC3339))
+
+	// Runtimes ≥2026.6 ignore auth-profiles.json; the credential must be
+	// imported into the agent SQLite store to take effect.
+	if currentAuthStoreGeneration() == authStoreSQLite {
+		if err := importAuthProfilesToStore(); err != nil {
+			return fmt.Errorf("import auth profile into sqlite store: %w", err)
+		}
+	}
 	return nil
 }
 
 func codexAuthCheck() string {
-	authProfiles, err := readAuthProfiles()
+	authProfiles, err := readAuthProfilesForRuntime()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "codex-auth check: cannot read auth-profiles: %v\n", err)
 		result, _ := json.Marshal(map[string]any{"connected": false, "error": err.Error()})
 		return string(result)
 	}
 
-	profiles, _ := authProfiles["profiles"].(map[string]any)
-	codexProfile, ok := profiles["openai-codex:default"].(map[string]any)
+	codexProfile, ok := findCodexProfile(authProfiles)
 	if !ok {
 		result, _ := json.Marshal(map[string]any{"connected": false})
 		return string(result)
@@ -124,16 +244,15 @@ func codexAuthCheck() string {
 }
 
 func codexAuthTest(model string) string {
-	authProfiles, err := readAuthProfiles()
+	authProfiles, err := readAuthProfilesForRuntime()
 	if err != nil {
 		result, _ := json.Marshal(map[string]any{"ok": false, "error": "cannot read auth-profiles: " + err.Error()})
 		return string(result)
 	}
 
-	profiles, _ := authProfiles["profiles"].(map[string]any)
-	codexProfile, ok := profiles["openai-codex:default"].(map[string]any)
+	codexProfile, ok := findCodexProfile(authProfiles)
 	if !ok {
-		result, _ := json.Marshal(map[string]any{"ok": false, "error": "no codex profile in auth-profiles.json"})
+		result, _ := json.Marshal(map[string]any{"ok": false, "error": "no codex profile in auth store"})
 		return string(result)
 	}
 

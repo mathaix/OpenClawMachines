@@ -1,5 +1,5 @@
 {
-  "openclaw": "2026.5.28",
-  "openclaw_updated": "2026-06-01",
-  "openclaw_notes": "Upgrade to OpenClaw 2026.5.28 so official external plugins requiring >=2026.5.28, including Slack, are compatible; Node 24 rootfs satisfies openclaw@2026.5.28 engine >=22.19.0"
+  "openclaw": "2026.6.5",
+  "openclaw_updated": "2026-06-09",
+  "openclaw_notes": "Upgrade to OpenClaw 2026.6.5. Auth profiles moved to openclaw-agent.sqlite (auth-profiles.json ignored at runtime — ptyd imports via doctor --fix); codex provider api value renamed to openai-chatgpt-responses (config assembly keys it on the machine's resolved runtime version); new in-tree sms channel scrubbed from the artifact. Node 24 rootfs satisfies engine >=22.19.0."
 }

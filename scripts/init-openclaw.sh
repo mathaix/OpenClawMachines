@@ -353,6 +353,23 @@ if [ -n "$OCM_RESOLVED_OPENCLAW_VERSION" ]; then
 fi
 phase_end "metadata"
 
+# True when the resolved OpenClaw runtime (≥2026.6) stores auth profiles in
+# openclaw-agent.sqlite instead of auth-profiles.json. Accepts "2026.6.5",
+# "v2026.6.5-r1", "2026.6.5-beta.2". Unknown/unparseable versions return
+# false (legacy JSON behavior, matching the deployed fleet).
+ocm_sqlite_auth_runtime() {
+    local v="${OCM_RESOLVED_OPENCLAW_VERSION#v}"
+    v="${v%%-*}"
+    local year="${v%%.*}"
+    local rest="${v#*.}"
+    local month="${rest%%.*}"
+    case "$year" in ''|*[!0-9]*) return 1 ;; esac
+    case "$month" in ''|*[!0-9]*) return 1 ;; esac
+    [ "$year" -gt 2026 ] && return 0
+    [ "$year" -eq 2026 ] && [ "$month" -ge 6 ] && return 0
+    return 1
+}
+
 # Mount the openclaw runtime drive if present (/dev/vdc = third virtio drive).
 # This is a read-only ext4 image containing the artifact runtime, passed by the
 # orchestrator instead of copying 2GB into the data volume.
@@ -784,16 +801,44 @@ if mountpoint -q /data 2>/dev/null; then
         echo "  [WARN] openclaw.json missing from config dir"
     fi
 
-    # --- Migrate and symlink auth-profiles.json ---
-    # On upgrade: copy existing real file into config dir before overwriting with symlink.
-    # On fresh/reboot: start_gateway() will create the file and ensure symlink.
+    # --- Migrate and symlink auth-profiles.json (runtime-generation aware) ---
+    # ≤2026.5 runtimes read auth-profiles.json directly: keep it on the
+    # persistent config dir via symlink (legacy behavior, unchanged).
+    # ≥2026.6 runtimes store auth profiles in openclaw-agent.sqlite (persisted
+    # via the /home/openclaw bind mount). The JSON is read exactly once, by the
+    # boot-time `openclaw doctor --fix` below, which imports it into SQLite and
+    # retires it to *.bak. Re-linking the config-dir copy on those runtimes
+    # would re-import a stale token over a newer one on every boot.
     auth_src="$OPENCLAW_DIR/agents/main/agent/auth-profiles.json"
-    if [ -f "$auth_src" ] && [ ! -L "$auth_src" ]; then
-        cp "$auth_src" "$config_real/auth-profiles.json"
-        chown openclaw:openclaw "$config_real/auth-profiles.json"
-        echo "  [OK] Migrated auth-profiles.json to config dir"
+    if ocm_sqlite_auth_runtime; then
+        if [ -L "$auth_src" ]; then
+            # First boot after upgrading from a legacy runtime: materialize the
+            # config-dir copy as a real file so doctor --fix imports it, then
+            # retire the config-dir copy so later boots don't re-import it.
+            real_auth=$(readlink -f "$auth_src" 2>/dev/null || echo "")
+            rm -f "$auth_src"
+            if [ -n "$real_auth" ] && [ -f "$real_auth" ]; then
+                cp "$real_auth" "$auth_src"
+                chown openclaw:openclaw "$auth_src"
+                chmod 600 "$auth_src"
+                mv "$real_auth" "${real_auth}.imported"
+                echo "  [OK] Staged legacy auth-profiles.json for sqlite import"
+            fi
+        elif [ -f "$config_real/auth-profiles.json" ] && [ ! -e "$auth_src" ]; then
+            cp "$config_real/auth-profiles.json" "$auth_src"
+            chown openclaw:openclaw "$auth_src"
+            chmod 600 "$auth_src"
+            mv "$config_real/auth-profiles.json" "$config_real/auth-profiles.json.imported"
+            echo "  [OK] Staged config-dir auth-profiles.json for sqlite import"
+        fi
+    else
+        if [ -f "$auth_src" ] && [ ! -L "$auth_src" ]; then
+            cp "$auth_src" "$config_real/auth-profiles.json"
+            chown openclaw:openclaw "$config_real/auth-profiles.json"
+            echo "  [OK] Migrated auth-profiles.json to config dir"
+        fi
+        ln -sfn "$CONFIG_LINK/auth-profiles.json" "$auth_src"
     fi
-    ln -sfn "$CONFIG_LINK/auth-profiles.json" "$auth_src"
 
     # --- Migrate and symlink device.json (existence guard: no dangling symlinks) ---
     device_src="$OPENCLAW_DIR/identity/device.json"
@@ -1205,6 +1250,7 @@ write_envdir /run/ocm-service-env/pty-server \
     "TERM=xterm-256color" \
     "OPENCLAW_GATEWAY_TOKEN=$GATEWAY_TOKEN" \
     "OCM_RUNTIME_SOURCE=$OCM_RUNTIME_SOURCE" \
+    "OCM_RESOLVED_OPENCLAW_VERSION=$OCM_RESOLVED_OPENCLAW_VERSION" \
     "OPENCLAW_BIN=$OCM_EFFECTIVE_BIN"
 if [ -n "$OCM_EFFECTIVE_PLUGINS_DIR" ]; then
     write_envdir_file /run/ocm-service-env/pty-server/OPENCLAW_BUNDLED_PLUGINS_DIR "$OCM_EFFECTIVE_PLUGINS_DIR"

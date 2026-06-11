@@ -265,11 +265,13 @@ SHIPPED_CHANNELS_LIST="$(node -e '
 	console.log(out.sort().join(" "));
 ' "${EXT_DIR}")"
 
-# Known channel set as of openclaw 2026.5.19. The 5.2 release externalized
+# Known channel set as of openclaw 2026.6.5. The 5.2 release externalized
 # 17 channel plugins out of dist/extensions/ into separate @openclaw/* npm
-# packages; 8 channels now ship in-tree. New upstream channels must
-# be classified explicitly (either added to keep list or to this set).
-OCM_KNOWN_CHANNELS="clickclack imessage irc matrix mattermost signal slack telegram"
+# packages (matrix and slack followed before 2026.5.28); 2026.6.5 added the
+# in-tree Twilio `sms` adapter (scrubbed — not in OCM's product surface yet).
+# New upstream channels must be classified explicitly (either added to keep
+# list or to this set).
+OCM_KNOWN_CHANNELS="clickclack imessage irc matrix mattermost signal slack sms telegram"
 
 for ch in ${SHIPPED_CHANNELS_LIST}; do
 	case " ${OCM_KNOWN_CHANNELS} " in

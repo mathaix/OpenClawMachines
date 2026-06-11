@@ -10,6 +10,12 @@
 # 4. Generates manifest JSON
 # 5. Uploads compressed rootfs + manifest to GCS
 #
+# Set ROOTFS_SKIP_LATEST_MANIFEST=1 to upload the artifact + versioned
+# manifest WITHOUT flipping the latest manifest.json — use for experimental
+# releases that should not become the default for new VMs. Pair with
+# ROOTFS_CHANNEL=experimental so register-rootfs-release.sh files the DB row
+# under the experimental channel.
+#
 # Must be run from the project root.
 
 set -euo pipefail
@@ -120,11 +126,24 @@ echo "Uploaded in $(( UPLOAD_END - UPLOAD_START ))s"
 echo "Uploading versioned manifest..."
 echo "$MANIFEST" | gsutil cp - "$GCS_MANIFEST_VERSIONED"
 
-echo "Updating latest manifest..."
-echo "$MANIFEST" | gsutil cp - "$GCS_MANIFEST_LATEST"
+if [ "${ROOTFS_SKIP_LATEST_MANIFEST:-0}" = "1" ]; then
+    echo ""
+    echo "ROOTFS_SKIP_LATEST_MANIFEST=1 — latest manifest NOT updated"
+    echo "Default for new VMs still: $(gsutil cat "$GCS_MANIFEST_LATEST" 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin).get("version","(unknown)"))' 2>/dev/null || echo unknown)"
+    echo "This release is addressable via its versioned manifest: ${GCS_MANIFEST_VERSIONED}"
+else
+    echo "Updating latest manifest..."
+    echo "$MANIFEST" | gsutil cp - "$GCS_MANIFEST_LATEST"
+fi
 
 # --- Clean up compressed file ---
 rm -f "$COMPRESSED_PATH"
+
+# Hand the released version back to the caller (used by make to register the
+# release without relying on the latest manifest, which experimental skips).
+if [ -n "${ROOTFS_RELEASE_VERSION_FILE:-}" ]; then
+    echo "${VERSION}" > "${ROOTFS_RELEASE_VERSION_FILE}"
+fi
 
 # --- Summary ---
 echo ""
