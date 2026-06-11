@@ -39,10 +39,12 @@ Trusted-only targets:
 - `make test-integration-run TEST=...`
 - `make integration-kvm`
 
-`.github/workflows/kvm-integration.yml` runs `make integration-kvm` on pushes to
-`main`. Maintainers may also run it manually for a pull request by entering the
-PR number and exact head SHA after reviewing the change. Tunnel tests also need
-scoped Cloudflare credentials and must remain outside public PR CI.
+`.github/workflows/kvm-integration.yml` runs `make integration-kvm` on a
+maintainer-controlled self-hosted KVM runner. It is dispatch-only (no push
+trigger), so merges to `main` never block on a KVM runner being configured:
+maintainers run it manually for a pull request by entering the PR number and
+exact head SHA after reviewing the change. Tunnel tests also need scoped
+Cloudflare credentials and must remain outside public PR CI.
 
 ## Release Lane
 
