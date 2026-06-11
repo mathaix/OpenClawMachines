@@ -245,8 +245,13 @@ Use `llms/self-hosted-setup.txt` as the detailed operator runbook.
 
 ## PR And Review Hygiene
 
-- Work on feature branches. Do not push directly to `main`.
-- Keep pull requests focused and explain test coverage.
+- Every change starts with a tracking issue. Before writing code, open a GitHub
+  issue (or reuse an existing one) describing the work, then create a branch
+  associated with it, named `issue-<n>-short-slug` (for example
+  `issue-17-spot-e2e-tunnel-fix`).
+- Work on that issue branch. Do not push directly to `main`.
+- Open a pull request that references the issue (use `Closes #<n>` when the PR
+  fully resolves it). Keep pull requests focused and explain test coverage.
 - Read review comments against the referenced code before dismissing them.
 - For public PRs, keep KVM and privileged checks maintainer-gated.
 - If a change touches both public-core primitives and private-overlay policy,
