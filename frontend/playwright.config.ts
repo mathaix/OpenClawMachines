@@ -38,18 +38,24 @@ export default defineConfig({
       // Dev-auth: AUTH_MODE=dev auto-authenticates every request (no login
       // form, no cookie/storageState, no setup dependency). Used by CI
       // (ci/spot-e2e.sh) which runs the control plane in the local/dev profile.
-      // Capture screenshot + trace on EVERY run (not just failures) so the
-      // uploaded artifact is real validation evidence for the spot E2E gate.
+      // Capture screenshots on EVERY run (not just failures) so the uploaded
+      // artifact is real validation evidence for the spot E2E gate.
       // No video: recording needs Playwright's ffmpeg from cdn.playwright.dev,
       // which stalls on CI runners (3/3 install attempts timed out post-download
-      // in run 27371571014); the trace's screencast film strip covers replay.
+      // in run 27371571014).
+      // No trace: finalization hangs until the test timeout when the machine
+      // page holds its gateway WebSocket/stream open (runs 27374764109 and
+      // 27375782661 completed every step incl. After Hooks, then sat out the
+      // full 300s budget and were marked timedOut; their trace.zip files are
+      // truncated mid-write both times, while the streamless stop/delete
+      // test's trace saves fine).
       name: "chromium-dev",
       use: {
         ...devices["Desktop Chrome"],
         channel: "chrome",
         screenshot: "on",
         video: "off",
-        trace: "on",
+        trace: "off",
       },
     },
   ],
