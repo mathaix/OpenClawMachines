@@ -19,6 +19,10 @@ test.describe.serial("Spot host provisioning smoke", () => {
   let machineUrl = "";
 
   test("create a machine (placed on the spot host) and it boots", async ({ page }, testInfo) => {
+    // Ground truth in the CI log: runs 27372764292/27373609550 reported "Test
+    // timeout of 30000ms exceeded" despite the configure() above, which local
+    // replication cannot reproduce; ci/spot-e2e.sh now also passes --timeout.
+    console.log("spot-smoke effective timeout:", testInfo.timeout);
     await page.goto("/dashboard");
 
     // Open the create modal (CreateMachineModal) and submit. Defaults are fine:
@@ -49,6 +53,9 @@ test.describe.serial("Spot host provisioning smoke", () => {
 
   test("stop and delete", async ({ page }) => {
     test.setTimeout(120_000);
+    // Don't fall through to goto("") → dashboard if the create test died
+    // before capturing the URL (it would "pass" against the wrong page).
+    test.skip(!machineUrl, "create test did not produce a machine URL");
     await page.goto(machineUrl);
 
     await page.getByRole("button", { name: "Stop" }).click();

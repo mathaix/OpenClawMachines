@@ -174,6 +174,9 @@ export PLAYWRIGHT_BASE_URL=http://localhost:5173 CI=1 DEBIAN_FRONTEND=noninterac
     done
     [ "$pw_ok" = 1 ] || { echo "playwright install failed after retries"; exit 1; }
   fi
-  timeout 600 npx playwright test e2e/spot-smoke.spec.ts --project=chromium-dev --reporter=html )
+  # --timeout/--retries on the CLI (highest precedence, also covers hooks):
+  # the spec's describe-level timeout was inexplicably ignored on the runner
+  # (runs 27372764292/27373609550 timed out claiming a 30000ms budget).
+  timeout 600 npx playwright test e2e/spot-smoke.spec.ts --project=chromium-dev --reporter=html --timeout=300000 --retries=0 )
 
 log "E2E passed"
