@@ -30,12 +30,18 @@ Firecracker worker — on that box, and a **running OpenClaw workspace** in a
 real microVM, provisioned by clicking through the web UI. No Cloudflare: the
 workspace is reached through the local agent proxy.
 
+**Stage-1 architecture — every component on one box:**
+
 ```mermaid
 flowchart LR
-    B["browser"] --> FE["frontend :5173"]
-    FE --> CP["control plane :8080<br/>profile=local · AUTH_MODE=dev"]
-    CP -->|schedules onto the<br/>registered host| AG["ocm-agent<br/>:9090 control · :9091 proxy"]
-    AG --> VM["Firecracker microVM<br/>bridge 192.168.100.0/24"]
+    B["browser"]
+    subgraph BOX["your KVM box"]
+        FE["frontend :5173"] --> CP["control plane :8080<br/>profile=local · AUTH_MODE=dev"]
+        CP --- DB[("Postgres<br/>(Docker)")]
+        CP -->|schedules| AG["ocm-agent<br/>:9090 control · :9091 proxy"]
+        AG --> VM["Machine<br/>Firecracker microVM<br/>bridge 192.168.100.0/24"]
+    end
+    B --> FE
     B -.->|workspace, via the agent proxy| AG
 ```
 
@@ -146,17 +152,28 @@ anywhere.
 Same stack as stage 1 — what changes is the front door and where the worker
 lives:
 
+**Stage-2 architecture — the same components, split apart: Cloudflare becomes
+the front door, the worker moves to a dedicated host:**
+
 ```mermaid
 flowchart LR
-    B["browser"] --> CFA["Cloudflare Access<br/>(edge auth)"]
-    CFA --> W["CF Worker<br/>route lookup in KV"]
-    W --> T["per-VM tunnel"]
-    T --> CFD["cloudflared<br/>(inside the VM)"]
-    CFD --> AP["authproxy :8080<br/>(machine-token JWT)"]
-    AP --> S["terminal :7681 · gateway :18789"]
-    CP["control plane (operator profile)"] -.->|provisions hosts,<br/>publishes routes| W
-    CP -.->|enroll + heartbeat :9090| H["dedicated host<br/>ocm-agent + Firecracker"]
-    H --- CFD
+    B["browser"] --> EDGE
+    subgraph EDGE["Cloudflare edge"]
+        CFA["Access (edge auth)"] --> W["Worker<br/>route lookup in KV"]
+        W --> T["per-VM tunnel"]
+    end
+    subgraph CPB["control-plane box (operator profile)"]
+        CP["control plane :8080"] --- DB[("Postgres")]
+        FE["frontend"]
+    end
+    subgraph HOST["dedicated host (the box from 1.1, or a new one)"]
+        AG["ocm-agent<br/>:9090 control"]
+        AG --> VM["Machine<br/>Firecracker microVM"]
+        VM --- CFD["cloudflared + authproxy<br/>(inside the VM)"]
+    end
+    T --> CFD
+    CP -.->|publishes routes| W
+    CP -.->|enroll + heartbeat :9090| AG
 ```
 
 The host-onboarding path is **the same on every provider** (GCP, AWS, Hetzner,
@@ -298,22 +315,22 @@ deployment (your domain, machines at `m-<name>.your-domain.com`).
 **You'll end with:** day-to-day fluency. Everything below behaves identically
 in both; only the URLs differ.
 
-Everything in this stage happens on one machine's page — four surfaces around
-one microVM:
+**Stage-3 architecture — the same stack you deployed, with the day-to-day
+flows layered on top:**
 
 ```mermaid
 flowchart LR
-    subgraph MV["the machine page"]
-        CHAT["web chat<br/>(in-VM gateway)"]
-        TERM["live terminal<br/>(ttyd)"]
-        LIVE["browser live view"]
-        BK["backups<br/>create · restore · download"]
+    B["browser<br/>(machine page: chat · terminal · live view)"] --> FD["front door<br/>stage 1: agent proxy · stage 2: per-VM tunnel"]
+    subgraph HOST["your host(s)"]
+        AG["ocm-agent"]
+        AG -->|start / stop / restart / destroy| VM["Machine<br/>Firecracker microVM<br/>OpenClaw agent + gateway + terminal"]
+        AG -->|stages runtime releases| REL["/var/lib/ocm/openclaw/releases/&lt;version&gt;"]
+        VM -->|drives over CDP| BVM["paired Browser VM<br/>headful Chromium"]
     end
-    CHAT --> VM["Firecracker microVM<br/>your OpenClaw agent"]
-    TERM --> VM
-    BK --> VM
-    VM -->|drives over CDP| BVM["paired Browser VM<br/>headful Chromium"]
-    BVM --> LIVE
+    FD --> VM
+    CP["control plane"] -.->|placement · lifecycle| AG
+    CP -.->|"resolves version from artifact_releases (1.4)"| REL
+    VM <-->|create · restore| BK[("backups<br/>object store")]
 ```
 
 ### Create and use machines
