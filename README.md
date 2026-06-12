@@ -14,9 +14,24 @@ agent runs in its own
 them — hardware-isolated, safe for untrusted and agent-generated code. See it
 running at [openclawmachines.com](https://openclawmachines.com).
 
-The Apache-2.0 public core includes a minimal control plane, host enrollment,
-machine lifecycle, placement, worker agents, and runtime pieces needed to run
-Firecracker sandboxes locally or in a self-hosted/operator-hosted deployment.
+The Apache-2.0 **public core** ships every piece of that stack:
+
+- a **minimal control plane** — Go API, Postgres-backed accounts, machines, and
+  hosts; placement, machine lifecycle, host enrollment, backups, and durable
+  workflows;
+- the **host agent** (`ocm-agent`) — boots, supervises, and reaps Firecracker
+  microVMs on your enrolled Linux boxes, managing bridge/TAP networking and
+  rootfs staging;
+- a per-host **LLM proxy** (LiteLLM) — one place for model keys and BYO-key
+  support, with per-machine usage tracking across providers (or your own
+  locally served models);
+- the **OpenClaw runtime** — the in-VM pieces: auth proxy, web-chat gateway,
+  live terminal, and the artifact-driven runtime staging/upgrade flow;
+- the **browser runtime** — paired Chromium browser VMs with CDP routing and a
+  watchable live view;
+- and the **build pipelines** that assemble it all — rootfs and agent builds,
+  host provisioning scripts, and the release-artifacts workflow.
+
 The `ocm` CLI lives in the separate
 [`mathaix/ocm-cli`](https://github.com/mathaix/ocm-cli) Apache-2.0 repository.
 
