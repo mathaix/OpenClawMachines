@@ -108,9 +108,10 @@ boot the host agent attaches the staged release read-only into the VM at
 `/ocm-runtime`.
 
 ```bash
-make build-openclaw     # scripts/build-openclaw-runtime.sh — Docker + zstd,
+OPENCLAW_VERSION=2026.4.2 make build-openclaw
+                        # scripts/build-openclaw-runtime.sh — Docker + zstd,
                         # npm flat install (pnpm links don't survive tar)
-# → /var/lib/ocm/openclaw-artifacts/openclaw-<version>-linux-amd64.tar.zst
+# → /var/lib/ocm/openclaw-artifacts/openclaw-v<version>-linux-amd64.tar.zst
 ```
 
 Distribute and activate:
@@ -180,7 +181,7 @@ rootfs, runtime tarballs) stay GCS-only by design.
 | Host agent | `make build-agent` | `backend/agent-linux` | `upload-agent.sh` | `AGENT_GCS_MANIFEST` |
 | LLM proxy | (inside the agent) | — | — | starts with `ocm-agent` |
 | In-VM binaries | `make install-vm-binaries` (builds authproxy, ocm-secrets, ocmptyd and installs to `/usr/local/bin`) | `backend/*-linux` → `/usr/local/bin/*` | baked into the rootfs | — |
-| OpenClaw runtime | `make build-openclaw` | `openclaw-<ver>.tar.zst` | manual + `artifact_releases` row | `OPENCLAW_GCS_MANIFEST` |
+| OpenClaw runtime | `OPENCLAW_VERSION=<ver> make build-openclaw` | `openclaw-<ver>.tar.zst` | manual + `artifact_releases` row | `OPENCLAW_GCS_MANIFEST` |
 | Machine rootfs | `make build-rootfs` | `/var/lib/ocm/images/rootfs.ext4` | `upload-rootfs.sh` | `ROOTFS_GCS_MANIFEST` |
 | Guest kernel | (not built here — Firecracker docs) | `vmlinux` | to your bucket | `provision-host.sh` |
 | Browser rootfs + kernel | `build-browser-rootfs.sh`, `build-kernel-browser-rootfs.sh` | `browser-rootfs.ext4`, kernel | `upload-browser-rootfs.sh`, `upload-kernel-browser-rootfs.sh` | agent staging |
