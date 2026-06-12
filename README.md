@@ -11,8 +11,11 @@ OpenClaw Machines is an **open-source platform for running
 own infrastructure**. A **control plane** orchestrates your hosts, and each
 agent runs in its own
 [Firecracker](https://github.com/firecracker-microvm/firecracker) microVM on
-them — hardware-isolated, safe for untrusted and agent-generated code. See it
-running at [openclawmachines.com](https://openclawmachines.com).
+them — hardware-isolated, safe for untrusted and agent-generated code. A
+**Cloudflare data plane** is the front door: every machine gets its own
+subdomain behind edge auth, reached through a tunnel that terminates *inside*
+the VM — no inbound ports on your hosts. See it running at
+[openclawmachines.com](https://openclawmachines.com).
 
 The Apache-2.0 **public core** ships every piece of that stack:
 
