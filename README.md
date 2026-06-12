@@ -54,12 +54,12 @@ few options:
 3. **A managed service** (e.g. KiloClaw) — spin up a hosted OpenClaw instance and
    pay per instance.
 
-OpenClaw Machines adds a **fourth option**: rent a **bare-metal server** from a
-provider like **OVHcloud** or **Hetzner**, point OpenClaw Machines at it, and
-spin up **as many isolated OpenClaw instances as you need** — for one flat server
-cost.
+OpenClaw Machines is the **fourth option**: rent **one bare-metal server**
+(OVHcloud, Hetzner, …), point OpenClaw Machines at it, and spin up as many
+**hardware-isolated** OpenClaw instances as the box will hold. One agent or
+fifty — **the cost stays one flat server**.
 
-| Feature | Local hardware | VPS (Hostinger) | Managed (KiloClaw) | **OpenClaw Machines** |
+| Feature | Local hardware | VPS (Hostinger) | Managed (KiloClaw) | ![OpenClaw Machines](docs/images/ocm-column-badge.svg) |
 |---|---|---|---|---|
 | Setup effort | Low | Medium | Lowest | Medium (provision + enroll host) |
 | Per-agent isolation | Process-level | Shared-kernel / container | Per instance (managed) | **Hardware — Firecracker microVM** |
