@@ -1,0 +1,48 @@
+name: Bug report
+description: Something doesn't work as documented
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+      placeholder: |
+        1. Ran `scripts/local-e2e-firecracker.sh up`
+        2. Expected the host to reach `ready`
+        3. Agent crash-loops with ...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / output
+      description: Relevant output — `journalctl -u ocm-agent`, backend logs, browser console. Redact tokens and domains you don't want public.
+      render: shell
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Control plane (backend API)
+        - Worker agent / host
+        - Firecracker / machine boot
+        - Frontend / UI
+        - Data plane (Cloudflare worker, tunnels, routing)
+        - Docs / getting started
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: OS + where the host runs (bare metal / GCP n2 / Hetzner / ...), and which getting-started stage you're on.
+      placeholder: Ubuntu 24.04, GCP n2-standard-4, Stage 2
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version / commit
+      placeholder: main @ abc1234
