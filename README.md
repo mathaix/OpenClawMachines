@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/branding/mascot3d/renders/claw3d-arrive.gif" width="300" alt="OpenClaw Machines — a machine claw gripping a microVM">
+</p>
+
 # OpenClaw Machines
 
 **Run as many isolated OpenClaw agents as you need, on hardware you own.**
