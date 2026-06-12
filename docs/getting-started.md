@@ -1,62 +1,101 @@
 # Getting Started
 
-This guide takes you from a clone to a running OpenClaw agent in an isolated
-microVM on a host you control. It uses **one host-onboarding path that is the
-same on every provider** (GCP, AWS, Hetzner, bare metal): you bring a
-KVM-capable Linux box, install the dependencies, and **enroll** it with your
-control plane. We use a **GCP n2** instance as the worked example because n2
-supports nested virtualization out of the box.
+This guide is in **three stages, each ending with something working**:
 
-> **The same steps work on AWS, Hetzner, or bare metal** — only the "create a
-> VM" command in Step 5 changes. Everything after it (`provision-host.sh` +
-> enroll) is identical. One-click auto-provisioning from the UI for every cloud
-> is tracked in [#11](https://github.com/mathaix/OpenClawMachines/issues/11).
+| Stage | What you build | What you need |
+|---|---|---|
+| [1 — Local evaluation](#stage-1--local-evaluation) | The full stack + a **real Firecracker machine** on one KVM box | One KVM-capable Linux box. No Cloudflare, no cloud account. |
+| [2 — Cloudflare + a dedicated host](#stage-2--cloudflare--a-dedicated-host) | An operator-profile control plane with an enrolled cloud/bare-metal host; machines reachable at their own subdomains | A Cloudflare account + domain, and a KVM-capable host (GCP n2 worked example) |
+| [3 — The full workflow](#stage-3--the-full-workflow) | Day-to-day use: chat, terminal, browser VMs, lifecycle, backups, runtime upgrades | A running stack from stage 1 or 2 |
 
-## Overview
-
-```
-1. Install dependencies            (your workstation)
-2. Create a Cloudflare account     (edge auth + per-VM tunnels + routing)
-3. Set up environment variables    (.env + frontend/.env.local)
-4. Run the backend + frontend      (the control plane)
-5. Add a host: GCP n2 + enroll     (the worker that runs microVMs)
-6. Log in and provision a VM       (create a Machine -> it boots on your host)
-```
-
-Two machines are involved:
-- **Control plane** (backend + frontend) — runs anywhere reachable over HTTPS
-  (your workstation for evaluation, or a small cloud VM). macOS or Linux.
-- **Host** — a KVM-enabled **Linux** box that actually boots Firecracker
-  microVMs. This is the GCP n2 instance below. (No macOS/WSL.)
+Stages are independent enough that you can stop after stage 1 if you only want
+to evaluate, and stage 2 doesn't require having done stage 1.
 
 ---
 
-## 1. Install dependencies
+## Stage 1 — Local evaluation
 
-On your **workstation** (to build/run the control plane):
+**Goal:** the entire stack — control plane, frontend, and a Firecracker worker —
+on a single KVM box, and a real microVM provisioned by clicking through the web
+UI. No Cloudflare: the workspace is reached through the local agent proxy.
 
-| Tool | Version | Notes |
-|---|---|---|
-| Go | ≥ 1.25.10 | `backend/go.mod`; `make preflight` enforces it |
-| Node + npm | ≥ 20 | frontend (Vite) |
-| Docker | any recent | local Postgres helper |
-| openssl | any | generates local secrets |
-| gcloud CLI | any | only for the GCP example in Step 5 |
-| psql | optional | host migrations (falls back to a container) |
+```
+ browser ──▶ frontend :5173 ──▶ control plane :8080 (profile=local, AUTH_MODE=dev)
+                                       │  schedules onto the registered host
+                                       ▼
+                               ocm-agent :9090/:9091 ──▶ Firecracker microVM
+                                                          (bridge 192.168.100.0/24)
+```
+
+### Prerequisites
+
+- A **Linux box with KVM** (`/dev/kvm`; bare metal or nested-virt-enabled VM —
+  no macOS/WSL), `firecracker` in `PATH`, passwordless sudo.
+- VM assets at `/var/lib/ocm/images/{rootfs.ext4,vmlinux}` and an XFS reflink
+  mount at `/var/lib/ocm/vms` (`provision-host.sh` sets both up; see
+  [local-setup.md](local-setup.md) for building a rootfs with `make build-rootfs`).
+- Go ≥ 1.25.10, Node ≥ 20, Docker (for local Postgres).
+
+Check the box first:
 
 ```bash
 git clone https://github.com/mathaix/OpenClawMachines.git
 cd OpenClawMachines
-make preflight   # checks tools; KVM/Firecracker checks only matter on the HOST
+make preflight
 ```
 
-`make preflight` will report Linux/KVM/Firecracker items as failing on macOS —
-that is expected; those checks apply to the **host** (Step 5), not the control
-plane.
+### Bring it up
+
+One script stands up Postgres, migrations, the control plane (`local` profile,
+dev auth — you're auto-logged-in as `dev@localhost`), the frontend, and then
+builds, registers, and starts a local Firecracker worker whose first heartbeat
+flips the host to `ready`:
+
+```bash
+scripts/local-e2e-firecracker.sh up
+scripts/local-e2e-firecracker.sh status   # component health + host/machine status
+```
+
+### Provision a machine
+
+Open `http://localhost:5173/dashboard` → **New Machine → Basic, region
+External → Create → Start**. The control plane places the machine on your local
+host and the agent boots a real Firecracker microVM
+(`allocating → rootfs → network → booting → booted`). Or drive the same flow
+headlessly:
+
+```bash
+cd frontend && PLAYWRIGHT_BASE_URL=http://localhost:5173 \
+  npx playwright test e2e/machine-lifecycle.spec.ts
+```
+
+**You now have a hardware-isolated microVM running on your own box.** To take
+the VM all the way to a `running` OpenClaw **workspace** (gateway + terminal
+inside the VM), the runtime artifact must be staged and the version resolver
+enabled (`FF_RUNTIME_VERSION_RESOLVER=1`) — the exact steps, including
+registering an `artifact_releases` row, are in
+[local-firecracker-e2e.md](local-firecracker-e2e.md), which also documents
+everything `local-e2e-firecracker.sh` does under the hood.
+
+Tear down with `scripts/local-e2e-firecracker.sh down`.
 
 ---
 
-## 2. Create a Cloudflare account
+## Stage 2 — Cloudflare + a dedicated host
+
+**Goal:** the production-shaped deployment — an `operator`-profile control
+plane, the Cloudflare data plane (edge auth + per-VM tunnels), and a dedicated
+KVM host enrolled into your fleet. Machines become reachable at
+`m-<name>.your-domain.com` from anywhere.
+
+It uses **one host-onboarding path that is the same on every provider** (GCP,
+AWS, Hetzner, bare metal): bring a KVM-capable Linux box, install dependencies,
+**enroll** it. We use a **GCP n2** instance as the worked example because n2
+supports nested virtualization out of the box; only the "create a VM" command
+changes per provider. (One-click auto-provisioning for every cloud is tracked in
+[#11](https://github.com/mathaix/OpenClawMachines/issues/11).)
+
+### 2.1 Create a Cloudflare account and zone
 
 The data plane uses Cloudflare for edge auth and a **per-VM tunnel** so each
 machine is reachable at its own subdomain without opening inbound ports on your
@@ -77,17 +116,10 @@ host. You need:
    cd worker && npx wrangler deploy
    ```
 
-See [docs/self-hosted-control-plane.md](self-hosted-control-plane.md) for the
-full Cloudflare + auth prerequisites and the architecture behind this.
+See [self-hosted-control-plane.md](self-hosted-control-plane.md) for the full
+Cloudflare + auth prerequisites and the architecture behind this.
 
-> **Evaluating without Cloudflare?** You can run the control plane + UI locally
-> in the `local` profile (`make local-backend` / `make local-frontend`) to click
-> around, but **provisioning a reachable machine requires Cloudflare** because
-> the data plane routes through it.
-
----
-
-## 3. Set up environment variables
+### 2.2 Configure the control plane
 
 Copy the operator template and fill it in:
 
@@ -106,8 +138,8 @@ The variables that must be set for the host-enrollment + machine flow:
 | `AUTH_MODE` | `firebase` or `cfaccess` (or `dev` + `OCM_ALLOW_DEV_AUTH=1` for evaluation) |
 | `SECRET_ENCRYPTION_KEY` | Exactly 32 bytes — `openssl rand -hex 16` |
 | `FC_AGENT_TOKEN` | Shared control-plane ↔ agent token — `openssl rand -hex 32` |
-| `CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` / `CLOUDFLARE_ZONE_ID` | from Step 2 |
-| `CLOUDFLARE_KV_NAMESPACE_ID` | the `OCM_ROUTES` namespace id from Step 2 |
+| `CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` / `CLOUDFLARE_ZONE_ID` | from 2.1 |
+| `CLOUDFLARE_KV_NAMESPACE_ID` | the `OCM_ROUTES` namespace id from 2.1 |
 | `OCM_ADMIN_EMAILS` | comma-separated admin emails (who can manage hosts) |
 | `OCM_ARTIFACT_BUCKET` | where hosts pull the agent + kernel (see [Artifacts](#artifacts)) |
 
@@ -118,12 +150,10 @@ the **same** admin email(s) as `OCM_ADMIN_EMAILS`, or the admin UI won't show.
 > `OCM_ADMIN_EMAILS` (the real gate), and the **frontend** checks
 > `VITE_OCM_ADMIN_EMAILS` (UI visibility). Keep them in sync.
 
-See [docs/control-plane-profiles.md](control-plane-profiles.md) for every
-variable and per-profile defaults.
+See [control-plane-profiles.md](control-plane-profiles.md) for every variable
+and per-profile defaults.
 
----
-
-## 4. Run the backend + frontend
+### 2.3 Run the backend + frontend
 
 For evaluation, the local helper runs Postgres (Docker), migrations, and the
 server:
@@ -145,14 +175,12 @@ make build-server     # produces ./backend/server
 
 Confirm it's up: `make status` (checks `:8080/health`).
 
----
+### 2.4 Add a host (GCP n2) and enroll it
 
-## 5. Add a host (GCP n2) and enroll it
+Create a KVM-capable VM, install dependencies with `provision-host.sh`, then
+enroll it.
 
-This is the universal path. Create a KVM-capable VM, install dependencies with
-`provision-host.sh`, then enroll it.
-
-### 5a. Create a GCP n2 instance (nested virtualization on)
+**Create a GCP n2 instance (nested virtualization on):**
 
 ```bash
 gcloud compute instances create ocm-host-1 \
@@ -174,12 +202,10 @@ gcloud compute instances add-tags ocm-host-1 --tags=ocm-agent --zone=us-central1
 
 > **AWS / Hetzner:** create a nested-virt-capable instance instead (AWS
 > `*.metal`, Hetzner dedicated/CCX with KVM) running Ubuntu 24.04. The rest of
-> this step is identical.
+> this stage is identical.
 
-### 5b. Install host dependencies
-
-Copy and run `provision-host.sh` (installs KVM + nested virt, Firecracker,
-cloudflared, the guest kernel, XFS/reflink state storage, sysctl tuning):
+**Install host dependencies** (KVM + nested virt, Firecracker, cloudflared, the
+guest kernel, XFS/reflink state storage, sysctl tuning):
 
 ```bash
 gcloud compute scp scripts/provision-host.sh ocm-host-1:~ --zone=us-central1-b
@@ -190,9 +216,8 @@ gcloud compute ssh ocm-host-1 --zone=us-central1-b --command \
 `OCM_ARTIFACT_BUCKET` is where the kernel (`/vmlinux`) is pulled from. See
 [Artifacts](#artifacts) to build your own or use the public default.
 
-### 5c. Create an enrollment token and enroll
-
-In the UI: **Admin → Hosts → Enroll Host**, or via the API:
+**Create an enrollment token and enroll.** In the UI: **Admin → Hosts → Enroll
+Host**, or via the API:
 
 ```bash
 curl -sS -X POST "$BACKEND_URL/api/admin/hosts/enrollment-tokens" \
@@ -213,29 +238,61 @@ The install script registers the host (`/api/agent/register`), which creates the
 per-host Cloudflare tunnel, mints the agent token, downloads + verifies the
 `ocm-agent` binary, installs the `ocm-agent` systemd unit, and starts it.
 
-### 5d. Verify
-
-The host should appear in **Admin → Hosts** as `ready` within ~60s. On the host:
+**Verify.** The host should appear in **Admin → Hosts** as `ready` within ~60s.
+On the host:
 
 ```bash
 gcloud compute ssh ocm-host-1 --zone=us-central1-b --command \
   'systemctl status ocm-agent --no-pager; journalctl -u ocm-agent -n 30 --no-pager'
 ```
 
+**You now have an enrolled fleet host.** Log in to the frontend, create a
+machine, and it boots on that host — reachable at `m-<name>.your-domain.com`
+through Cloudflare Access + the per-VM tunnel.
+
 ---
 
-## 6. Log in and provision a VM
+## Stage 3 — The full workflow
 
-1. Open the frontend (`:5173` locally, or your deployed URL) and log in. The
-   first login auto-creates your user + a personal account. (In `dev` auth mode
-   you're logged in as `DEV_USER_EMAIL` automatically.)
+**Goal:** use the platform day to day. Everything here works against a stack
+from stage 1 (local URLs) or stage 2 (your domain).
+
+### Create and use machines
+
+1. Open the dashboard and log in. The first login auto-creates your user + a
+   personal account. (In `dev` auth mode you're logged in as `DEV_USER_EMAIL`
+   automatically.)
 2. **New Machine** → pick a name and size → create. With auto-start, the control
-   plane places the machine on your `ready` host and boots the microVM.
-3. Open the machine to get a **web chat**, a **live terminal**, and (if a browser
-   VM is paired) a **browser view** — each scoped to that one isolated VM.
+   plane places the machine on a `ready` host and boots the microVM.
+3. Open the machine's page to work with the agent — each surface is scoped to
+   that one isolated VM, with auth enforced at the edge and again inside the VM:
+   - **Web chat** with the OpenClaw agent (the in-VM gateway).
+   - **Live terminal** (ttyd) into the VM.
+   - **Browser VM** — pair a separate account-scoped microVM running headful
+     Chromium; the agent drives it over CDP and you watch the live view in a
+     tab. Browser VMs have their own lifecycle, so one can be created ahead of
+     time and re-used across machine restarts.
 
-That's it: an OpenClaw agent running in its own Firecracker microVM on hardware
-you control.
+### Lifecycle
+
+Machines are **start / stop / restart / destroy** from the machine page (or the
+API). Stopping frees the host capacity; destroying releases the machine's
+resources and route. Placement respects host capacity and your fleet's
+region/source-image constraints.
+
+### Backups
+
+Per-machine backups are built in: from the machine page (or
+`/api/machines/{id}/backups`) you can **create**, **restore**, **download**, and
+**delete** backups of the machine's state. Retention is enforced server-side.
+
+### Runtime upgrades
+
+The OpenClaw runtime inside VMs is artifact-driven: hosts stage runtime releases
+and the control plane records them in `artifact_releases`. Publishing a new
+release makes it available to new/restarted machines — see
+[ci-release.md](ci-release.md) for the release lanes and the
+[`Release Artifacts` workflow](../.github/workflows/release-artifacts.yml).
 
 ---
 
@@ -265,15 +322,19 @@ make build-agent        # -> backend/agent-linux (GOOS=linux GOARCH=amd64)
 **Guest kernel + rootfs** — a Firecracker-compatible `vmlinux` (see the
 [Firecracker docs](https://github.com/firecracker-microvm/firecracker/blob/main/docs/getting-started.md))
 and the rootfs (`make build-rootfs`). Publishing these to GitHub Releases
-alongside the agent is in progress; until then, supply `/var/lib/ocm/vmlinux` on
-the host (or point `OCM_ARTIFACT_BUCKET` at a bucket that has them).
+alongside the agent is tracked in
+[#21](https://github.com/mathaix/OpenClawMachines/issues/21); until then, supply
+`/var/lib/ocm/vmlinux` on the host (or point `OCM_ARTIFACT_BUCKET` at a bucket
+that has them).
 
 ---
 
 ## Where to go next
 
 - [Architecture](architecture.md) — full data-plane, routing, tunnel, lifecycle design
+- [Tech stack](tech-stack.md) — the five layers, client to sandbox
 - [Control plane profiles](control-plane-profiles.md) — `local` / `operator` / `hosted`
 - [Self-hosted control plane](self-hosted-control-plane.md) — Cloudflare + auth prerequisites
 - [Host enrollment](host-enrollment.md) — the enrollment path in depth
 - [Local + BYO-host setup](local-setup.md)
+- [Local Firecracker E2E](local-firecracker-e2e.md) — stage 1 in full depth
