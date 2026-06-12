@@ -16,21 +16,28 @@ running at [openclawmachines.com](https://openclawmachines.com).
 
 The Apache-2.0 **public core** ships every piece of that stack:
 
-- a **minimal control plane** — Go API, Postgres-backed accounts, machines, and
-  hosts; placement, machine lifecycle, host enrollment, backups, and durable
-  workflows;
-- the **host agent** (`ocm-agent`) — boots, supervises, and reaps Firecracker
-  microVMs on your enrolled Linux boxes, managing bridge/TAP networking and
-  rootfs staging;
-- a per-host **LLM proxy** (LiteLLM) — one place for model keys and BYO-key
-  support, with per-machine usage tracking across providers (or your own
-  locally served models);
-- the **OpenClaw runtime** — the in-VM pieces: auth proxy, web-chat gateway,
-  live terminal, and the artifact-driven runtime staging/upgrade flow;
-- the **browser runtime** — paired Chromium browser VMs with CDP routing and a
-  watchable live view;
-- and the **build pipelines** that assemble it all — rootfs and agent builds,
-  host provisioning scripts, and the release-artifacts workflow.
+- a [**minimal control plane**](docs/architecture.md#control-plane-port-8080) —
+  Go API, Postgres-backed accounts, machines, and hosts;
+  [placement](docs/architecture.md#scheduling--capacity-management),
+  [machine lifecycle](docs/architecture.md#machine-lifecycle),
+  [host enrollment](docs/host-enrollment.md),
+  [backups](docs/architecture.md#backup--restore), and
+  [durable workflows](docs/architecture.md#durable-workflows-dbos);
+- the [**host agent**](docs/architecture.md#worker-agents-host-vms--port-90909091)
+  (`ocm-agent`) — boots, supervises, and reaps Firecracker microVMs on your
+  enrolled Linux boxes, managing bridge/TAP networking and rootfs staging;
+- a per-host [**LLM proxy**](docs/architecture.md#ai-gateway-litellm--per-host)
+  (LiteLLM) — one place for model keys and BYO-key support, with per-machine
+  usage tracking across providers (or your own locally served models);
+- the [**OpenClaw runtime**](docs/architecture.md#firecracker-microvms) — the
+  in-VM pieces: auth proxy, web-chat gateway, live terminal, and the
+  artifact-driven runtime staging/upgrade flow;
+- the [**browser runtime**](docs/architecture.md#browser-vms-cdp--live-view) —
+  paired Chromium browser VMs with CDP routing and a watchable live view;
+- and the [**build pipelines**](docs/ci-release.md) that assemble it all —
+  [rootfs](docs/local-setup.md#runtime-images) and agent builds, host
+  provisioning scripts, and the
+  [release-artifacts workflow](.github/workflows/release-artifacts.yml).
 
 The `ocm` CLI lives in the separate
 [`mathaix/ocm-cli`](https://github.com/mathaix/ocm-cli) Apache-2.0 repository.
