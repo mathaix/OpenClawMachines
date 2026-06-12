@@ -67,3 +67,28 @@ Score trajectory across the 25 iterations: scaffold → judged 5.5 → retopolog
 variant → **judged 7.8, SHIP**. As with the 2D rounds, the judges' naive
 misreads (pumpkin, lantern, creepy eye-peek) drove the design more than the
 successes did.
+
+---
+
+# Redirect: claw3d — the logo itself in 3D (owner brainstorm)
+
+Owner feedback on the face mascot: *"I like the box lattice, I don't like the
+face — it has no relationship to the r5-claw-grip logo or the name."* Brainstorm
+explored (see `explore3d.html`): A) r5 extruded as-is, B) center squircle → a
+letter M (rejected: rewrites the mark's meaning, "CM" monogram read), C) hybrid
+— extruded claw gripping the lattice box. Owner also asked what the center
+object is: it's the **microVM** the claw grips (the same squircle m5's body
+was). Two animation stories built as `claw3d.html` (variant via
+`data-variant`): **catch** (claw waits, box drops into the grip) and **arrive**
+(whole rigid mark drops/spins/settles). **Owner chose arrive.**
+
+| Round | Change | Judge verdict |
+|---|---|---|
+| r1 | First build: extruded jaw+thumb prisms + cube-grid box, drop/spin/squash/settle | **5.5 ITERATE** — payload reads "@-sign globe" not gripped squircle; lands edge-on (impact spent on a sliver); shadow never contacts; 64% dead air; tooth zigzag reads as glitch |
+| r2 | Payload rebuilt as flattened (z×0.55) n=6 squircle, dark-glass fill + orange grid, slot-sized; spin retuned to land ~38°; shadow raised to contact; clip cut 2.8→1.9s; tooth re-cut as blunt trapezoid | **7.5 ITERATE** — all 5 landed (pixel-verified shadow bloom at touchdown); one fix left: "sell the touchdown" — passive post-contact sink, no kinetic accent |
+| r3 | Sink was a sign bug (bounce now hops UP); squash 17%; rim-glow pulse (~2.1×, 0.2s decay) at contact; settlePow 6→7 (impact ~24°, edge-on pass moved high into the fast fall) | **8.2 SHIP** — hop/squash/pulse all pixel-verified; "the landing beat is now the best moment of the piece" |
+
+Final claw3d assets: `renders/claw3d-arrive.mp4` (1.9s, 960px), `claw3d-arrive.gif`
+(480px loop), `claw3d-poster.png` (settled frame), `compare.html` (variant
+comparison). The face-mascot system above remains shipped for avatar/personality
+use; claw3d is the brand-moment hero animation tied directly to the r5 mark.
