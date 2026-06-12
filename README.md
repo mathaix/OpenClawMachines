@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/branding/mascot3d/renders/claw3d-arrive.gif" width="300" alt="OpenClaw Machines — a machine claw gripping a microVM">
+  <img src="docs/branding/candidates/r5-claw-grip.svg" width="140" alt="OpenClaw Machines — a machine claw gripping a microVM">
 </p>
 
 # OpenClaw Machines
