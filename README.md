@@ -44,7 +44,9 @@ The `ocm` CLI lives in the separate
   enforced at the edge and again inside every VM.
 - **Cost.** One flat server cost: rent a single bare-metal box and run as many
   hardware-isolated agents as it fits — see
-  [how the options compare](#how-the-options-compare).
+  [how the options compare](#how-the-options-compare). The same architecture
+  cuts token spend too: route agents to open-source models running on your own
+  GPU hardware instead of paying per-token APIs.
 - **Sovereignty.** Your hardware, your data, your keys. Run the control plane
   and workers on machines you own, and route model traffic through the per-host
   LLM proxy to any provider — or to models served on your own GPUs.
