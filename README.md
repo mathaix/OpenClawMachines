@@ -24,19 +24,24 @@ The `ocm` CLI lives in the separate
 
 ## Why OpenClaw Machines
 
-- **Real isolation, not containers.** One Firecracker microVM per agent, with a
-  separate guest kernel and KVM hardware boundary.
-- **Bring your own hosts.** Run the control plane and workers on your own
-  KVM-enabled Linux machines.
-- **Local or operator-hosted.** Start with one local host, then operate the same
-  public core in a self-managed deployment.
-- **Apache-2.0.** The public core and companion `ocm` CLI are permissively
-  licensed for adoption, embedding, and contribution.
-- **Built for agents.** Terminal, web chat, browser automation, per-VM routing,
-  and OpenClaw runtime integration.
-- **One flat server cost.** Rent a single bare-metal box and run as many
+- **Security.** Real isolation, not containers: one Firecracker microVM per
+  agent, with its own guest kernel behind a KVM hardware boundary — and auth
+  enforced at the edge and again inside every VM.
+- **Cost.** One flat server cost: rent a single bare-metal box and run as many
   hardware-isolated agents as it fits — see
   [how the options compare](docs/comparison.md).
+- **Sovereignty.** Your hardware, your data, your keys. Run the control plane
+  and workers on machines you own, and route model traffic through the per-host
+  LLM proxy to any provider — or to models served on your own GPUs.
+- **Open source.** Apache-2.0 public core and companion
+  [`ocm` CLI](https://github.com/mathaix/ocm-cli), permissively licensed for
+  adoption, embedding, and contribution.
+- **Enterprise.** Multi-user accounts and teams, admin-gated host management,
+  encrypted per-machine secrets, and capacity/placement policies across your
+  fleet.
+- **Ecosystem.** Browser VMs for web automation, live terminal and web chat,
+  per-VM routing, backups/snapshots, agent memory, and observability with
+  OpenTelemetry/Opik tracing and per-machine usage tracking.
 
 ## How it works
 
