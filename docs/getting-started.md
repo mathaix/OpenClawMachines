@@ -30,12 +30,13 @@ Firecracker worker — on that box, and a **running OpenClaw workspace** in a
 real microVM, provisioned by clicking through the web UI. No Cloudflare: the
 workspace is reached through the local agent proxy.
 
-```
- browser ──▶ frontend :5173 ──▶ control plane :8080 (profile=local, AUTH_MODE=dev)
-                                       │  schedules onto the registered host
-                                       ▼
-                               ocm-agent :9090/:9091 ──▶ Firecracker microVM
-                                                          (bridge 192.168.100.0/24)
+```mermaid
+flowchart LR
+    B["browser"] --> FE["frontend :5173"]
+    FE --> CP["control plane :8080<br/>profile=local · AUTH_MODE=dev"]
+    CP -->|schedules onto the<br/>registered host| AG["ocm-agent<br/>:9090 control · :9091 proxy"]
+    AG --> VM["Firecracker microVM<br/>bridge 192.168.100.0/24"]
+    B -.->|workspace, via the agent proxy| AG
 ```
 
 ### 1.1 Get a KVM box
@@ -296,6 +297,24 @@ Create a machine from the dashboard and it boots on this host — reachable at
 deployment (your domain, machines at `m-<name>.your-domain.com`).
 **You'll end with:** day-to-day fluency. Everything below behaves identically
 in both; only the URLs differ.
+
+Everything in this stage happens on one machine's page — four surfaces around
+one microVM:
+
+```mermaid
+flowchart LR
+    subgraph MV["the machine page"]
+        CHAT["web chat<br/>(in-VM gateway)"]
+        TERM["live terminal<br/>(ttyd)"]
+        LIVE["browser live view"]
+        BK["backups<br/>create · restore · download"]
+    end
+    CHAT --> VM["Firecracker microVM<br/>your OpenClaw agent"]
+    TERM --> VM
+    BK --> VM
+    VM -->|drives over CDP| BVM["paired Browser VM<br/>headful Chromium"]
+    BVM --> LIVE
+```
 
 ### Create and use machines
 

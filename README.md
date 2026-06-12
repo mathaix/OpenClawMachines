@@ -123,6 +123,22 @@ you own. Think: a mini-cloud for AI agents, that you self-host.
    Cloudflare Tunnel that terminates **inside the VM**, with auth enforced at
    the edge and again in-VM.
 
+```mermaid
+flowchart TB
+    U["you — browser / ocm CLI"] --> EDGE["Cloudflare edge<br/>Access auth · Worker route lookup (KV)"]
+    EDGE -->|dashboard / API| CP["Control plane (Go)<br/>accounts · machines · hosts<br/>placement · lifecycle · backups"]
+    CP --- DB[("Postgres")]
+    CP -->|enroll · heartbeat · boot/stop :9090| H1["Host 1 — your Linux box<br/>ocm-agent · LLM proxy · CDP proxy"]
+    CP -->|…| HN["Host N"]
+    EDGE -->|per-VM tunnel, terminates inside the VM| VM1
+    subgraph H1X["Host 1's microVMs"]
+        VM1["Machine — Firecracker microVM<br/>OpenClaw agent · web chat · terminal<br/>authproxy + cloudflared inside"]
+        BVM["Browser VM<br/>headful Chromium · live view"]
+        VM1 -->|CDP| BVM
+    end
+    H1 --- H1X
+```
+
 The full design — data plane, routing, tunnels, lifecycle, config, and the
 build/release flow — is in **[docs/architecture.md](docs/architecture.md)**, and
 the five-layer stack (React UI → Cloudflare edge → Go control plane → host
