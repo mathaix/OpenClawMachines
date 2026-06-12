@@ -6,11 +6,13 @@
 [![CI](https://github.com/mathaix/OpenClawMachines/actions/workflows/test.yml/badge.svg)](https://github.com/mathaix/OpenClawMachines/actions)
 [![Stars](https://img.shields.io/github/stars/mathaix/OpenClawMachines?style=social)](https://github.com/mathaix/OpenClawMachines)
 
-OpenClaw Machines is an **open-source platform for running AI agents in secure,
-sandboxed [Firecracker](https://github.com/firecracker-microvm/firecracker)
-microVMs**. Each [OpenClaw](https://github.com/openclaw/openclaw) agent runs in
-its own KVM-backed microVM, so you can execute agent-generated and untrusted code
-on infrastructure you control.
+OpenClaw Machines is an **open-source platform for running
+[OpenClaw](https://github.com/openclaw/openclaw) in secure AI sandboxes on your
+own infrastructure**. A **control plane** orchestrates your hosts, and each
+agent runs in its own
+[Firecracker](https://github.com/firecracker-microvm/firecracker) microVM on
+them — hardware-isolated, safe for untrusted and agent-generated code. See it
+running at [openclawmachines.com](https://openclawmachines.com).
 
 The Apache-2.0 public core includes a minimal control plane, host enrollment,
 machine lifecycle, placement, worker agents, and runtime pieces needed to run
