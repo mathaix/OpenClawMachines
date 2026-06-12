@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <!-- Power symbol where the ring is a pincer gripping the bar -->
+  <path d="M14.2 13.2 A 15.5 15.5 0 1 0 33.8 13.2"
+        fill="none" stroke="#EA580C" stroke-width="7" stroke-linecap="round"/>
+  <!-- claw hooks at the ring tips, curling toward the bar -->
+  <g fill="#EA580C">
+    <path d="M11 9 L20 13 L13 18 Z"/>
+    <path d="M37 9 L28 13 L35 18 Z"/>
+  </g>
+  <rect x="20.5" y="4" width="7" height="17" rx="3.5" fill="#EA580C"/>
+</svg>

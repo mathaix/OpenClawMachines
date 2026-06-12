@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <!-- Asymmetric diagonal grip: big jaw from lower-left, small jaw from
+       upper-right, squircle held between. Rounded terminals throughout. -->
+  <g fill="none" stroke="#EA580C" stroke-linecap="round">
+    <!-- big jaw: ~200° arc, heavier -->
+    <path d="M35.5 38.5 A 17 17 0 1 1 38.5 12.5" stroke-width="8"/>
+    <!-- small jaw: short arc clamping from the open corner -->
+    <path d="M41 21 A 9 9 0 0 1 31.5 41" stroke-width="6.5"/>
+  </g>
+  <!-- the held microVM -->
+  <rect x="17" y="17" width="14" height="14" rx="4.5" fill="#EA580C"/>
+</svg>

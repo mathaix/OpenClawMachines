@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <!-- Geometric-grotesque C that GRIPS: flat radial terminals, a square tooth
+       clamping the microVM held inside the counter. -->
+  <g fill="#EA580C">
+    <!-- C ring sector: outer R19, inner R11.5, opening ±38° facing east -->
+    <path d="M37.9 12.4
+             A 19 19 0 1 0 37.9 35.6
+             L 32.1 31.1
+             A 11.5 11.5 0 1 1 32.1 16.9
+             Z"/>
+    <!-- tooth: clamps down from the upper jaw onto the squircle -->
+    <path d="M33.5 15.8 L36.5 20.5 L29.5 21.5 Z"/>
+  </g>
+  <!-- the held microVM: inside the counter, edge under the mouth -->
+  <rect x="26.5" y="20" width="13" height="13" rx="4" fill="#EA580C"/>
+</svg>

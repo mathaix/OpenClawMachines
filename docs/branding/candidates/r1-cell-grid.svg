@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <!-- Fleet of isolated machines; one cell is a claw -->
+  <g fill="#EA580C">
+    <rect x="5" y="5" width="17" height="17" rx="5"/>
+    <rect x="5" y="26" width="17" height="17" rx="5"/>
+    <rect x="26" y="26" width="17" height="17" rx="5"/>
+    <!-- claw cell: pincer with wedge mouth + dot, same footprint -->
+    <path fill-rule="evenodd" d="
+      M31 5 H38 A 5 5 0 0 1 43 10 V17 A 5 5 0 0 1 38 22 H31 A 5 5 0 0 1 26 17 V10 A 5 5 0 0 1 31 5 Z
+      M43 8.5 L31.5 13.5 L43 18.5 L43 14.8 L37 13.5 L43 12.2 Z"/>
+  </g>
+</svg>

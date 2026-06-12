@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <!-- Geometric crab: VM-square body, two asymmetric pincers, vent slots -->
+  <g fill="#EA580C">
+    <rect x="13" y="20" width="22" height="22" rx="7"/>
+    <!-- big left pincer -->
+    <path d="M13 22 C 4 20, 2 11, 8 5 C 11 2, 17 2, 19 6 L 14 8 C 12 6.5, 9.5 7, 8.5 9
+             C 7 12, 9 16.5, 15 17.5 Z"/>
+    <!-- smaller right pincer -->
+    <path d="M35 22 C 43 20, 45 13, 40.5 8 C 38 5.5, 33.5 5.5, 32 9 L 36 10.5
+             C 37 9.5, 38.8 9.8, 39.5 11.5 C 40.5 13.8, 38.5 16.8, 33.5 17.5 Z"/>
+  </g>
+  <!-- vent slots cut into the body (negative space) -->
+  <g fill="#FFFFFF">
+    <rect x="19.5" y="27" width="3.5" height="8" rx="1.75"/>
+    <rect x="25" y="27" width="3.5" height="8" rx="1.75"/>
+  </g>
+</svg>

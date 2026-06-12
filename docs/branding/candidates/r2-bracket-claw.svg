@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <!-- Two open pincers gripping a microVM (rounded square).
+       Gap discipline: 6px mouth openings top+bottom, consistent everywhere. -->
+  <g fill="#EA580C">
+    <!-- left pincer: outer arc with tapered jaw tips -->
+    <path d="M19 6.5
+             C 9 9, 3.5 16, 3.5 24
+             C 3.5 32, 9 39, 19 41.5
+             C 16.5 38.5, 15.5 36, 16 33.5
+             C 12 31.5, 9.5 28, 9.5 24
+             C 9.5 20, 12 16.5, 16 14.5
+             C 15.5 12, 16.5 9.5, 19 6.5 Z"/>
+    <!-- right pincer (mirrored) -->
+    <path d="M29 6.5
+             C 39 9, 44.5 16, 44.5 24
+             C 44.5 32, 39 39, 29 41.5
+             C 31.5 38.5, 32.5 36, 32 33.5
+             C 36 31.5, 38.5 28, 38.5 24
+             C 38.5 20, 36 16.5, 32 14.5
+             C 32.5 12, 31.5 9.5, 29 6.5 Z"/>
+    <!-- the held microVM -->
+    <rect x="18" y="18" width="12" height="12" rx="3.5"/>
+  </g>
+</svg>
