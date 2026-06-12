@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <!-- Asymmetric claw grip: dominant angular jaw (left+bottom) vs thumb plate
+       (top-right), each with a tapered tooth; hairline gaps to the held VM. -->
+  <g fill="#EA580C">
+    <!-- dominant jaw: angular C opening to the top-right -->
+    <path d="M21 3 L12 3 L3 12 L3 36 L12 45 L36 45 L45 36 L45 30
+             L38 30 L38 33.2 L33.2 38 L14.8 38 L10 33.2 L10 14.8 L14.8 10 L21 10 Z"/>
+    <!-- tooth on the dominant jaw's lower inner edge, pointing up at the VM -->
+    <path d="M22 38 L27 32.8 L32 38 Z"/>
+    <!-- thumb plate: short angular bracket, top-right -->
+    <path d="M28 3 L37 3 L45 11 L45 23 L38 23 L38 13.8 L34.2 10 L28 10 Z"/>
+    <!-- tooth on the thumb's inner edge, pointing down-left at the VM -->
+    <path d="M38 15 L32.8 19 L38 23 Z"/>
+    <!-- the held microVM -->
+    <rect x="16.5" y="16.5" width="13" height="13" rx="4"/>
+  </g>
+</svg>

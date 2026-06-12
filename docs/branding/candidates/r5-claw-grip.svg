@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <!-- OpenClaw Machines mark: an asymmetric machine claw (dominant jaw +
+       thumb plate, one tooth each) gripping a microVM. Single compound path;
+       every clearance is one 4-unit gap. -->
+  <path fill="#EA580C" d="
+    M 22 3 L 12 3 L 3 12 L 3 36 L 12 45 L 36 45 L 45 36 L 45 29
+    L 38 29 L 38 33.2 L 33.2 38 L 31 38 L 27 34.5 L 23 38 L 14.8 38
+    L 10 33.2 L 10 14.8 L 14.8 10 L 22 10 Z
+    M 26 3 L 37 3 L 45 11 L 45 25 L 38 25 L 38 23.5 L 34.5 21.5 L 34.5 18.5
+    L 38 16.5 L 38 13.8 L 34.2 10 L 26 10 Z
+    M 21.5 17.5 H 26.5 A 4 4 0 0 1 30.5 21.5 V 26.5 A 4 4 0 0 1 26.5 30.5
+    H 21.5 A 4 4 0 0 1 17.5 26.5 V 21.5 A 4 4 0 0 1 21.5 17.5 Z
+  "/>
+</svg>

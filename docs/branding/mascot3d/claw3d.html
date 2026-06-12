@@ -1,0 +1,227 @@
+<!doctype html>
+<!-- claw3d: the r5-claw-grip logo as one 3D object — extruded claw gripping the
+     lattice-box microVM (no face). Two animation variants, set via
+     data-variant on the composition root:
+       "catch"  — claw waits; the lattice box drops in spinning and settles into the grip
+       "arrive" — claw + box arrive as one rigid mark: drop, spin, squash, settle
+     Deterministic: window.renderAt(t). HyperFrames: __hf protocol + hf-seek events. -->
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; background: #0b0b10; }
+  #stage { width: 960px; height: 960px; display: grid; place-items: center; }
+  canvas { width: 960px; height: 960px; }
+</style>
+</head>
+<body>
+<div id="stage" data-composition-id="claw3d" data-start="0" data-duration="1.9"
+     data-width="960" data-height="960" data-variant="arrive">
+  <canvas id="c" width="960" height="960"></canvas>
+</div>
+<script>
+const VARIANT = document.getElementById("stage").dataset.variant; // "catch" | "arrive"
+
+const P = {
+  depth: 0.16,        // extrusion half-depth
+  boxR: 0.30,         // lattice box half-extent — fills the 2D slot, teeth gaps read as grip
+  boxZ: 0.55,         // depth flatten: a squircle WITH depth, not a full cube
+  boxCells: 4, boxN: 6,
+  settleAy: 0.14, settleAx: -0.12,   // settled pose: a breath off head-on, still reads as the logo
+  T: 1.4,             // settle time
+  spinTurns: 1.5, settlePow: 7.0,   // ~24° off-front at impact; edge-on pass happens high in the fall
+  wobAmp: 0.30, wobFreq: 7.0, wobDecay: 3.2,
+  dropH: 2.3, dropT: 0.50,
+  bounceAmp: 0.08, bounceFreq: 11, bounceDecay: 5.5,
+  squashAmp: 0.17, squashFreq: 9, squashDecay: 6.0,
+  bg: "#0b0b10",
+};
+
+const cv = document.getElementById("c"), ctx = cv.getContext("2d");
+const W = cv.width, H = cv.height, S = W * 0.36;
+const CAM = 4.2, FOV = 2.6;
+
+// ---------- r5 geometry (48 viewBox → centered, y up) ----------
+const NN = (x, y) => [(x - 24) / 24, (24 - y) / 24];
+const JAW = [[22,3],[12,3],[3,12],[3,36],[12,45],[36,45],[45,36],[45,29],[38,29],[38,33.2],
+             [33.2,38],[30.5,38],[28.4,35.8],[25.6,35.8],[23.5,38],[14.8,38],[10,33.2],[10,14.8],[14.8,10],[22,10]].map(p => NN(...p));
+const THUMB = [[26,3],[37,3],[45,11],[45,25],[38,25],[38,23.5],[34.5,21.5],[34.5,18.5],
+               [38,16.5],[38,13.8],[34.2,10],[26,10]].map(p => NN(...p));
+
+// ---------- 3D helpers ----------
+function rot([x, y, z], ay, ax) {
+  let c = Math.cos(ay), s = Math.sin(ay);
+  [x, z] = [x * c + z * s, -x * s + z * c];
+  c = Math.cos(ax); s = Math.sin(ax);
+  [y, z] = [y * c - z * s, y * s + z * c];
+  return [x, y, z];
+}
+const proj = ([x, y, z]) => { const d = FOV / (CAM - z); return [W / 2 + x * d * S, H / 2 - y * d * S, z]; };
+
+// ---------- animation curves (shared shapes with the mascot rounds) ----------
+function spinAngle(t) {
+  const u = Math.min(t / P.T, 1);
+  const main = P.spinTurns * 2 * Math.PI * Math.pow(1 - u, P.settlePow);
+  const s = Math.max(t - P.T * 0.78, 0);
+  const wob = P.wobAmp * Math.exp(-P.wobDecay * s) * Math.sin(P.wobFreq * s) * (u > 0.7 ? 1 : 0);
+  return main + wob;
+}
+function dropOffset(t) {
+  if (t >= P.dropT) {
+    const s = t - P.dropT;
+    return P.bounceAmp * Math.exp(-P.bounceDecay * s) * Math.abs(Math.sin(P.bounceFreq * s));
+  }
+  const u = t / P.dropT;
+  return P.dropH * (1 - u * u);
+}
+function squash(t) {
+  if (t < P.dropT) { const u = t / P.dropT, st = 0.10 * u * u; return { sx: 1 - st * 0.5, sy: 1 + st }; }
+  const s = t - P.dropT;
+  const k = P.squashAmp * Math.exp(-P.squashDecay * s) * Math.cos(P.squashFreq * s);
+  return { sx: 1 + k * 0.55, sy: 1 - k };
+}
+const idleBob = (t) => (t > P.T ? 0.010 * Math.sin(2 * Math.PI * 0.7 * (t - P.T)) : 0);
+// "catch": the claw dips when it takes the box's momentum, then springs back
+function clawDip(t) {
+  if (t < P.dropT) return 0;
+  const s = t - P.dropT;
+  return -0.045 * Math.exp(-5.5 * s) * Math.sin(9 * s > Math.PI ? Math.PI : 9 * s);
+}
+
+// ---------- drawing ----------
+function prism(poly, depth, xf, hue = "249,115,22", lw = 2.6) {
+  const fr = poly.map(([x, y]) => xf([x, y, depth]));
+  const bk = poly.map(([x, y]) => xf([x, y, -depth]));
+  const path = (pts) => { ctx.beginPath(); pts.forEach((p, i) => { const [px, py] = proj(p);
+    i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py); }); ctx.closePath(); };
+  const meanZ = (pts) => pts.reduce((a, p) => a + p[2], 0) / pts.length;
+  const faces = [[bk, meanZ(bk)], [fr, meanZ(fr)]].sort((a, b) => a[1] - b[1]);
+  for (const [pts, mz] of faces) {
+    const f = Math.max(Math.min((mz + 0.5), 1), 0);
+    path(pts);
+    ctx.fillStyle = `rgba(234,88,12,${0.10 + 0.08 * f})`;
+    ctx.fill();
+    ctx.strokeStyle = `rgba(${hue},${0.45 + 0.55 * f})`;
+    ctx.lineWidth = mz > 0 ? lw : lw * 0.6;
+    ctx.stroke();
+    if (pts === faces[1][0]) { ctx.save(); ctx.shadowColor = `rgba(${hue},0.8)`; ctx.shadowBlur = 10 * GLOWP; if (GLOWP > 1.3) ctx.stroke(); ctx.stroke(); ctx.restore(); }
+  }
+  for (let i = 0; i < poly.length; i++) {
+    const a = proj(fr[i]), b = proj(bk[i]);
+    const f = Math.max(fr[i][2] + 0.5, 0);
+    ctx.strokeStyle = `rgba(${hue},${0.25 + 0.3 * f})`;
+    ctx.lineWidth = 1.3;
+    ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+  }
+}
+
+// lattice box (the mascot rounds' cube-grid body, faceless)
+function cubeMap(x, y, z) {
+  const n = P.boxN;
+  const s = P.boxR / Math.pow(Math.abs(x) ** n + Math.abs(y) ** n + Math.abs(z) ** n, 1 / n);
+  return [x * s, y * s, z * s * P.boxZ];
+}
+function boxRing(axis, g, K = 32) {
+  const pts = [], cs = [[-1,-1],[1,-1],[1,1],[-1,1],[-1,-1]];
+  for (let c = 0; c < 4; c++) for (let k = 0; k < K / 4; k++) {
+    const f = k / (K / 4), a = cs[c][0] + (cs[c+1][0] - cs[c][0]) * f, b = cs[c][1] + (cs[c+1][1] - cs[c][1]) * f;
+    pts.push(cubeMap(...(axis === 0 ? [g, a, b] : axis === 1 ? [a, g, b] : [a, b, g])));
+  }
+  pts.push(pts[0]); return pts;
+}
+function latticeBox(xf) {
+  const polys = [];
+  for (let i = 0; i <= P.boxCells; i++) polys.push(boxRing(1, -1 + 2 * i / P.boxCells));
+  for (const axis of [0, 2]) for (let i = 1; i < P.boxCells; i++) polys.push(boxRing(axis, -1 + 2 * i / P.boxCells));
+  for (const cx of [-1, 1]) for (const cz of [-1, 1]) {
+    const pts = []; for (let k = 0; k <= 8; k++) pts.push(cubeMap(cx, -1 + k / 4, cz)); polys.push(pts);
+  }
+  // dark glass volume: figure/ground against the amber claw (the 2D mark's
+  // payload separation, rebuilt tonally)
+  ctx.fillStyle = "rgba(11,11,16,0.55)";
+  for (let axis = 0; axis < 3; axis++) for (const g of [-1, 1]) {
+    const ring = boxRing(axis, g);
+    ctx.beginPath();
+    ring.forEach((p, i) => { const [px, py] = proj(xf(p)); i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py); });
+    ctx.closePath(); ctx.fill();
+  }
+  const segs = [];
+  for (const pts of polys) {
+    const pr = pts.map((p) => proj(xf(p)));
+    for (let k = 0; k < pr.length - 1; k++) segs.push({ a: pr[k], b: pr[k + 1], z: (pr[k][2] + pr[k + 1][2]) / 2 });
+  }
+  segs.sort((p, q) => p.z - q.z);
+  for (const s of segs) {
+    const f = Math.max(Math.min((s.z + P.boxR) / (2 * P.boxR), 1), 0);
+    ctx.strokeStyle = `rgba(249,115,22,${0.3 + 0.7 * f})`;
+    ctx.lineWidth = 1.4 + 1.4 * f;
+    ctx.beginPath(); ctx.moveTo(s.a[0], s.a[1]); ctx.lineTo(s.b[0], s.b[1]); ctx.stroke();
+    if (f > 0.85) { ctx.save(); ctx.shadowColor = "rgba(249,115,22,0.8)"; ctx.shadowBlur = 8; ctx.stroke(); ctx.restore(); }
+  }
+}
+
+function groundShadow(h, sx, pulseT) {
+  const pulse = pulseT > P.dropT ? 1 + 0.9 * Math.exp(-7 * (pulseT - P.dropT)) : 1;
+  const spread = 1 + Math.max(h, 0) * 0.55, dim = pulse / (1 + Math.max(h, 0) * 1.6);
+  const gy = H / 2 + 0.95 * (FOV / CAM) * S;
+  const grx = 0.95 * (FOV / CAM) * S * sx / spread, gry = grx * 0.15;
+  const g = ctx.createRadialGradient(W / 2, gy, 0, W / 2, gy, grx);
+  g.addColorStop(0, `rgba(249,115,22,${0.18 * dim})`);
+  g.addColorStop(0.65, `rgba(249,115,22,${0.06 * dim})`);
+  g.addColorStop(1, "rgba(249,115,22,0)");
+  ctx.save();
+  ctx.translate(W / 2, gy); ctx.scale(1, gry / grx); ctx.translate(-W / 2, -gy);
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(W / 2, gy, grx, 0, 7); ctx.fill();
+  ctx.restore();
+}
+
+// ---------- the two variants ----------
+let GLOWP = 1; // impact rim-glow pulse, set per-frame in renderAt
+function renderAt(t) {
+  GLOWP = t > P.dropT ? 1 + 1.1 * Math.exp(-9 * (t - P.dropT)) : 1;
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = P.bg; ctx.fillRect(0, 0, W, H);
+  ctx.lineCap = "round"; ctx.lineJoin = "round";
+
+  if (VARIANT === "arrive") {
+    // whole mark is rigid: spin+drop+squash applied to claw and box together
+    const ay = P.settleAy + spinAngle(t), ax = P.settleAx;
+    const { sx, sy } = squash(t), yOff = dropOffset(t) + idleBob(t);
+    const xf = (p) => { const [x, y, z] = rot(p, ay, ax); return [x * sx, y * sy + yOff, z]; };
+    groundShadow(Math.max(dropOffset(t), 0), sx, t);
+    prism(JAW, P.depth, xf);
+    prism(THUMB, P.depth, xf);
+    latticeBox(xf);
+  } else {
+    // "catch": claw waits in the settled pose; the box drops in spinning
+    const dip = clawDip(t);
+    const clawXf = (p) => { const [x, y, z] = rot(p, P.settleAy, P.settleAx); return [x, y + dip + idleBob(t), z]; };
+    const ayBox = spinAngle(t), { sx, sy } = squash(t);
+    const yOff = dropOffset(t) + dip + idleBob(t);
+    const boxXf = (p) => { const [x, y, z] = rot(p, ayBox + P.settleAy, P.settleAx); return [x * sx, y * sy + yOff, z]; };
+    groundShadow(Math.max(dropOffset(t), 0), 1, t);
+    prism(JAW, P.depth, clawXf);
+    prism(THUMB, P.depth, clawXf);
+    latticeBox(boxXf); // box drawn last: it reads inside the grip, like the flat mark
+  }
+}
+
+function play() {
+  const t0 = performance.now();
+  (function loop() { renderAt((performance.now() - t0) / 1000); requestAnimationFrame(loop); })();
+}
+
+window.renderAt = renderAt;
+window.play = play;
+window.P = P;
+
+const DURATION = 1.9;
+window.__hf = window.__hf || {};
+window.__hf.duration = DURATION;
+window.__hf.seek = (t) => renderAt(t);
+window.addEventListener("hf-seek", (e) => renderAt(e.detail.time));
+
+renderAt(99);
+</script>
+</body>
+</html>

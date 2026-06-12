@@ -21,7 +21,8 @@ export default defineConfig({
   plugins: [
     react(),
     Sitemap({
-      hostname: "https://openclawmachines.com",
+      // Operators: set VITE_SITE_URL so generated sitemap URLs use your domain.
+      hostname: process.env.VITE_SITE_URL || "https://openclawmachines.com",
       dynamicRoutes: ["/blog", ...getBlogRoutes()],
       exclude: ["/dashboard", "/admin", "/branding/preview"],
       generateRobotsTxt: false,

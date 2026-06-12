@@ -1,7 +1,8 @@
 # Tech Stack
 
 OpenClaw Machines is built in five layers — from the browser down to the
-hardware-isolated sandbox.
+hardware-isolated sandbox. (Moved from the README; for the runtime design and
+data flow, see [architecture.md](architecture.md).)
 
 ```mermaid
 flowchart TB
@@ -84,8 +85,3 @@ flowchart TB
 
 **Cross-cutting:** request tracing via **Opik** and **OpenTelemetry**, encrypted
 per-machine secrets, and built-in backups/snapshots.
-
-## See also
-
-- [Architecture](architecture.md) — system design: data plane, routing, tunnels, lifecycle
-- [Getting Started](getting-started.md) — run it yourself, in three stages

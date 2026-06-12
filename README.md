@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/branding/mascot3d/renders/claw3d-arrive.gif" width="300" alt="OpenClaw Machines — a machine claw gripping a microVM">
+</p>
+
 # OpenClaw Machines
 
 **Run as many isolated OpenClaw agents as you need, on hardware you own.**
@@ -9,10 +13,14 @@
 OpenClaw Machines is an **open-source platform for running AI agents in secure,
 sandboxed [Firecracker](https://github.com/firecracker-microvm/firecracker)
 microVMs**. Each [OpenClaw](https://github.com/openclaw/openclaw) agent runs in
-its own KVM-backed microVM — its own kernel, not a container — so you can
-execute agent-generated and untrusted code on infrastructure you control.
+its own KVM-backed microVM, so you can execute agent-generated and untrusted code
+on infrastructure you control.
 
-Think: a mini-cloud for AI agents, that you self-host.
+The Apache-2.0 public core includes a minimal control plane, host enrollment,
+machine lifecycle, placement, worker agents, and runtime pieces needed to run
+Firecracker sandboxes locally or in a self-hosted/operator-hosted deployment.
+The `ocm` CLI lives in the separate
+[`mathaix/ocm-cli`](https://github.com/mathaix/ocm-cli) Apache-2.0 repository.
 
 ![An OpenClaw machine running in a Firecracker microVM](docs/images/machine-running.png)
 
@@ -24,107 +32,77 @@ Think: a mini-cloud for AI agents, that you self-host.
   KVM-enabled Linux machines.
 - **Local or operator-hosted.** Start with one local host, then operate the same
   public core in a self-managed deployment.
-- **Apache-2.0.** The public core and companion
-  [`ocm` CLI](https://github.com/mathaix/ocm-cli) are permissively licensed for
-  adoption, embedding, and contribution.
+- **Apache-2.0.** The public core and companion `ocm` CLI are permissively
+  licensed for adoption, embedding, and contribution.
 - **Built for agents.** Terminal, web chat, browser automation, per-VM routing,
   and OpenClaw runtime integration.
-
-## Ways to run OpenClaw
-
-If you run OpenClaw today, you have a few options:
-
-1. **Local hardware** — run it on your own laptop or desktop.
-2. **A VPS** (e.g. Hostinger, DigitalOcean) — rent a virtual server and run it
-   there.
-3. **A managed service** (e.g. KiloClaw) — spin up a hosted OpenClaw instance and
-   pay per instance.
-
-OpenClaw Machines adds a **fourth option**: rent a **bare-metal server** from a
-provider like **OVHcloud** or **Hetzner**, point OpenClaw Machines at it, and
-spin up **as many isolated OpenClaw instances as you need** — for one flat server
-cost.
-
-| Feature | Local hardware | VPS (Hostinger) | Managed (KiloClaw) | **OpenClaw Machines** |
-|---|---|---|---|---|
-| Setup effort | Low | Medium | Lowest | Medium (provision + enroll host) |
-| Per-agent isolation | Process-level | Shared-kernel / container | Per instance (managed) | **Hardware — Firecracker microVM** |
-| Run many agents | Limited by your box | Limited by VPS size | Yes — but pay for each | **Yes — as many as the server fits** |
-| Multi-user / teams | No | Manual | Varies | **Yes — built-in accounts & teams** |
-| Cost model | Your own hardware | Pay per VPS | Pay per instance | **Pay per server (flat)** |
-| Cost at scale | Doesn't scale | Rises with size | Highest (linear per agent) | **Lowest per agent** |
-| Hardware control | Full (but limited) | Virtualized, shared | None | **Full — dedicated bare metal** |
-| Data & keys stay yours | Yes | Mostly | No (their infra) | **Yes — your hardware** |
-| Backups / snapshots | Manual | Provider snapshots | Managed | **Built-in** |
-| Ops / maintenance | You | You | None | You (self-hosted control plane) |
-
-In short: the **managed** route is easiest but priced per agent; **local** and
-**VPS** are cheap to start but don't isolate or scale well. **OpenClaw Machines**
-trades a little more setup for the best economics and isolation once you're
-running more than a couple of agents — one server, many hardware-isolated agents,
-all yours.
+- **One flat server cost.** Rent a single bare-metal box and run as many
+  hardware-isolated agents as it fits — see
+  [how the options compare](docs/comparison.md).
 
 ## How it works
 
-OpenClaw Machines turns your Linux servers into a pool of secure, on-demand
-sandboxes:
+OpenClaw Machines turns your own Linux servers into a pool of secure, on-demand
+sandboxes. Each sandbox is a real Firecracker microVM (its own kernel,
+hardware-isolated via KVM) that runs one AI agent. The platform is the **control
+plane** that creates those VMs, keeps track of them, routes traffic to them, and
+tears them down — so you can run many untrusted agents safely on infrastructure
+you own. Think: a mini-cloud for AI agents, that you self-host.
 
-- **Control plane (Go backend) — the brain.** Accounts, machines, hosts, and
-  config; decides which host each new VM lands on and orchestrates its
-  lifecycle.
-- **Hosts + worker agents — your Linux boxes.** You enroll a host with one
-  install command; its worker agent boots and stops Firecracker microVMs when
-  told to.
-- **Machines — one isolated microVM per agent.** Each runs the OpenClaw agent, a
-  live terminal, and the runtime that wires it together.
-- **Browser VMs — separate microVMs for browser automation.** Headful Chromium
-  with a live view, paired 1:1 with a machine and driven over CDP.
-- **Data plane — how you reach a running VM.** Each machine gets its own
-  hostname (`m-<name>.yourdomain.com`) and its own Cloudflare Tunnel terminating
-  inside the VM, with auth enforced at the edge and again in the VM.
+1. **Control plane (Go backend) — the brain.** Accounts, machines, hosts, and
+   config; the API the UI/CLI call; placement and lifecycle orchestration.
+2. **Hosts + worker agents — your Linux boxes.** Enroll a host with an install
+   script; its worker agent boots and stops Firecracker microVMs when told to.
+3. **Machines — one isolated microVM per agent.** Inside: the OpenClaw agent, a
+   web chat gateway, and a live terminal.
+4. **Browser VMs** — separate microVMs running headful Chromium with a live
+   view, driven by the agent over CDP for browser automation.
+5. **Routing / data plane** — every running VM gets its own subdomain and a
+   Cloudflare Tunnel that terminates **inside the VM**, with auth enforced at
+   the edge and again in-VM.
 
-When you create a machine, the control plane picks a host with capacity, that
-host's agent boots a microVM from a prepared root filesystem, config and
-credentials are injected, and a route is published so the VM is reachable at its
-own hostname.
+The full design — data plane, routing, tunnels, lifecycle, config, and the
+build/release flow — is in **[docs/architecture.md](docs/architecture.md)**, and
+the five-layer stack (React UI → Cloudflare edge → Go control plane → host
+agents → Firecracker sandboxes) is in **[docs/tech-stack.md](docs/tech-stack.md)**.
 
-For the full design — data plane, routing, tunnels, lifecycle — see
-**[docs/architecture.md](docs/architecture.md)**. For what it's built with, see
-**[docs/tech-stack.md](docs/tech-stack.md)**.
-
-## Get up and running
-
-The **[Getting Started guide](docs/getting-started.md)** is split into three
-stages, and each stage ends with something working:
-
-| Stage | What you get | What you need |
-|---|---|---|
-| **1 · Local evaluation** | The full stack + a real Firecracker machine on one box, using prebuilt artifacts | One KVM-enabled Linux box |
-| **2 · Cloudflare + a dedicated host** | A real deployment: machines at their own hostnames, hosts enrolled remotely | A Cloudflare account + domain, a cloud or bare-metal host |
-| **3 · The full workflow** | Day-to-day usage: create and use machines, browser VMs, lifecycle, upgrades | Stages 1–2 |
-
-**Start here → [docs/getting-started.md](docs/getting-started.md)**
-
-### Requirements
+## Requirements
 
 OpenClaw Machines runs Firecracker microVMs, which require KVM. You need a
-KVM-enabled **Linux** host: bare metal, or a cloud VM with nested virtualization
-(e.g. GCP n2). It does not run on macOS, Windows/WSL, or a standard cloud VM
-without nested virtualization. Check your host:
+KVM-enabled Linux host: bare metal, or a cloud VM with nested virtualization
+enabled. It does not run on macOS, Windows/WSL, or a standard cloud VM without
+nested virtualization.
+
+Check your host:
 
 ```bash
 make preflight
 ```
 
-## Documentation
+## Getting started
 
-- [Getting Started](docs/getting-started.md) — the three-stage setup guide
+**[The Getting Started guide](docs/getting-started.md)** is three stages, each
+ending with something working:
+
+1. **Local evaluation** — the full stack + a real Firecracker machine on one KVM
+   box. No Cloudflare, no cloud account.
+2. **Cloudflare + a dedicated host** — the production-shaped deployment:
+   domain, tunnels, edge auth, and an enrolled cloud or bare-metal host.
+3. **The full workflow** — create and use machines (chat, terminal, browser
+   VMs), lifecycle, backups, runtime upgrades.
+
+## Project docs
+
+- [**Getting Started**](docs/getting-started.md) — the three-stage guide above
 - [Architecture](docs/architecture.md) — data plane, routing, tunnels, lifecycle
-- [Tech stack](docs/tech-stack.md) — the five layers, from browser to sandbox
-- [Control plane profiles](docs/control-plane-profiles.md) — `local` / `operator` / `hosted`
-- [Self-hosted control plane](docs/self-hosted-control-plane.md) — Cloudflare + auth prerequisites
-- [Host enrollment](docs/host-enrollment.md) — the enrollment path in depth
-- [CI and release lanes](docs/ci-release.md) — safety boundaries for CI
+- [Tech stack](docs/tech-stack.md) — the five layers, client to sandbox
+- [Comparison](docs/comparison.md) — local vs VPS vs managed vs OpenClaw Machines
+- [Local and BYO-host setup](docs/local-setup.md)
+- [Control plane deployment profiles](docs/control-plane-profiles.md)
+- [Self-hosted control plane prerequisites](docs/self-hosted-control-plane.md)
+- [LLM operator runbook](llms/self-hosted-setup.txt)
+- [Public docs inventory](docs/public-docs-inventory.md)
+- [Contributing](CONTRIBUTING.md) · [Security policy](SECURITY.md) · [Code of conduct](CODE_OF_CONDUCT.md)
 - [`ocm` CLI project](https://github.com/mathaix/ocm-cli)
 
 ## Community & support

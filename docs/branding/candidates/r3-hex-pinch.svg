@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <!-- Two angular jaw plates (hex-derived) pinching the microVM on a diagonal.
+       No circles anywhere: immune to power/Pac-Man collisions. -->
+  <g fill="#EA580C">
+    <!-- lower-left jaw plate -->
+    <path d="M6 18 L6 33 L18 44 L33 44 L33 38 L20.5 38 L12 30 L12 18 Z"/>
+    <!-- upper-right jaw plate -->
+    <path d="M42 30 L42 15 L30 4 L15 4 L15 10 L27.5 10 L36 18 L36 30 Z"/>
+  </g>
+  <!-- the held microVM -->
+  <rect x="17.5" y="17.5" width="13" height="13" rx="4" fill="#EA580C"/>
+</svg>

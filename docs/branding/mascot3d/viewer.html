@@ -1,0 +1,61 @@
+<!doctype html>
+<!-- Local viewer for the mascot3d animation: looping live render + final assets. -->
+<html>
+<head>
+<meta charset="utf-8">
+<title>mascot3d — live</title>
+<style>
+  body { margin: 0; background: #0b0b10; color: #e5e7eb; font: 14px system-ui; }
+  header { padding: 18px 28px 6px; display: flex; align-items: baseline; gap: 14px; }
+  h1 { font-size: 17px; margin: 0; color: #f97316; }
+  .sub { color: #8b8b94; font-size: 12.5px; }
+  .row { display: flex; flex-wrap: wrap; gap: 24px; padding: 12px 28px 28px; align-items: flex-start; }
+  .panel { background: #131318; border: 1px solid #26262e; border-radius: 12px; padding: 16px; }
+  .panel h2 { font-size: 13px; margin: 0 0 10px; color: #9ca3af; font-weight: 600; }
+  .frwrap { width: 480px; height: 480px; overflow: hidden; border-radius: 8px; }
+  iframe { width: 960px; height: 960px; border: 0; background: #0b0b10;
+           transform: scale(0.5); transform-origin: 0 0; }
+  button { background: #f97316; color: #0b0b10; border: 0; border-radius: 8px; padding: 8px 16px;
+           font: 600 13px system-ui; cursor: pointer; margin-top: 10px; }
+  button:hover { background: #fb923c; }
+  img.asset { border-radius: 8px; display: block; }
+  video { border-radius: 8px; display: block; }
+</style>
+</head>
+<body>
+<header>
+  <h1>mascot3d</h1>
+  <span class="sub">live canvas render, loops every 4s — process: docs/branding/mascot3d/process.md</span>
+</header>
+<div class="row">
+  <div class="panel">
+    <h2>LIVE RENDER (canvas, deterministic renderAt)</h2>
+    <div class="frwrap"><iframe id="fr" src="mascot3d.html"></iframe></div>
+    <button onclick="replay()">↻ replay</button>
+  </div>
+  <div class="panel">
+    <h2>RENDERED VIDEO (HyperFrames mp4)</h2>
+    <video src="renders/mascot3d.mp4" width="480" autoplay loop muted playsinline></video>
+  </div>
+</div>
+<div class="row">
+  <div class="panel"><h2>IN CONTEXT</h2><img class="asset" src="renders/final.context.png" width="640"></div>
+  <div class="panel"><h2>SMALL SIZES (hero vs avatar mode)</h2><img class="asset" src="renders/smallsize.png" width="520"></div>
+  <div class="panel"><h2>FILMSTRIP</h2><img class="asset" src="renders/mascot3d-strip.png" width="1120"></div>
+</div>
+<script>
+  const fr = document.getElementById("fr");
+  const LOOP = 4.0, ANIM = 3.0; // play 3s of animation, hold, loop
+  let t0 = null, raf = null;
+  function tick(now) {
+    if (t0 === null) t0 = now;
+    const t = ((now - t0) / 1000) % LOOP;
+    const w = fr.contentWindow;
+    if (w && w.renderAt) w.renderAt(Math.min(t, ANIM) === ANIM ? 99 : t);
+    raf = requestAnimationFrame(tick);
+  }
+  function replay() { t0 = null; }
+  fr.addEventListener("load", () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(tick); });
+</script>
+</body>
+</html>

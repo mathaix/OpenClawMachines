@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <!-- Box crab: microVM-squircle body, open pincers, stalk eyes -->
+  <g fill="#EA580C">
+    <!-- antennae -->
+    <path d="M17 11 C 15 7, 11 5.5, 7.5 6.5 L 8.5 9.5 C 11 9, 13.5 10, 15 12.5 Z"/>
+    <path d="M31 11 C 33 7, 37 5.5, 40.5 6.5 L 39.5 9.5 C 37 9, 34.5 10, 33 12.5 Z"/>
+    <!-- left pincer: open C facing out -->
+    <path d="M9 18 C 3.5 18.5, 0.5 23, 1.5 28 C 2.3 32, 5.5 35, 10 35 L 10 30.5
+             C 7.5 30.5, 5.8 29, 5.5 26.8 C 5.2 24.5, 6.8 22.6, 9.5 22.4 Z"/>
+    <!-- right pincer -->
+    <path d="M39 18 C 44.5 18.5, 47.5 23, 46.5 28 C 45.7 32, 42.5 35, 38 35 L 38 30.5
+             C 40.5 30.5, 42.2 29, 42.5 26.8 C 42.8 24.5, 41.2 22.6, 38.5 22.4 Z"/>
+    <!-- body: the microVM -->
+    <rect x="11" y="12" width="26" height="26" rx="8"/>
+    <!-- legs -->
+    <rect x="17" y="39" width="5" height="6" rx="2.5"/>
+    <rect x="26" y="39" width="5" height="6" rx="2.5"/>
+  </g>
+  <!-- face: big friendly eyes + smile, negative space -->
+  <g fill="#FFFFFF">
+    <circle cx="19" cy="23" r="3.4"/>
+    <circle cx="29" cy="23" r="3.4"/>
+  </g>
+  <g fill="#0B0B10">
+    <circle cx="19.8" cy="23.6" r="1.7"/>
+    <circle cx="29.8" cy="23.6" r="1.7"/>
+  </g>
+  <path d="M20 30 Q 24 33.5, 28 30" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round"/>
+</svg>

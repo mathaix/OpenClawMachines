@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <!-- VM boundary with a claw reaching in to hold the agent (dot) -->
+  <path d="M30 6 H13 A 7 7 0 0 0 6 13 V35 A 7 7 0 0 0 13 42 H30"
+        fill="none" stroke="#EA580C" stroke-width="5" stroke-linecap="round"/>
+  <!-- claw arm entering through the open right side -->
+  <g fill="#EA580C">
+    <path d="M46 20 C 38 16, 30 16, 25 20 C 21 23, 21 25, 25 28 C 30 32, 38 32, 46 28
+             L 46 23.5 C 39 27.5, 31 27.5, 28 24 C 31 20.5, 39 20.5, 46 24.5 Z"/>
+    <circle cx="18.5" cy="24" r="5"/>
+  </g>
+</svg>

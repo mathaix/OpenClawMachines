@@ -1,0 +1,367 @@
+<!doctype html>
+<!-- mascot3d: m5-happy-machine as a 3D wireframe lattice with spin-settle animation.
+     Deterministic: window.renderAt(t) draws the exact frame at time t seconds.
+     window.play() runs the live animation. Iterated per docs/branding/mascot3d/process.md -->
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; background: #0b0b10; }
+  #stage { width: 960px; height: 960px; display: grid; place-items: center; }
+  canvas { width: 960px; height: 960px; }
+</style>
+</head>
+<body>
+<!-- HyperFrames composition root: data-duration drives the video length;
+     the runtime dispatches hf-seek events that renderAt() consumes. -->
+<div id="stage" data-composition-id="mascot3d" data-start="0" data-duration="2.8"
+     data-width="960" data-height="960">
+  <canvas id="c" width="960" height="960"></canvas>
+</div>
+<script>
+// ---------- design parameters (the knobs the iterations turn) ----------
+const P = {
+  // body geometry: superellipsoid |x|^n + |y|^n + |z|^n = 1
+  n: 4.0,            // squircle exponent (2 = sphere, higher = boxier)
+  R: 1.0,            // body half-extent
+  cells: 4,          // quad cells per cube face (lattice density)
+  facePanel: 1.0,    // lattice alpha multiplier behind the face (1 = rely on the glass fill)
+  fillAlpha: 0.055,  // per-face interior tint (overlaps stack to ~0.11)
+  seg: 96,           // polyline segments per curve
+  tiltX: -0.24,      // resting tilt (radians) so the top face shows — 3D read
+  camZ: 4.2,         // camera distance
+  fov: 2.6,          // projection strength
+  // animation
+  spinTurns: 2.5,    // 2 turns burn during the fall; ~0.55 turn left at impact
+  T: 1.9,            // seconds to settle
+  settlePow: 4.5,    // ease-out exponent — front-loads rotation into the fall
+  wobAmp: 0.30,      // overshoot wobble amplitude (radians)
+  wobFreq: 7.0,      // wobble frequency
+  wobDecay: 3.2,     // wobble decay rate
+  dropH: 2.40,       // drop-in start height (enters from off-frame)
+  dropT: 0.55,       // impact time (s)
+  bounceAmp: 0.10, bounceFreq: 11, bounceDecay: 5.5,
+  squashAmp: 0.14, squashFreq: 9, squashDecay: 6.0,
+  // style
+  bg: "#0b0b10",
+  wireFront: "#F97316",
+  wireBack: "#7C2D12",
+  lineW: 2.2,
+  eyeR: 0.21,        // relative to R — m5 proportion (4.6/18 ≈ 0.26, slightly under for 3D)
+  pupilR: 0.095,     // m5 ratio ~0.5 reads as rings on dark — keep pupils small
+  pupilOff: 0.045,   // pupil offset down-right (m5's +0.9/+0.9)
+  eyeX: 0.34, eyeY: 0.10,   // eye centers on the front face (body units, y up)
+  smileY: -0.24, smileW: 0.36, smileDrop: 0.20,
+  smileLW: 0.21,     // mouth stroke as fraction of eyeScale — m5's filled-grin weight
+};
+
+const cv = document.getElementById("c"), ctx = cv.getContext("2d");
+const W = cv.width, H = cv.height, S = W * 0.34; // world→pixel scale
+
+// ---------- superellipsoid as a cube-mapped quad grid ----------
+// the body is a cube inflated to |x|^n+|y|^n+|z|^n = R^n. The lattice is three
+// orthogonal families of closed rings (constant x / y / z slices of the cube,
+// projected onto the surface). Every cell is a quad, nothing converges at a
+// pole — it reads as machined panels, not a woven lantern.
+function cubeMap(x, y, z) {
+  const s = P.R / Math.pow(
+    Math.pow(Math.abs(x), P.n) + Math.pow(Math.abs(y), P.n) + Math.pow(Math.abs(z), P.n), 1 / P.n);
+  return [x * s, y * s, z * s];
+}
+// closed ring at constant value g along `axis` (0=x,1=y,2=z): walk the square
+// perimeter in the other two coordinates
+function cubeRing(axis, g, segPerEdge) {
+  const pts = [];
+  const corners = [[-1, -1], [1, -1], [1, 1], [-1, 1], [-1, -1]];
+  for (let c = 0; c < 4; c++) {
+    const [a0, b0] = corners[c], [a1, b1] = corners[c + 1];
+    for (let k = 0; k < segPerEdge; k++) {
+      const f = k / segPerEdge;
+      const a = a0 + (a1 - a0) * f, b = b0 + (b1 - b0) * f;
+      const co = axis === 0 ? [g, a, b] : axis === 1 ? [a, g, b] : [a, b, g];
+      pts.push(cubeMap(co[0], co[1], co[2]));
+    }
+  }
+  pts.push(pts[0]);
+  return pts;
+}
+
+// ---------- rotation + projection ----------
+function rot(pt, ay, ax) {
+  let [x, y, z] = pt;
+  // rotate around Y (the spin)
+  let cx = Math.cos(ay), sx = Math.sin(ay);
+  [x, z] = [x * cx + z * sx, -x * sx + z * cx];
+  // rotate around X (the tilt)
+  let c2 = Math.cos(ax), s2 = Math.sin(ax);
+  [y, z] = [y * c2 - z * s2, y * s2 + z * c2];
+  return [x, y, z];
+}
+function proj([x, y, z]) {
+  const d = P.fov / (P.camZ - z);
+  return [W / 2 + x * d * S, H / 2 - y * d * S, z];
+}
+
+// ---------- animation curves: drop in while spinning, land, settle ----------
+function spinAngle(t) {
+  const u = Math.min(t / P.T, 1);
+  const main = P.spinTurns * 2 * Math.PI * Math.pow(1 - u, P.settlePow);
+  const s = Math.max(t - P.T * 0.78, 0);
+  const wobble = P.wobAmp * Math.exp(-P.wobDecay * s) * Math.sin(P.wobFreq * s) * (u > 0.7 ? 1 : 0);
+  return main + wobble;
+}
+// claw-machine drop: fall under gravity, land at t=dropT, damped micro-bounce
+function dropOffset(t) {
+  if (t >= P.dropT) {
+    const s = t - P.dropT;
+    return -P.bounceAmp * Math.exp(-P.bounceDecay * s) * Math.abs(Math.sin(P.bounceFreq * s));
+  }
+  const u = t / P.dropT;
+  return P.dropH * (1 - u * u); // ease-in fall (gravity)
+}
+// settled idle: a barely-there breath so long holds never freeze
+function idleBob(t) {
+  return t > P.T ? 0.012 * Math.sin(2 * Math.PI * 0.7 * (t - P.T)) : 0;
+}
+// squash pulse at impact, recovering with damped spring
+function squash(t) {
+  if (t < P.dropT) {
+    const u = t / P.dropT; // fall velocity peaks at impact: stretch grows into it
+    const st = 0.10 * u * u;
+    return { sx: 1 - st * 0.5, sy: 1 + st };
+  }
+  const s = t - P.dropT;
+  const k = P.squashAmp * Math.exp(-P.squashDecay * s) * Math.cos(P.squashFreq * s);
+  return { sx: 1 + k * 0.55, sy: 1 - k };
+}
+
+// ---------- draw one frame ----------
+let TRANSPARENT = false;
+function renderAt(t) {
+  const ay = spinAngle(t);
+  const uT = Math.min(t / P.T, 1);
+  const ax = -0.30 + (-0.16 - -0.30) * (uT * uT * (3 - 2 * uT)); // -0.30 → -0.16 smoothstep
+  const { sx, sy } = squash(t), yOff = dropOffset(t);
+  // body transform: spin+tilt, then screen-space squash and drop offset
+  const xform = (p) => {
+    const [x, y, z] = rot(p, ay, ax);
+    return [x * sx, y * sy + yOff + idleBob(t), z];
+  };
+  ctx.clearRect(0, 0, W, H);
+  if (!TRANSPARENT) {
+    ctx.fillStyle = P.bg;
+    ctx.fillRect(0, 0, W, H);
+  }
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+
+  // ground shadow: tightens and darkens as the body lands (sells the drop)
+  {
+    const h = Math.max(yOff, 0); // height above rest
+    const pulse = t > P.dropT ? 1 + 0.9 * Math.exp(-7 * (t - P.dropT)) : 1; // impact flash
+    const spread = 1 + h * 0.55, dim = pulse / (1 + h * 1.6);
+    const gy = H / 2 + 1.40 * (P.fov / P.camZ) * S; // just under resting body
+    const grx = 0.86 * (P.fov / P.camZ) * S * sx / spread;
+    const gry = grx * 0.16;
+    const g = ctx.createRadialGradient(W / 2, gy, 0, W / 2, gy, grx);
+    g.addColorStop(0, `rgba(249,115,22,${0.20 * dim})`);
+    g.addColorStop(0.65, `rgba(249,115,22,${0.07 * dim})`);
+    g.addColorStop(1, "rgba(249,115,22,0)");
+    ctx.save();
+    ctx.translate(W / 2, gy);
+    ctx.scale(1, gry / grx);
+    ctx.translate(-W / 2, -gy);
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(W / 2, gy, grx, 0, 7);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // three orthogonal ring families = quad cells everywhere, seams at cube edges.
+  // boundary rings only come from the y family + 4 corner verticals, so no
+  // cube edge is ever drawn twice (twice = bright ghosting at the silhouette)
+  const polys = [];
+  const segPerEdge = Math.max(8, Math.round(P.seg / 4));
+  for (let i = 0; i <= P.cells; i++)
+    polys.push(cubeRing(1, -1 + (2 * i) / P.cells, segPerEdge));
+  for (const axis of [0, 2])
+    for (let i = 1; i < P.cells; i++)
+      polys.push(cubeRing(axis, -1 + (2 * i) / P.cells, segPerEdge));
+  for (const cx of [-1, 1])
+    for (const cz of [-1, 1]) {
+      const pts = [];
+      for (let k = 0; k <= segPerEdge; k++)
+        pts.push(cubeMap(cx, -1 + (2 * k) / segPerEdge, cz));
+      polys.push(pts);
+    }
+
+  // volumetric interior: each cube-face boundary filled at low alpha — the
+  // union tints the whole silhouette (shape survives at avatar size) and the
+  // overlaps shade with depth, selling the hologram as a volume not a cage
+  ctx.fillStyle = `rgba(234,88,12,${P.fillAlpha})`;
+  for (let axis = 0; axis < 3; axis++)
+    for (const g of [-1, 1]) {
+      const ring = cubeRing(axis, g, segPerEdge);
+      ctx.beginPath();
+      ring.forEach((p, i) => {
+        const [px, py] = proj(xform(p));
+        i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+      });
+      ctx.closePath();
+      ctx.fill();
+    }
+
+  // face visibility: geometric facing * screen power-on. The chassis drops
+  // dark; the display boots after impact — one reveal, no glancing-angle peeks
+  const nz = Math.cos(ay);
+  const facing = nz > 0.5 ? Math.min(1, (nz - 0.5) / 0.35) : 0;
+  const bootU = Math.min(Math.max((t - (P.dropT + 0.38)) / 0.22, 0), 1);
+  const fade = facing * (bootU * bootU * (3 - 2 * bootU));
+
+  // depth-sorted segments, back-to-front, color by depth
+  const inFaceRegion = ([x, y, z]) =>
+    z > 0.55 * P.R && Math.abs(x) < 0.58 * P.R && y > -0.55 * P.R && y < 0.42 * P.R;
+  const segs = [];
+  for (const pts of polys) {
+    const proj_ = pts.map((p) => proj(xform(p)));
+    for (let k = 0; k < proj_.length - 1; k++) {
+      const a = proj_[k], b = proj_[k + 1];
+      const mid = pts[k].map((c, i) => (c + pts[k + 1][i]) / 2);
+      segs.push({ a, b, z: (a[2] + b[2]) / 2, panel: inFaceRegion(mid) });
+    }
+  }
+  segs.sort((p, q) => p.z - q.z);
+  const lerp = (a, b, f) => a + (b - a) * f;
+  const hex = (c) => [parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parseInt(c.slice(5, 7), 16)];
+  const cF = hex(P.wireFront), cB = hex(P.wireBack);
+  for (const s of segs) {
+    const f = (s.z + P.R) / (2 * P.R); // 0 back → 1 front
+    const col = cF.map((c, i) => Math.round(lerp(cB[i], c, f)));
+    const panelDim = s.panel ? lerp(1, P.facePanel, fade) : 1;
+    ctx.strokeStyle = `rgba(${col[0]},${col[1]},${col[2]},${lerp(0.35, 1, f) * panelDim})`;
+    ctx.lineWidth = P.lineW * lerp(0.6, 1, f);
+    if (f > 0.78) {
+      ctx.save();
+      ctx.shadowColor = "rgba(249,115,22,0.9)";
+      ctx.shadowBlur = 10 * (f - 0.78) / 0.22;
+      ctx.beginPath();
+      ctx.moveTo(s.a[0], s.a[1]);
+      ctx.lineTo(s.b[0], s.b[1]);
+      ctx.stroke();
+      ctx.restore();
+    } else {
+      ctx.beginPath();
+      ctx.moveTo(s.a[0], s.a[1]);
+      ctx.lineTo(s.b[0], s.b[1]);
+      ctx.stroke();
+    }
+  }
+
+  // ---------- face: solid geometry riding the front surface ----------
+  // face plane normal starts at +z; visible while rotated normal faces camera
+  if (fade > 0) {
+    ctx.globalAlpha = fade;
+    // screen panel: a rounded region of the front surface, filled dark so the
+    // face reads as a display, not as a hole in the lattice
+    const zForP = (x, y) => P.R * Math.pow(Math.max(1 - Math.pow(Math.abs(x / P.R), P.n) - Math.pow(Math.abs(y / P.R), P.n), 0), 1 / P.n);
+    const panelPt = (x, y) => proj(xform([x, y, zForP(x, y) * 1.01]));
+    ctx.fillStyle = `rgba(11,11,16,${0.82 * fade})`;
+    ctx.beginPath();
+    const PB = { x: 0.60, yT: 0.44, yB: -0.56, r: 0.16 }; // panel bounds, body units
+    const corners = [];
+    const N = 10;
+    const arc = (cx2, cy2, a0, a1) => {
+      for (let k = 0; k <= N; k++) {
+        const a = a0 + ((a1 - a0) * k) / N;
+        corners.push([cx2 + PB.r * Math.cos(a), cy2 + PB.r * Math.sin(a)]);
+      }
+    };
+    arc(PB.x - PB.r, PB.yT - PB.r, 0, Math.PI / 2);
+    arc(-PB.x + PB.r, PB.yT - PB.r, Math.PI / 2, Math.PI);
+    arc(-PB.x + PB.r, PB.yB + PB.r, Math.PI, 1.5 * Math.PI);
+    arc(PB.x - PB.r, PB.yB + PB.r, 1.5 * Math.PI, 2 * Math.PI);
+    corners.forEach(([x, y], i) => {
+      const [px, py] = panelPt(x, y);
+      i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+    });
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = `rgba(249,115,22,${0.4 * fade})`;
+    ctx.lineWidth = 2.4;
+    ctx.stroke();
+    // anchor points sit just outside the surface at z where |x|,|y| known
+    const zFor = (x, y) => P.R * Math.pow(Math.max(1 - Math.pow(Math.abs(x / P.R), P.n) - Math.pow(Math.abs(y / P.R), P.n), 0), 1 / P.n);
+    const anchor = (x, y) => proj(xform([x, y, zFor(x, y) * 1.02]));
+    const eyeScale = (P.fov / (P.camZ - 0)) * S; // approx pixel scale at face depth
+
+    const bl = Math.max(0, 1 - Math.abs((t - 2.05) / 0.09)); // triangular blink pulse
+    const lid = 1 - 0.88 * Math.sin(Math.min(bl, 1) * Math.PI / 2);
+    for (const sx of [-1, 1]) {
+      const [ex, ey] = anchor(sx * P.eyeX, P.eyeY);
+      ctx.fillStyle = "#FFFFFF";
+      ctx.beginPath();
+      ctx.ellipse(ex, ey, P.eyeR * eyeScale * Math.max(nz, 0.3), P.eyeR * eyeScale * lid, 0, 0, 7);
+      ctx.fill();
+      ctx.fillStyle = "#0B0B10";
+      ctx.beginPath();
+      const po = P.pupilOff * eyeScale;
+      ctx.ellipse(ex + po * Math.max(nz, 0.3), ey + po, P.pupilR * eyeScale * Math.max(nz, 0.3), P.pupilR * eyeScale * lid, 0, 0, 7);
+      ctx.fill();
+    }
+    // smile: arc on the surface
+    ctx.strokeStyle = "#FFFFFF";
+    ctx.lineWidth = P.smileLW * eyeScale;
+    ctx.beginPath();
+    const steps = 24;
+    for (let k = 0; k <= steps; k++) {
+      const f = k / steps, x = -P.smileW + 2 * P.smileW * f;
+      const y = P.smileY - P.smileDrop * Math.sin(Math.PI * f);
+      const [px, py] = anchor(x, y);
+      k === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+}
+
+function play() {
+  const t0 = performance.now();
+  (function loop() {
+    renderAt((performance.now() - t0) / 1000);
+    requestAnimationFrame(loop);
+  })();
+}
+
+window.renderAt = renderAt;
+window.setTransparent = (v) => { TRANSPARENT = v; };
+// avatar mode: ≤34px habitat — solid brand-orange body so the icon reads
+// orange-with-a-face like the 2D m5; lattice becomes dark detail lines on top
+window.setAvatarMode = (v) => {
+  if (v) {
+    P.fillAlpha = 0.34;       // 6 faces stack to a solid orange read
+    P.wireFront = "#FFD7B0";  // wires lighten to detail, not structure
+    P.wireBack = "#B45309";
+    P.lineW = 3.0;
+  } else {
+    P.fillAlpha = 0.055; P.wireFront = "#F97316"; P.wireBack = "#7C2D12"; P.lineW = 2.2;
+  }
+};
+window.play = play;
+window.P = P;
+
+// HyperFrames integration (https://github.com/heygen-com/hyperframes).
+// Direct engine path: window.__hf seek protocol — renderAt IS the frame
+// adapter (deterministic, idempotent, arbitrary seek order).
+const DURATION = 2.8; // settle (T=1.9) + wobble decay + blink
+window.__hf = window.__hf || {};
+window.__hf.duration = DURATION;
+window.__hf.seek = (t) => renderAt(t);
+// CLI runtime path: the injected player drives deterministic adapters which
+// dispatch hf-seek CustomEvents (same hook their Three.js adapter uses).
+window.addEventListener("hf-seek", (e) => renderAt(e.detail.time));
+
+renderAt(99); // settled pose by default
+</script>
+</body>
+</html>
