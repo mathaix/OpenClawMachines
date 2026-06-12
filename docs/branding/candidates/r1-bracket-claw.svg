@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <!-- Two pincer arcs gripping a dot: claw doubles as code brackets -->
+  <g fill="none" stroke="#EA580C" stroke-width="7" stroke-linecap="round">
+    <path d="M17 8 A 17.5 17.5 0 0 0 17 40"/>
+    <path d="M31 8 A 17.5 17.5 0 0 1 31 40"/>
+  </g>
+  <!-- jaw teeth: inward hooks at each tip -->
+  <g fill="#EA580C">
+    <path d="M17 4.5 L24 9 L17 11.5 Z"/>
+    <path d="M17 36.5 L24 39 L17 43.5 Z"/>
+    <path d="M31 4.5 L24 9 L31 11.5 Z"/>
+    <path d="M31 36.5 L24 39 L31 43.5 Z"/>
+    <circle cx="24" cy="24" r="5.5"/>
+  </g>
+</svg>

@@ -1,0 +1,153 @@
+<!doctype html>
+<!-- Brainstorm explorations: r5-claw-grip extruded in 3D, hologram-lattice style.
+     A: r5 as-is (claw + thumb + microVM squircle)  B: squircle → letter M
+     C: hybrid — extruded claw gripping the lattice-box mascot body -->
+<html>
+<head>
+<meta charset="utf-8">
+<title>r5 in 3D — brainstorm</title>
+<style>
+  body { margin: 0; background: #0b0b10; color: #e5e7eb; font: 14px system-ui; }
+  header { padding: 18px 28px 6px; }
+  h1 { font-size: 17px; margin: 0; color: #f97316; display: inline; }
+  .sub { color: #8b8b94; font-size: 12.5px; margin-left: 12px; }
+  .row { display: flex; flex-wrap: wrap; gap: 20px; padding: 14px 28px 28px; }
+  .panel { background: #131318; border: 1px solid #26262e; border-radius: 12px; padding: 14px; }
+  .panel h2 { font-size: 13px; margin: 0 0 10px; color: #9ca3af; font-weight: 600; }
+  canvas { width: 420px; height: 420px; border-radius: 8px; background: #0b0b10; }
+  .note { color: #8b8b94; font-size: 12px; max-width: 420px; margin-top: 8px; line-height: 1.5; }
+</style>
+</head>
+<body>
+<header><h1>r5-claw-grip → 3D</h1><span class="sub">brainstorm mockups · turntable view · same hologram language as the mascot</span></header>
+<div class="row">
+  <div class="panel"><h2>A — r5 EXTRUDED AS-IS</h2><canvas id="cA" width="840" height="840"></canvas>
+    <div class="note">The shipped mark, extruded. Center object = the <b>microVM</b> (the thing the claw grips — same squircle the mascot's body is).</div></div>
+  <div class="panel"><h2>B — CENTER → LETTER M</h2><canvas id="cB" width="840" height="840"></canvas>
+    <div class="note">Same claw, the payload becomes an <b>M</b> ("Machines"). Letter-in-claw instead of machine-in-claw.</div></div>
+  <div class="panel"><h2>C — CLAW GRIPS THE LATTICE BOX</h2><canvas id="cC" width="840" height="840"></canvas>
+    <div class="note">Hybrid: the box lattice you like <i>is</i> the microVM, and the extruded r5 claw grips it — mascot and logo become one object.</div></div>
+</div>
+<script>
+// ---------- r5 geometry (48-unit viewBox → centered, y up, /24) ----------
+const N = (x, y) => [(x - 24) / 24, (24 - y) / 24];
+const JAW = [[22,3],[12,3],[3,12],[3,36],[12,45],[36,45],[45,36],[45,29],[38,29],[38,33.2],
+             [33.2,38],[31,38],[27,34.5],[23,38],[14.8,38],[10,33.2],[10,14.8],[14.8,10],[22,10]].map(p => N(...p));
+const THUMB = [[26,3],[37,3],[45,11],[45,25],[38,25],[38,23.5],[34.5,21.5],[34.5,18.5],
+               [38,16.5],[38,13.8],[34.2,10],[26,10]].map(p => N(...p));
+// microVM squircle: rounded rect 17.5..30.5, r=4
+function squircle() {
+  const pts = [], r = 4, x0 = 17.5, x1 = 30.5, y0 = 17.5, y1 = 30.5, K = 6;
+  const arc = (cx, cy, a0, a1) => { for (let i = 0; i <= K; i++) {
+    const a = a0 + (a1 - a0) * i / K; pts.push(N(cx + r * Math.cos(a), cy + r * Math.sin(a))); } };
+  arc(x1 - r, y0 + r, -Math.PI / 2, 0); arc(x1 - r, y1 - r, 0, Math.PI / 2);
+  arc(x0 + r, y1 - r, Math.PI / 2, Math.PI); arc(x0 + r, y0 + r, Math.PI, 1.5 * Math.PI);
+  return pts;
+}
+// blocky M filling the squircle slot
+const M_PTS = [[18,30.5],[18,18],[21.5,18],[24,23.5],[26.5,18],[30,18],[30,30.5],[27.2,30.5],
+               [27.2,23],[25,27.5],[23,27.5],[20.8,23],[20.8,30.5]].map(p => N(...p));
+
+// ---------- shared 3D ----------
+function rot([x, y, z], ay, ax) {
+  let c = Math.cos(ay), s = Math.sin(ay);
+  [x, z] = [x * c + z * s, -x * s + z * c];
+  c = Math.cos(ax); s = Math.sin(ax);
+  [y, z] = [y * c - z * s, y * s + z * c];
+  return [x, y, z];
+}
+const CAM = 4.2, FOV = 2.6;
+function mkProj(W, H, S) {
+  return ([x, y, z]) => { const d = FOV / (CAM - z); return [W / 2 + x * d * S, H / 2 - y * d * S, z]; };
+}
+// draw an extruded prism in hologram style
+function prism(ctx, proj, poly, depth, ay, ax, hue = "249,115,22") {
+  const fr = poly.map(([x, y]) => rot([x, y, depth], ay, ax));
+  const bk = poly.map(([x, y]) => rot([x, y, -depth], ay, ax));
+  const path = (pts) => { ctx.beginPath(); pts.forEach((p, i) => { const [px, py] = proj(p);
+    i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py); }); ctx.closePath(); };
+  const meanZ = (pts) => pts.reduce((a, p) => a + p[2], 0) / pts.length;
+  const faces = [[bk, meanZ(bk)], [fr, meanZ(fr)]].sort((a, b) => a[1] - b[1]);
+  for (const [pts, mz] of faces) {
+    const f = (mz + 0.5) / 1.0;
+    path(pts);
+    ctx.fillStyle = `rgba(234,88,12,${0.10 + 0.08 * Math.max(f, 0)})`;
+    ctx.fill();
+    ctx.strokeStyle = `rgba(${hue},${0.45 + 0.55 * Math.max(Math.min(f, 1), 0)})`;
+    ctx.lineWidth = mz > 0 ? 2.6 : 1.6;
+    ctx.stroke();
+    if (pts === faces[1][0]) { ctx.save(); ctx.shadowColor = `rgba(${hue},0.8)`; ctx.shadowBlur = 9; ctx.stroke(); ctx.restore(); }
+  }
+  // connector edges at each vertex
+  for (let i = 0; i < poly.length; i++) {
+    const a = proj(fr[i]), b = proj(bk[i]);
+    const f = (fr[i][2] + 0.5);
+    ctx.strokeStyle = `rgba(${hue},${0.25 + 0.3 * Math.max(f, 0)})`;
+    ctx.lineWidth = 1.3;
+    ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+  }
+}
+// lattice box (the mascot body, reusable): cube-mapped quad grid superellipsoid
+function latticeBox(ctx, proj, R, ay, ax, cells = 3, n = 4) {
+  const cubeMap = (x, y, z) => { const s = R / Math.pow(Math.abs(x) ** n + Math.abs(y) ** n + Math.abs(z) ** n, 1 / n);
+    return [x * s, y * s, z * s]; };
+  const ring = (axis, g, K = 28) => { const pts = [], cs = [[-1,-1],[1,-1],[1,1],[-1,1],[-1,-1]];
+    for (let c = 0; c < 4; c++) for (let k = 0; k < K / 4; k++) {
+      const f = k / (K / 4), a = cs[c][0] + (cs[c+1][0] - cs[c][0]) * f, b = cs[c][1] + (cs[c+1][1] - cs[c][1]) * f;
+      pts.push(cubeMap(...(axis === 0 ? [g, a, b] : axis === 1 ? [a, g, b] : [a, b, g]))); }
+    pts.push(pts[0]); return pts; };
+  const polys = [];
+  for (let i = 0; i <= cells; i++) polys.push(ring(1, -1 + 2 * i / cells));
+  for (const axis of [0, 2]) for (let i = 1; i < cells; i++) polys.push(ring(axis, -1 + 2 * i / cells));
+  for (const cx of [-1, 1]) for (const cz of [-1, 1]) {
+    const pts = []; for (let k = 0; k <= 8; k++) pts.push(cubeMap(cx, -1 + k / 4, cz)); polys.push(pts); }
+  const segs = [];
+  for (const pts of polys) {
+    const pr = pts.map((p) => proj(rot(p, ay, ax)));
+    for (let k = 0; k < pr.length - 1; k++) segs.push({ a: pr[k], b: pr[k + 1], z: (pr[k][2] + pr[k + 1][2]) / 2 });
+  }
+  segs.sort((p, q) => p.z - q.z);
+  for (const s of segs) {
+    const f = (s.z + R) / (2 * R);
+    ctx.strokeStyle = `rgba(249,115,22,${0.3 + 0.7 * Math.max(Math.min(f, 1), 0)})`;
+    ctx.lineWidth = 1.2 + 1.2 * f;
+    ctx.beginPath(); ctx.moveTo(s.a[0], s.a[1]); ctx.lineTo(s.b[0], s.b[1]); ctx.stroke();
+  }
+}
+
+// ---------- three scenes ----------
+const DEPTH = 0.16, TILT = -0.22;
+function scene(id, draw) {
+  const cv = document.getElementById(id), ctx = cv.getContext("2d");
+  const proj = mkProj(cv.width, cv.height, cv.width * 0.40);
+  return (t) => {
+    ctx.fillStyle = "#0b0b10"; ctx.fillRect(0, 0, cv.width, cv.height);
+    ctx.lineCap = "round"; ctx.lineJoin = "round";
+    const ay = 0.45 * Math.sin(t * 0.5) + 0.35; // gentle turntable sway
+    draw(ctx, proj, ay, TILT);
+  };
+}
+const SQ = squircle();
+const sceneA = scene("cA", (ctx, proj, ay, ax) => {
+  prism(ctx, proj, JAW, DEPTH, ay, ax);
+  prism(ctx, proj, THUMB, DEPTH, ay, ax);
+  prism(ctx, proj, SQ, DEPTH * 0.8, ay, ax, "251,146,60");
+});
+const sceneB = scene("cB", (ctx, proj, ay, ax) => {
+  prism(ctx, proj, JAW, DEPTH, ay, ax);
+  prism(ctx, proj, THUMB, DEPTH, ay, ax);
+  prism(ctx, proj, M_PTS, DEPTH * 0.8, ay, ax, "251,146,60");
+});
+const sceneC = scene("cC", (ctx, proj, ay, ax) => {
+  latticeBox(ctx, proj, 0.30, ay * 1.6, ax); // the microVM = the mascot's lattice body
+  prism(ctx, proj, JAW, DEPTH, ay, ax);
+  prism(ctx, proj, THUMB, DEPTH, ay, ax);
+});
+(function loop() {
+  const t = performance.now() / 1000;
+  sceneA(t); sceneB(t); sceneC(t);
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

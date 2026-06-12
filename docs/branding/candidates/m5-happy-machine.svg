@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <!-- The machine itself, friendly: a microVM squircle with a face.
+       No appendages — pure page-presence. Fleet = hue swaps. -->
+  <rect x="6" y="6" width="36" height="36" rx="11" fill="#EA580C"/>
+  <g fill="#FFFFFF">
+    <circle cx="18" cy="21" r="4.6"/>
+    <circle cx="30" cy="21" r="4.6"/>
+  </g>
+  <g fill="#0B0B10">
+    <circle cx="18.9" cy="21.9" r="2.3"/>
+    <circle cx="30.9" cy="21.9" r="2.3"/>
+  </g>
+  <path d="M17.5 30.5 Q 24 35.5, 30.5 30.5" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round"/>
+</svg>
