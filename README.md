@@ -34,10 +34,9 @@ The Apache-2.0 **public core** ships every piece of that stack:
   artifact-driven runtime staging/upgrade flow;
 - the [**browser runtime**](docs/architecture.md#browser-vms-cdp--live-view) —
   paired Chromium browser VMs with CDP routing and a watchable live view;
-- and the [**build pipelines**](docs/ci-release.md) that assemble it all —
-  [rootfs](docs/local-setup.md#runtime-images) and agent builds, host
-  provisioning scripts, and the
-  [release-artifacts workflow](.github/workflows/release-artifacts.yml).
+- and the [**build pipelines**](docs/building.md) that assemble it all — every
+  component's build command, the GCS artifact bucket layout, host provisioning
+  scripts, and the [release lanes](docs/ci-release.md).
 
 The `ocm` CLI lives in the separate
 [`mathaix/ocm-cli`](https://github.com/mathaix/ocm-cli) Apache-2.0 repository.

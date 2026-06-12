@@ -382,30 +382,29 @@ Three artifacts make a host able to boot machines, plus one the machines run:
 |---|---|---|---|---|
 | `ocm-agent` (worker binary) | `/usr/local/bin/ocm-agent` | the enroll install script (2.4) | `make build-agent` → `backend/agent-linux` *(verified)* | your `OCM_ARTIFACT_BUCKET` |
 | Guest kernel `vmlinux` | `/var/lib/ocm/vmlinux` | `provision-host.sh` | a Firecracker-compatible kernel — see the [Firecracker docs](https://github.com/firecracker-microvm/firecracker/blob/main/docs/getting-started.md) | your `OCM_ARTIFACT_BUCKET` |
-| Rootfs `rootfs.ext4` | `/var/lib/ocm/images/rootfs.ext4` (the agent stages a copy-on-write base from it) | `provision-host.sh`, or staged via `ROOTFS_GCS_MANIFEST` | `make build-rootfs` (Docker + `mkfs.ext4` + `bsdtar`) | your `OCM_ARTIFACT_BUCKET` |
+| Rootfs `rootfs.ext4` | staged by the agent as a shared `.base-rootfs.ext4` on the reflink mount (each VM disk is a copy-on-write clone) | the **agent**, via `ROOTFS_GCS_MANIFEST` (`provision-host.sh` fetches only the kernel and browser-VM assets) | `make build-rootfs` (Docker + `mkfs.ext4` + `bsdtar`; run `make install-vm-binaries` first) | your `OCM_ARTIFACT_BUCKET` |
 | OpenClaw runtime release | `/var/lib/ocm/openclaw/releases/<version>` | the agent, from the version resolved via `artifact_releases` (stage 1.4) | `make build-openclaw` (`scripts/build-openclaw-runtime.sh`) | your bucket via `OPENCLAW_GCS_MANIFEST` |
 
-**Where downloads come from — read this before relying on defaults.** The
-code's default artifact source is this repo's GitHub Releases
-(`OCM_ARTIFACT_BASE_URL` →
-`https://github.com/mathaix/OpenClawMachines/releases/latest/download`), and
-the [`Release Artifacts` workflow](../.github/workflows/release-artifacts.yml)
-is wired to publish `ocm-agent` + manifest on `v*` tags — **but no release has
-been cut yet, so that URL currently resolves to nothing**
-([#21](https://github.com/mathaix/OpenClawMachines/issues/21) tracks
-publishing). Until it lands, the two working options are:
+**Where downloads come from: a GCS bucket you control.** The rootfs is
+multiple GB — over GitHub's 2 GB release-asset cap — so a **GCS bucket is the
+canonical artifact channel**
+([#21](https://github.com/mathaix/OpenClawMachines/issues/21)). The flow is:
+build each component (one command each), upload with the matching
+`scripts/upload-*.sh` (each writes the artifact + a SHA-256 manifest into a
+standard bucket layout), and set `OCM_ARTIFACT_BUCKET=gs://your-bucket`
+everywhere this guide uses it — the provision and enroll scripts then pull and
+hash-verify from your bucket via the host's service account.
 
-1. **Build everything yourself** with the table's build commands, and place
-   the files at the "lands on the host at" paths; or
-2. **Populate your own GCS bucket** (upload the same files) and set
-   `OCM_ARTIFACT_BUCKET=gs://your-bucket` everywhere this guide uses it — the
-   provision and enroll scripts then pull from your bucket using the host's
-   service account (`gsutil`).
+The component-by-component build manual — every build command, output, upload
+script, and the bucket layout — is **[building.md](building.md)**. (The code
+also has a GitHub-Releases fallback URL for the small binaries, but no release
+has been cut yet; treat the bucket as the real channel.)
 
 ---
 
 ## Where to go next
 
+- [Building the components](building.md) — every component's build, the upload scripts, and the bucket layout
 - [Local Firecracker E2E](local-firecracker-e2e.md) — stage 1 in full depth, including everything `local-e2e-firecracker.sh` does
 - [Architecture](architecture.md) — data plane, routing, tunnels, lifecycle design
 - [Tech stack](tech-stack.md) — the five layers, client to sandbox

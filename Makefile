@@ -1,6 +1,6 @@
 # OpenClaw Machines public-core Makefile
 
-.PHONY: help dev local-env local-postgres local-migrate local-backend local-frontend local-status local-stop preflight backend frontend status check check-go check-scripts test test-go test-unit test-frontend typecheck test-worker test-integration test-integration-local-e2e test-integration-tunnel-e2e test-integration-e2e test-integration-run integration-kvm build build-server build-agent build-authproxy build-ocm-secrets build-rootfs test-rootfs build-openclaw setup-local-openclaw clean
+.PHONY: help dev local-env local-postgres local-migrate local-backend local-frontend local-status local-stop preflight backend frontend status check check-go check-scripts test test-go test-unit test-frontend typecheck test-worker test-integration test-integration-local-e2e test-integration-tunnel-e2e test-integration-e2e test-integration-run integration-kvm build build-server build-agent build-authproxy build-ocm-secrets build-ocmptyd install-vm-binaries build-rootfs test-rootfs build-openclaw setup-local-openclaw clean
 
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 GIT_COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
@@ -159,6 +159,15 @@ build-authproxy:
 
 build-ocm-secrets:
 	cd backend && GOOS=linux GOARCH=amd64 go build -o ocm-secrets-linux ./cmd/ocm-secrets
+
+build-ocmptyd:
+	cd backend && GOOS=linux GOARCH=amd64 go build -o ocmptyd-linux ./cmd/ocmptyd
+
+# Install the in-VM binaries where scripts/build-rootfs.sh expects them
+install-vm-binaries: build-authproxy build-ocm-secrets build-ocmptyd
+	sudo install -m 0755 backend/authproxy-linux /usr/local/bin/authproxy
+	sudo install -m 0755 backend/ocm-secrets-linux /usr/local/bin/ocm-secrets
+	sudo install -m 0755 backend/ocmptyd-linux /usr/local/bin/ocmptyd
 
 build-rootfs:
 	@bash scripts/build-rootfs.sh
