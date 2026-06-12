@@ -18,7 +18,6 @@ after the split from the private hosted overlay.
 | `docs/local-setup.md` | Local and BYO-host setup expectations. |
 | `docs/getting-started.md` | Three-stage guide: local evaluation, Cloudflare + dedicated host, full workflow. |
 | `docs/tech-stack.md` | The five-layer stack, client to sandbox (moved out of the README). |
-| `docs/comparison.md` | Ways to run OpenClaw and how OpenClaw Machines compares (moved out of the README). |
 | `docs/cli.md` | Relationship to the separate `mathaix/ocm-cli` Apache-2.0 project. |
 | `docs/ci-release.md` | CI and release safety boundaries for public-core changes. |
 | `docs/kvm-integration-ci.md` | Maintainer-gated KVM integration lane for public PRs and `main` pushes. |
