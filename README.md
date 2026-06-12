@@ -1,8 +1,4 @@
-<p align="center">
-  <img src="docs/branding/candidates/r5-claw-grip.svg" width="140" alt="OpenClaw Machines — a machine claw gripping a microVM">
-</p>
-
-# OpenClaw Machines
+# <img src="docs/branding/candidates/r5-claw-grip.svg" height="38" align="top" alt="OpenClaw Machines logo — a machine claw gripping a microVM"> OpenClaw Machines
 
 **Run as many isolated OpenClaw agents as you need, on hardware you own.**
 
