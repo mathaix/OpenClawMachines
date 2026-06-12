@@ -234,3 +234,68 @@ CRITICAL findings. Key points adopted into scope:
   same-filled subpaths are safe under nonzero fill.
 - Process gap acknowledged: one AI judge from renders is strong for iteration,
   weak for launch proof — blind human reads belong in the rollout step.
+
+## Step 14 — Redirect: the mascot is the logo people see
+
+Owner feedback: the redesign target they had in mind is the **mascot**
+(`mascots.svg` — three round lobster blobs, red/blue/green; the red one is the
+app-header logo today). Assessment of the current mascots: the *concept* is
+excellent — a fleet of differently-colored agent-lobsters IS the product — but
+the craft fails: heavy gradients, mitten claws that don't read as claws,
+pinprick eyes, and mush below 64px.
+
+Strategy adopted (the mature-project two-asset system): **geometric mark
+(r5-claw-grip) for favicon/avatar/UI chrome + a mascot for personality** —
+docs, web, social. They must share DNA. Mascot brief:
+- flat, two-tone max per mascot (no gradients), crisp at 64px;
+- the body becomes a **rounded square** — the microVM squircle from the mark —
+  so mascot and mark are visibly the same family ("an agent in a box");
+- claws must read as claws (open pincers, the r-series lesson: cuts not blobs);
+- keep the multi-color fleet story (red primary, blue/green siblings).
+
+## Step 15 — Round 6: three mascot candidates
+
+- **m1-boxcrab**: squircle body, two open-pincer claws raised at the sides,
+  stalk antennae, big friendly eyes. Direct "VM with a personality."
+- **m2-lobster-flat**: faithful cleanup of the current round lobster — circle
+  body kept, flattened, claws redrawn as real pincers. Tests whether the
+  current shape survives a craft-only fix.
+- **m3-claw-buddy**: the r5 mark's jaw+thumb claw shape reused as the mascot's
+  *own claw*, body peeking from inside it — maximum mark↔mascot coherence.
+
+## Step 16 — Rounds 6–8: the mascot arc and the page-context verdict
+
+Owner redirect #1: the redesign target they cared about is the **mascot**
+(`mascots.svg`, the lobster trio — judge calibrated it at **27.5/100**:
+"three overlapping plush blobs — pigs? gumdrops?"). Rounds 6–7 produced
+**m4-boxcrab** (squircle body, crab eye-stalks, docked pincers) from judge
+prescriptions, and **m4-fleet** proved the multi-color fleet survives flat.
+
+Owner redirect #2: *"you don't need to stick to that theme — pick something
+that looks good on the whole page."* This changed the evaluation itself: built
+`render-context.mjs`, which renders every candidate in three real product
+contexts (dark navbar @28px beside the wordmark, README hero @96px on white,
+dashboard machine-card avatar @34px), and ran a final in-context judging round.
+
+## Step 17 — Final in-context verdict (the deciding round)
+
+| Candidate | Navbar 28px | Hero 96px | Card 34px | Overall |
+|---|---|---|---|---|
+| **r5-claw-grip** | 9 | 8 | 8.5 | **8.5 — THE logo** |
+| m5-happy-machine | 8 | 7.5 | 9 | 8 — best in-product avatar |
+| m4-boxcrab | 5 | 8 | 5.5 | 6 — hero-only; "page presence kills it" |
+| m6-lobster-mini | 4 | 5 | 4.5 | 4.5 — killed ("monkey before lobster") |
+
+**The system the judge recommends (and this PR captures):**
+- **r5-claw-grip = the brand mark** — navbar, favicon, hero, README. Only
+  asset that survives all three sizes undegraded.
+- **m5-happy-machine = the machine** — its squircle is *literally the square
+  r5's claw grips*, so it's not a second mascot, it's the same object given a
+  face. Use for machine-card avatars, empty states, loading states. It
+  outscored r5 in the card context (9 vs 8.5) because "a machine with a face
+  is the perfect repeated list element for your running agents."
+- m4-boxcrab → illustration use only; m6 cut.
+- **Wordmark fix:** the teal "Machines" floats unanchored next to any
+  single-color orange mark and dates the lockup — make "Machines"
+  white/neutral and let teal retreat to functional accents (it already owns
+  the "Running" pill).
