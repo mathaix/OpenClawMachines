@@ -179,6 +179,7 @@ ending with something working:
 - [Local and BYO-host setup](docs/local-setup.md)
 - [Control plane deployment profiles](docs/control-plane-profiles.md)
 - [Self-hosted control plane prerequisites](docs/self-hosted-control-plane.md)
+- [Operator troubleshooting runbook](docs/operator-troubleshooting.md)
 - [LLM operator runbook](llms/self-hosted-setup.txt)
 - [Public docs inventory](docs/public-docs-inventory.md)
 - [Contributing](CONTRIBUTING.md) · [Security policy](SECURITY.md) · [Code of conduct](CODE_OF_CONDUCT.md)

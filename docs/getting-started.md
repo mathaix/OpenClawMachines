@@ -410,5 +410,7 @@ has been cut yet; treat the bucket as the real channel.)
 - [Tech stack](tech-stack.md) — the five layers, client to sandbox
 - [Control plane profiles](control-plane-profiles.md) — `local` / `operator` / `hosted`
 - [Self-hosted control plane](self-hosted-control-plane.md) — Cloudflare + auth prerequisites
+- [Operator troubleshooting](operator-troubleshooting.md) — day-two recovery for
+  CLI, SSH, chat, gateway, and config issues
 - [Host enrollment](host-enrollment.md) — the enrollment path in depth
 - [Local + BYO-host setup](local-setup.md)
