@@ -124,26 +124,26 @@ export function MembersTab({ accountId }: MembersTabProps) {
 
   const roleBadge = (role: string) => {
     const colors: Record<string, string> = {
-      owner: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300",
-      admin: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
-      member: "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300",
+      owner: "bg-purple-400/10 text-purple-400 border-purple-400/20",
+      admin: "bg-blue-400/10 text-blue-400 border-blue-400/20",
+      member: "bg-elevated text-text-secondary border-border",
     };
     return (
-      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${colors[role] || colors.member}`}>
+      <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${colors[role] || colors.member}`}>
         {role}
       </span>
     );
   };
 
   if (loading) {
-    return <p className="text-sm text-gray-500 dark:text-gray-400">Loading members...</p>;
+    return <p className="text-sm text-text-secondary">Loading members...</p>;
   }
 
   if (error) {
     return (
-      <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-        <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
-        <button onClick={fetchData} className="mt-2 text-sm text-red-600 dark:text-red-400 underline">
+      <div className="bg-red-400/10 border border-red-400/20 rounded-lg p-4">
+        <p className="text-sm text-red-400">{error}</p>
+        <button onClick={fetchData} className="mt-2 text-sm text-red-400 underline hover:text-red-600">
           Retry
         </button>
       </div>
@@ -153,31 +153,31 @@ export function MembersTab({ accountId }: MembersTabProps) {
   return (
     <div className="space-y-6">
       {/* Members list */}
-      <div className="bg-white dark:bg-surface-card rounded-lg border border-gray-200 dark:border-border">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-border">
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Members</h2>
+      <div className="bg-card rounded-[var(--radius-lg)] border border-border shadow-card overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+          <h2 className="text-sm font-semibold text-text-primary">Members</h2>
           {isOwnerOrAdmin && (
             <button
               onClick={() => setInviteOpen(true)}
-              className="text-sm font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300"
+              className="text-sm font-medium text-brand-500 hover:text-brand-400"
             >
               Invite Member
             </button>
           )}
         </div>
-        <div className="divide-y divide-gray-100 dark:divide-border">
+        <div className="divide-y divide-border-subtle">
           {members.map((member) => (
-            <div key={member.user_id} className="flex items-center justify-between px-4 py-3">
+            <div key={member.user_id} className="flex items-center justify-between gap-4 px-4 py-3 hover:bg-card-hover">
               <div className="flex items-center gap-3 min-w-0">
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                  <p className="text-sm font-medium text-text-primary truncate">
                     {member.name || member.email}
                     {member.user_id === user?.id && (
-                      <span className="ml-1.5 text-xs text-gray-400 dark:text-gray-500">(you)</span>
+                      <span className="ml-1.5 text-xs text-text-muted">(you)</span>
                     )}
                   </p>
                   {member.name && (
-                    <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{member.email}</p>
+                    <p className="text-xs text-text-secondary truncate">{member.email}</p>
                   )}
                 </div>
               </div>
@@ -190,14 +190,14 @@ export function MembersTab({ accountId }: MembersTabProps) {
                       value={member.role}
                       onChange={(e) => handleRoleChange(member.user_id, e.target.value)}
                       disabled={pendingRoles.has(member.user_id)}
-                      className="text-xs border border-gray-200 dark:border-border rounded-md px-2 py-1 bg-white dark:bg-surface-elevated text-gray-700 dark:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="text-xs border border-border rounded-[var(--radius-sm)] px-2 py-1 bg-input text-text-primary disabled:opacity-50 disabled:cursor-not-allowed outline-none focus:border-brand-500"
                     >
                       <option value="admin">admin</option>
                       <option value="member">member</option>
                     </select>
                     <button
                       onClick={() => handleRemoveMember(member.user_id, member.email)}
-                      className="text-xs text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300"
+                      className="text-xs text-red-400 hover:text-red-600"
                     >
                       Remove
                     </button>
@@ -207,7 +207,7 @@ export function MembersTab({ accountId }: MembersTabProps) {
                     {roleBadge(member.role)}
                     <button
                       onClick={handleLeave}
-                      className="text-xs text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300"
+                      className="text-xs text-red-400 hover:text-red-600"
                     >
                       Leave
                     </button>
@@ -223,23 +223,23 @@ export function MembersTab({ accountId }: MembersTabProps) {
 
       {/* Pending Invitations */}
       {isOwnerOrAdmin && invitations.length > 0 && (
-        <div className="bg-white dark:bg-surface-card rounded-lg border border-gray-200 dark:border-border">
-          <div className="px-4 py-3 border-b border-gray-200 dark:border-border">
-            <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Pending Invitations</h2>
+        <div className="bg-card rounded-[var(--radius-lg)] border border-border shadow-card overflow-hidden">
+          <div className="px-4 py-3 border-b border-border">
+            <h2 className="text-sm font-semibold text-text-primary">Pending Invitations</h2>
           </div>
-          <div className="divide-y divide-gray-100 dark:divide-border">
+          <div className="divide-y divide-border-subtle">
             {invitations.map((inv) => (
-              <div key={inv.id} className="flex items-center justify-between px-4 py-3">
+              <div key={inv.id} className="flex items-center justify-between gap-4 px-4 py-3 hover:bg-card-hover">
                 <div className="min-w-0">
-                  <p className="text-sm text-gray-900 dark:text-gray-100 truncate">{inv.email}</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                  <p className="text-sm text-text-primary truncate">{inv.email}</p>
+                  <p className="text-xs text-text-secondary">
                     {roleBadge(inv.role)}
                     <span className="ml-2">expires in {daysUntil(inv.expires_at)} days</span>
                   </p>
                 </div>
                 <button
                   onClick={() => handleRevokeInvitation(inv.id)}
-                  className="text-xs text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 flex-shrink-0"
+                  className="text-xs text-red-400 hover:text-red-600 flex-shrink-0"
                 >
                   Revoke
                 </button>
@@ -253,12 +253,12 @@ export function MembersTab({ accountId }: MembersTabProps) {
       {inviteOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="fixed inset-0 bg-black/50" onClick={closeInviteDialog} />
-          <div className="relative bg-white dark:bg-surface-card rounded-lg shadow-xl p-6 w-full max-w-md">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Invite Member</h3>
+          <div className="relative bg-card border border-border rounded-[var(--radius-lg)] shadow-modal p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold text-text-primary mb-4">Invite Member</h3>
 
             <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-sm font-medium text-text-secondary mb-1">
                     Email address
                   </label>
                   <input
@@ -266,17 +266,17 @@ export function MembersTab({ accountId }: MembersTabProps) {
                     value={inviteEmail}
                     onChange={(e) => setInviteEmail(e.target.value)}
                     placeholder="colleague@example.com"
-                    className="w-full text-sm border border-gray-200 dark:border-border rounded-md px-3 py-2 bg-white dark:bg-surface-elevated text-gray-900 dark:text-gray-100 placeholder-gray-400"
+                    className="w-full text-sm border border-border rounded-[var(--radius-sm)] px-3 py-2 bg-input text-text-primary placeholder:text-text-muted outline-none focus:border-brand-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-sm font-medium text-text-secondary mb-1">
                     Role
                   </label>
                   <select
                     value={inviteRole}
                     onChange={(e) => setInviteRole(e.target.value)}
-                    className="w-full text-sm border border-gray-200 dark:border-border rounded-md px-3 py-2 bg-white dark:bg-surface-elevated text-gray-700 dark:text-gray-300"
+                    className="w-full text-sm border border-border rounded-[var(--radius-sm)] px-3 py-2 bg-input text-text-primary outline-none focus:border-brand-500"
                   >
                     <option value="admin">Admin</option>
                     <option value="member">Member</option>
@@ -285,7 +285,7 @@ export function MembersTab({ accountId }: MembersTabProps) {
                 <div className="flex gap-2 pt-2">
                   <button
                     onClick={closeInviteDialog}
-                    className="flex-1 text-sm font-medium px-3 py-2 border border-gray-200 dark:border-border rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-surface-elevated"
+                    className="flex-1 text-sm font-medium px-3 py-2 border border-border rounded-[var(--radius-sm)] text-text-secondary hover:text-text-primary hover:bg-card-hover"
                   >
                     Cancel
                   </button>
