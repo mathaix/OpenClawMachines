@@ -62,6 +62,17 @@ func (s *Server) handleDashboardProxy(w http.ResponseWriter, r *http.Request) {
 	s.handleMachineServiceProxy(w, r, "dashboard", fmt.Sprintf("/api/accounts/%d/machines/%s/dashboard", accountID, id))
 }
 
+// handleFilesBrowserProxy proxies the in-VM filebrowser UI (for the Files tab
+// iframe) through the host agent. Production loads this iframe directly through
+// subdomain routing; this route provides the equivalent dev-mode path via the
+// control plane. The forwarded prefix lets filebrowser rewrite its absolute
+// /files/... asset URLs to load back through this same route.
+func (s *Server) handleFilesBrowserProxy(w http.ResponseWriter, r *http.Request) {
+	accountID := accountIDFromContext(r.Context())
+	id := chi.URLParam(r, "id")
+	s.handleMachineServiceProxy(w, r, "files", fmt.Sprintf("/api/accounts/%d/machines/%s/files", accountID, id))
+}
+
 // handleMachineServiceProxy proxies HTTP and WebSocket requests to a VM service
 // through the host agent. This enables dev-mode access via the control plane;
 // in production, traffic goes through subdomain routing.
