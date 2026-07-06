@@ -501,6 +501,7 @@ has been cut yet; treat the bucket as the real channel.)
 
 ## Where to go next
 
+- [User guide](user-guide.md) — **using** a machine day-to-day: model setup, chat, terminal, browser VM, files, logs, traces, backups, troubleshooting
 - [Building the components](building.md) — every component's build, the upload scripts, and the bucket layout
 - [Local Firecracker E2E](local-firecracker-e2e.md) — stage 1 in full depth, including everything `local-e2e-firecracker.sh` does
 - [Architecture](architecture.md) — data plane, routing, tunnels, lifecycle design

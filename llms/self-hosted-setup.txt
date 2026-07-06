@@ -11,10 +11,21 @@ Do not replace Cloudflare Worker/KV routing. Do not expose KVM hosts directly to
 users. Do not print secrets.
 
 Primary docs to read first:
+- docs/getting-started.md  (Stage 2 is the Cloudflare + dedicated-host path)
 - docs/self-hosted-control-plane.md
 - docs/control-plane-profiles.md
 - docs/local-setup.md
+- docs/building.md  (build rootfs/kernel/agent from source)
 - docs/cli.md
+
+Cloudflare API token (CLOUDFLARE_API_TOKEN) exact permission groups — the
+control plane uses this at runtime for per-VM tunnels, DNS, and route KV:
+- Account · Cloudflare Tunnel · Edit
+- Account · Workers KV Storage · Edit
+- Zone · DNS · Edit          (scoped to the data-plane zone)
+- Zone · Zone · Read         (scoped to the data-plane zone)
+Deploying the Worker/KV with wrangler is a separate one-time step (wrangler
+login); if scripted with a token instead, add Account · Workers Scripts · Edit.
 
 Required operator inputs:
 - operator_domain:
@@ -69,7 +80,15 @@ Phase 1: Prerequisite validation
 - For Cloudflare Access, verify team domain and AUD.
 - Verify OCM required secrets are present or can be generated.
 - Verify the KVM worker host has Linux, KVM, Firecracker, cloudflared, and
-  bridge/TAP prerequisites.
+  bridge/TAP prerequisites (scripts/provision-host.sh installs these).
+- VM images: prefer building the rootfs from source (make install-vm-binaries
+  && make build-rootfs) — it bakes in the current scripts/init-openclaw.sh and
+  needs no artifact bucket. Prebuilt bucket artifacts come from a separate
+  release pipeline and can lag this repo (a rootfs published before the
+  no-tunnel init fix panics a no-tunnel boot). Build needs the dev toolchain:
+  Go >= 1.25.10, Node >= 20, Docker WITH the buildx plugin, e2fsprogs
+  (mkfs.ext4), libarchive-tools (bsdtar), and binutils (strings) — none are on
+  a bare Ubuntu image by default.
 
 Phase 2: Configuration plan
 Generate a redacted plan for:
