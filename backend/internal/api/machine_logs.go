@@ -45,7 +45,11 @@ func (s *Server) handleMachineLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	agentURL := fmt.Sprintf("http://%s:9091/logs?machine_id=%s", hostIP, machine.ID)
+	// The agent serves per-machine log streams at /proxy/{machineID}/logs on
+	// the proxy port; the bare /logs?machine_id= endpoint only exists on the
+	// firewalled control port (9090) and 404s here, which the SSE client sees
+	// as an immediate stream close and retries forever ("[Reconnecting…]").
+	agentURL := fmt.Sprintf("http://%s:9091/proxy/%s/logs", hostIP, machine.ID)
 	agentReq, err := http.NewRequestWithContext(r.Context(), http.MethodGet, agentURL, nil)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to create agent request")
