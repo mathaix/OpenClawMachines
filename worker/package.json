@@ -8,7 +8,7 @@
   },
   "devDependencies": {
     "vitest": "^4.0.18",
-    "wrangler": "^4.60.0",
+    "wrangler": "^4.107.0",
     "ws": "^8.19.0"
   },
   "dependencies": {
