@@ -79,7 +79,8 @@ A fresh Ubuntu 24.04 image has none of the developer tools. Install them first:
 
 ```bash
 sudo apt-get update
-sudo apt-get install -y make docker.io git curl jq
+# make/docker/git plus the rootfs-build deps (buildx, mkfs.ext4, bsdtar, strings):
+sudo apt-get install -y make docker.io docker-buildx git curl jq e2fsprogs libarchive-tools binutils
 # Go ≥ 1.25.10 and Node ≥ 20 (adjust for your arch):
 curl -sL https://go.dev/dl/go1.26.2.linux-amd64.tar.gz | sudo tar -C /usr/local -xz
 echo 'export PATH=$PATH:/usr/local/go/bin' | sudo tee /etc/profile.d/golang.sh
@@ -108,9 +109,21 @@ exactly what's missing. Two things it will ask for:
   sudo OCM_ARTIFACT_BUCKET=gs://YOUR-ARTIFACT-BUCKET bash scripts/provision-host.sh
   ```
 - **VM images** — a guest kernel at `/var/lib/ocm/vmlinux` and a rootfs at
-  `/var/lib/ocm/images/rootfs.ext4`. Where these come from (build them
-  yourself, or pull from a bucket you populate) is the [Artifacts](#artifacts)
-  section — read it once now; everything else refers back to it.
+  `/var/lib/ocm/images/rootfs.ext4`.
+  - The **kernel** is fetched by `provision-host.sh` above (or build one per
+    the [Firecracker docs](https://github.com/firecracker-microvm/firecracker/blob/main/docs/getting-started.md)).
+  - **Build the rootfs from source** — this is the recommended path for local
+    evaluation: it bakes in this repo's `scripts/init-openclaw.sh` (which boots
+    correctly in the no-tunnel local profile) and needs no artifact bucket.
+    Needs Docker **with the buildx plugin** (`docker buildx version`),
+    `mkfs.ext4`, and `bsdtar` — all installed in the toolchain step above.
+    ```bash
+    make install-vm-binaries   # authproxy, ocm-secrets, ocmptyd — baked into the image
+    make build-rootfs          # ~10 min; writes /var/lib/ocm/images/rootfs.ext4
+    ```
+  Pulling a prebuilt rootfs from a bucket you populate is the alternative — see
+  the [Artifacts](#artifacts) section (read it once now; everything else refers
+  back to it).
 
 ### 1.3 Bring the stack up
 
