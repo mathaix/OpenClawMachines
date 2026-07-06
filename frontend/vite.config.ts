@@ -37,7 +37,9 @@ export default defineConfig({
     port: 5173,
     proxy: {
       "/api": {
-        target: "http://localhost:8080",
+        // Operators: point OCM_API_PROXY_TARGET at a remote control plane
+        // (e.g. an SSH tunnel to a GCP host) to run the frontend locally.
+        target: process.env.OCM_API_PROXY_TARGET || "http://localhost:8080",
         changeOrigin: true,
         ws: true,
       },
