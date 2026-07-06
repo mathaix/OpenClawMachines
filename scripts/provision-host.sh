@@ -25,6 +25,11 @@ set -euo pipefail
 # Artifact source (kernel, browser rootfs) defaults to OCM_ARTIFACT_BUCKET.
 # Point it at your own bucket, or use the public default and make it readable.
 
+# Resolve the script's own directory up front, before any `cd` in the body can
+# poison a relative ${BASH_SOURCE[0]}. Helper scripts (e.g.
+# configure-vm-state-xfs.sh) are located relative to this.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 FIRECRACKER_VERSION="${FIRECRACKER_VERSION:-v1.10.1}"
 # Artifact source. By default, artifacts (kernel, agent) are pulled over plain
 # HTTPS from the project's public GitHub Releases — no auth, works for any user.
@@ -153,9 +158,8 @@ configure_vm_state_storage() {
         return 0
     fi
 
-    local script_dir helper set_browser_state
-    script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    helper="${script_dir}/configure-vm-state-xfs.sh"
+    local helper set_browser_state
+    helper="${SCRIPT_DIR}/configure-vm-state-xfs.sh"
     if [ -z "$OCM_BROWSER_XFS_DEVICE" ]; then
         set_browser_state=true
     else
@@ -332,16 +336,20 @@ else
     FC_TARBALL="firecracker-${FIRECRACKER_VERSION}-${FC_ARCH}.tgz"
     FC_URL="https://github.com/firecracker-microvm/firecracker/releases/download/${FIRECRACKER_VERSION}/${FC_TARBALL}"
 
-    cd /tmp
-    curl -sL "$FC_URL" -o "$FC_TARBALL"
-    tar xzf "$FC_TARBALL"
+    # Subshell so the `cd` stays local and can't poison the caller's CWD
+    # (a later relative path resolution once broke on this).
+    (
+        cd /tmp
+        curl -sL "$FC_URL" -o "$FC_TARBALL"
+        tar xzf "$FC_TARBALL"
 
-    FC_DIR="release-${FIRECRACKER_VERSION}-${FC_ARCH}"
-    cp "${FC_DIR}/firecracker-${FIRECRACKER_VERSION}-${FC_ARCH}" /usr/local/bin/firecracker
-    cp "${FC_DIR}/jailer-${FIRECRACKER_VERSION}-${FC_ARCH}" /usr/local/bin/jailer
-    chmod +x /usr/local/bin/firecracker /usr/local/bin/jailer
+        FC_DIR="release-${FIRECRACKER_VERSION}-${FC_ARCH}"
+        cp "${FC_DIR}/firecracker-${FIRECRACKER_VERSION}-${FC_ARCH}" /usr/local/bin/firecracker
+        cp "${FC_DIR}/jailer-${FIRECRACKER_VERSION}-${FC_ARCH}" /usr/local/bin/jailer
+        chmod +x /usr/local/bin/firecracker /usr/local/bin/jailer
 
-    rm -rf "$FC_TARBALL" "$FC_DIR"
+        rm -rf "$FC_TARBALL" "$FC_DIR"
+    )
     log "Firecracker installed: $(/usr/local/bin/firecracker --version 2>&1 | head -1)"
 fi
 

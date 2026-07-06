@@ -69,9 +69,25 @@ gcloud compute instances create ocm-eval \
   --boot-disk-size=100GB --boot-disk-type=pd-ssd
 ```
 
+> If creation fails with `ZONE_RESOURCE_POOL_EXHAUSTED`, that zone is
+> temporarily out of `n2` capacity — retry with a different `--zone` (e.g.
+> `us-central1-a`, `us-west1-b`).
+
 ### 1.2 Prepare the box
 
-On the box, clone the repo and check readiness:
+A fresh Ubuntu 24.04 image has none of the developer tools. Install them first:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y make docker.io git curl jq
+# Go ≥ 1.25.10 and Node ≥ 20 (adjust for your arch):
+curl -sL https://go.dev/dl/go1.26.2.linux-amd64.tar.gz | sudo tar -C /usr/local -xz
+echo 'export PATH=$PATH:/usr/local/go/bin' | sudo tee /etc/profile.d/golang.sh
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo bash - && sudo apt-get install -y nodejs
+sudo usermod -aG docker,kvm "$USER"   # log out/in for group changes to take effect
+```
+
+Then clone the repo and check readiness:
 
 ```bash
 git clone https://github.com/mathaix/OpenClawMachines.git
@@ -127,8 +143,12 @@ comes up. Or drive the same flow headlessly:
 
 ```bash
 cd frontend && PLAYWRIGHT_BASE_URL=http://localhost:5173 \
-  npx playwright test e2e/machine-lifecycle.spec.ts
+  npx playwright test e2e/machine-lifecycle.spec.ts --project=chromium-dev
 ```
+
+The `chromium-dev` project targets the `AUTH_MODE=dev` stack (no login form,
+uses the system Chrome channel); run `npx playwright install chrome` once if
+it is not already present.
 
 **Checkpoint — you should see this** (machine `running`, workspace streaming):
 
@@ -342,12 +362,24 @@ flowchart LR
    `ready` host — the local worker from stage 1.3, or the host you enrolled in
    2.4 — and boots the microVM.
 3. The machine page is the workspace you first saw at the stage-1 checkpoint:
-   - **Web chat** with the OpenClaw agent (the in-VM gateway).
+   - **Web chat** with the OpenClaw agent (the in-VM gateway). Add a model
+     provider key on the machine's **Model** tab first (or via
+     `PUT /accounts/{id}/machines/{mid}/credentials/{provider}`); without one
+     the gateway logs `no API key configured for provider`.
    - **Live terminal** (ttyd) inside the VM.
    - **Browser VM** — pair a separate account-scoped microVM running headful
      Chromium; the agent drives it over CDP while you watch the live view.
      Browser VMs have their own lifecycle, so one can be created ahead of time
      and re-used across machine restarts.
+
+> **Two workspace panels need extra config in the pure-local (stage-1) path:**
+> the **Resources** tab's live CPU/memory charts are sampled from each VM's
+> systemd cgroup, so they populate only when the agent runs with the default
+> `VM_RUNTIME_OWNER=systemd-unit` (the `local-e2e-firecracker.sh` helper uses
+> `direct` for simplicity, which leaves the charts empty); and the **Traces**
+> tab (Opik) stays empty until the control plane advertises a trace endpoint
+> the VM can reach — set `OPIK_API_URL` (in stage 2 this is derived from
+> `PUBLIC_URL`). Both work out of the box in a stage-2 deployment.
 
 ### Lifecycle
 
@@ -389,10 +421,13 @@ Three artifacts make a host able to boot machines, plus one the machines run:
 multiple GB — over GitHub's 2 GB release-asset cap — so a **GCS bucket is the
 canonical artifact channel**
 ([#21](https://github.com/mathaix/OpenClawMachines/issues/21)). The flow is:
-build each component (one command each), upload with the matching
-`scripts/upload-*.sh` (each writes the artifact + a SHA-256 manifest into a
-standard bucket layout), and set `OCM_ARTIFACT_BUCKET=gs://your-bucket`
-everywhere this guide uses it — the provision and enroll scripts then pull and
+build each component (one command each), upload it with its `scripts/upload-*.sh`
+(the agent and rootfs each have one; the kernel and OpenClaw runtime release are
+uploaded manually — see [building.md](building.md)), and set
+`OCM_ARTIFACT_BUCKET=gs://your-bucket` everywhere this guide uses it. Each
+upload writes the artifact plus a `manifest.json` (whose `sha256` is the hash of
+the **uncompressed** image, even when the stored artifact is `.zst`-compressed)
+into a standard bucket layout; the provision and enroll scripts pull and
 hash-verify from your bucket via the host's service account.
 
 The component-by-component build manual — every build command, output, upload
