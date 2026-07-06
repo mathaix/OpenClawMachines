@@ -217,21 +217,61 @@ it. (One-click auto-provisioning per cloud is tracked in
 ### 2.1 Cloudflare: zone, Worker, KV
 
 The data plane uses Cloudflare for edge auth and a **per-VM tunnel**, so each
-machine gets its own subdomain with no inbound ports on your host. You need:
+machine gets its own subdomain with no inbound ports on your host. You configure
+the account-level pieces **once**; from then on the control plane mints each
+machine's tunnel + DNS record and publishes its route to KV automatically on
+start (and tears them down on stop) — you never create per-machine tunnels by
+hand.
 
 1. A **Cloudflare account** and a **domain (zone)** you control (your
    `DATA_PLANE_DOMAIN`, e.g. `example.com`). Machines get `m-<slug>.example.com`.
-2. An **API token** with permissions to manage that zone's DNS + Tunnels, plus
-   your **Account ID** and **Zone ID** (domain overview page).
+   Grab your **Account ID** and **Zone ID** from the zone's Overview page.
+
+2. An **API token** the control plane uses at runtime to manage tunnels, DNS,
+   and route KV. Create it at **My Profile → API Tokens → Create Token → Custom
+   token** with exactly these permission groups:
+
+   | Permission group | Scope | Used for |
+   |---|---|---|
+   | **Account · Cloudflare Tunnel · Edit** | your account | create/configure/delete per-VM tunnels |
+   | **Account · Workers KV Storage · Edit** | your account | publish/expire machine routes in the `OCM_ROUTES` namespace |
+   | **Zone · DNS · Edit** | your zone | create/delete the `m-<slug>` DNS records |
+   | **Zone · Zone · Read** | your zone | resolve the zone |
+
+   This token is `CLOUDFLARE_API_TOKEN` (§2.2). (The one-time Worker/KV commands
+   below authenticate separately via `wrangler login`; if you'd rather script
+   them with a token, that token additionally needs **Account · Workers Scripts ·
+   Edit**.)
+
 3. The Worker + KV pieces (log in first with `npx wrangler login`):
    ```bash
    cd worker
    npx wrangler kv namespace create OCM_ROUTES   # route-lookup KV namespace
-   npx wrangler deploy                           # the edge Worker
    ```
+   Then edit `worker/wrangler.toml`:
+   - replace `replace-with-operator-kv-namespace-id` under the `OCM_ROUTES`
+     binding with the returned namespace **id** (use the same id for
+     `CLOUDFLARE_KV_NAMESPACE_ID` in §2.2);
+   - set `BASE_DOMAIN` to your domain and `FRONTEND_ORIGIN_HOST` /
+     `BACKEND_ORIGIN_HOST` to origin hostnames **outside** the Worker route (so
+     the Worker's API/resolve fallback doesn't loop back on itself);
 
-See [self-hosted-control-plane.md](self-hosted-control-plane.md) for the full
-Cloudflare + auth prerequisites.
+   set the Worker secrets and deploy:
+   ```bash
+   npx wrangler secret put JWT_SECRET             # same value as the backend
+   npx wrangler secret put CF_SERVICE_TOKEN_ID    # for /internal/resolve
+   npx wrangler secret put CF_SERVICE_TOKEN_SECRET
+   npx wrangler deploy
+   ```
+   Finally, attach the Worker to your zone so machine subdomains hit it —
+   **Cloudflare dashboard → Workers Routes** (or a `routes` entry), pattern
+   `*.<your-domain>/*`. Route entries aren't in `wrangler.toml`.
+
+For **edge authentication** (`AUTH_MODE=cfaccess`) you also create a Cloudflare
+Access application over your control-plane/API hostnames — the exact steps
+(hostnames to cover, policy, where the AUD tag comes from) and the Firebase
+alternative are in
+[self-hosted-control-plane.md](self-hosted-control-plane.md#cloudflare).
 
 ### 2.2 Configure and run the control plane
 
