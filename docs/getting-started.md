@@ -448,6 +448,15 @@ script, and the bucket layout — is **[building.md](building.md)**. (The code
 also has a GitHub-Releases fallback URL for the small binaries, but no release
 has been cut yet; treat the bucket as the real channel.)
 
+> **Building from source is authoritative for self-hosting.** The prebuilt
+> artifacts in the project's own bucket are cut by the maintainers' release
+> pipeline and can lag this repository. In particular, a rootfs published before
+> the no-tunnel init fix **panics on a local/self-hosted (no-tunnel) boot**
+> (`[FATAL] tunnel_token is empty`). `make build-rootfs` from this repo bakes in
+> the current `scripts/init-openclaw.sh` and boots cleanly in every profile — so
+> for local evaluation, build the rootfs (see [1.2](#12-prepare-the-box)) rather
+> than pulling a prebuilt one.
+
 ---
 
 ## Where to go next

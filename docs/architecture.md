@@ -1610,9 +1610,25 @@ Machine lifecycle operations (start, stop, delete, migrate) use `machine_operati
 
 ## Data Plane Architecture
 
-Every request from a user's browser to services inside a MicroVM goes through a per-VM Cloudflare Tunnel with an in-VM auth proxy. This replaced the previous 4-hop proxy chain (Browser → Worker → Agent → VM).
+Requests from a user's browser to services inside a MicroVM reach the same
+in-VM auth proxy through one of **two data planes**, selected by deployment
+profile — not a single mandatory Cloudflare path:
 
-### Per-VM Tunnel Architecture (Production)
+| Data plane | Used by | Front door → in-VM auth proxy | Cloudflare? |
+|---|---|---|---|
+| **Per-VM tunnel** | Hosted / `operator` profile with a Cloudflare zone | Browser → CF Access → per-VM `cloudflared` (in VM) → authproxy | Yes |
+| **Agent proxy** | Self-hosted / `local` profile (no tunnel) | Browser → control plane `:8080` → agent proxy `:9091` → authproxy (or service) | No |
+
+Both terminate at the in-VM auth proxy and enforce the same machine-token auth;
+they differ only in how the browser reaches the host. The **per-VM tunnel** is
+the production front door when you run a Cloudflare data plane; the **agent
+proxy** is the current path for self-hosted deployments and local evaluation,
+where each VM boots with `cloudflared` disabled (`tunnel_token` empty) and is
+reached entirely through the control plane. Both replaced the original 4-hop
+chain (Browser → Worker → Agent → VM); the account-slug Worker route below is
+the last remnant of that chain.
+
+### Per-VM Tunnel Architecture (Production, hosted profile)
 
 Each running MicroVM gets its own Cloudflare Tunnel with a dedicated subdomain: `m-{slug}.yourdomain.com`.
 
@@ -1685,9 +1701,49 @@ sequenceDiagram
     VM-->>User: Shell session
 ```
 
-### Legacy Worker Routing (Fallback)
+### Self-Hosted / Agent-Proxy Data Plane (local & operator-without-tunnel)
 
-The Cloudflare Worker (`worker.js`) still handles routing for the `{accountSlug}.yourdomain.com` subdomain pattern, used for the dashboard iframe embedding of the gateway SPA. This path goes through the Agent proxy on the Host VM.
+When there is no Cloudflare data plane — the `local` profile, and `operator`
+deployments that don't provision per-VM tunnels — the browser reaches VM
+services through the **control plane and the host agent's proxy port**, with no
+Cloudflare in the path:
+
+```mermaid
+sequenceDiagram
+    participant Browser
+    participant CP as Control Plane<br/>(:8080)
+    participant Agent as Agent proxy<br/>(:9091, on the host)
+    participant AuthProxy as authproxy / service<br/>(inside VM)
+
+    Browser->>CP: GET /api/accounts/{a}/machines/{id}/terminal/ws (or /gateway, /files, /logs)
+    CP->>CP: Auth (dev bypass or your AUTH_MODE) + Origin check vs CORS_ORIGINS
+    CP->>Agent: ws/http //{hostIP}:9091/proxy/{id}/{service}/...<br/>X-Proxy-Token, X-Forwarded-Prefix
+    Agent->>AuthProxy: forward to VM (192.168.100.x)
+    AuthProxy-->>Browser: response (back through control plane)
+```
+
+The control-plane handlers are `machine_gateway.go` (gateway/dashboard/files),
+`machine_terminal.go` (terminal WS), and `machine_logs.go` (SSE), each
+forwarding to the agent's `/proxy/{machineID}/*` routes (`agentapi/proxy.go`).
+Because `cloudflared` is disabled in this profile, the in-VM init
+(`scripts/init-openclaw.sh`) boots with an empty `tunnel_token` — a warning, not
+a fatal — and skips cloudflared supervision. This is the path exercised by the
+Stage-1 walkthrough in [getting-started.md](getting-started.md); the
+front-end's `dataPlaneUrl()` selects it whenever it isn't running against a
+configured `DATA_PLANE_DOMAIN`.
+
+**Key properties:** no public ingress, no Cloudflare account required, reachable
+only through an authenticated control plane; the trade-off vs the per-VM tunnel
+is that browser traffic hairpins through the control plane instead of hitting
+the edge directly.
+
+### Legacy Worker Routing (superseded)
+
+The Cloudflare Worker (`worker.js`) can still route the
+`{accountSlug}.yourdomain.com` subdomain pattern for dashboard iframe embedding
+of the gateway SPA, forwarding through the agent proxy on the host. This is a
+remnant of the original 4-hop chain; new traffic uses the per-VM tunnel
+(hosted) or the agent-proxy data plane (self-hosted) above.
 
 ### Service Ports Inside MicroVM
 
@@ -1699,15 +1755,20 @@ The Cloudflare Worker (`worker.js`) still handles routing for the `{accountSlug}
 
 ### URL Construction (Frontend)
 
-The frontend accesses VMs via per-VM tunnel subdomains:
+`dataPlaneUrl()` builds the target URL for the active data plane:
 
-- **Production**: `https://m-{slug}.yourdomain.com/{path}` (terminal, gateway)
-- **SSH**: `ssh openclaw@ssh-{slug}.yourdomain.com` (via `cloudflared access ssh`)
-- **Dev** (localhost): Falls back to control plane proxy routing
+- **Hosted (per-VM tunnel)**: `https://m-{slug}.yourdomain.com/{path}` (terminal, gateway)
+- **SSH (hosted)**: `ssh openclaw@ssh-{slug}.yourdomain.com` (via `cloudflared access ssh`)
+- **Self-hosted / local (agent proxy)**: `/api/accounts/{a}/machines/{id}/{path}`
+  through the control plane — selected whenever `DATA_PLANE_DOMAIN` isn't configured.
 
 ## WebSocket Architecture
 
-WebSocket connections traverse CF Access → CF Tunnel → authproxy → service. The two services that use WebSocket are the OpenClaw Gateway (control channel) and the PTY server (terminal).
+WebSocket connections traverse **either** data plane to reach the same in-VM
+service: hosted is CF Access → CF Tunnel → authproxy → service; self-hosted is
+control plane (`:8080`) → agent proxy (`:9091`) → service. The two services that
+use WebSocket are the OpenClaw Gateway (control channel) and the PTY server
+(terminal).
 
 ### Keepalive Strategy
 
