@@ -57,7 +57,7 @@
     "puppeteer-core": "^24.37.2",
     "tailwindcss": "^3.4.19",
     "typescript": "^5.9.3",
-    "vite": "^6.4.1",
+    "vite": "^7.3.6",
     "vite-plugin-sitemap": "^0.8.2",
     "vitest": "^4.0.18"
   },
