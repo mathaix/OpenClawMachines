@@ -1572,6 +1572,84 @@ Two distinct flows for LLM keys vs channel tokens:
 - **Pull-cache auth** — channel secret fetches require VM nonce (constant-time comparison) + machine placement validation (agent can only fetch secrets for machines on its host)
 - **Account membership enforced** — `AccountMiddleware` checks `account_members` table
 
+## Workspace Integrations & Native MCP
+
+Workspace integrations give a machine's agent access to external tools — GitHub,
+Google Workspace, or any imported OpenAPI / GraphQL / remote-MCP endpoint —
+without per-machine wiring. Integrations are **workspace-scoped**: every account
+has at least a `default` workspace, each machine belongs to exactly one
+workspace (`machines.workspace_id`), and an integration enabled in a workspace is
+offered to that workspace's machines. This model is deliberately parallel to the
+older Composio-backed integration path and does not replace it.
+
+### Data model
+
+Migrations **099–108** add the schema:
+
+- `workspaces` — account-scoped; a `default` workspace is created per account and
+  every existing machine is backfilled to it before `machines.workspace_id` is
+  set `NOT NULL`.
+- `workspace_integrations` — an enabled integration in a workspace (slug, kind,
+  transport, tool manifest).
+- `workspace_integration_connections` / `..._sources` / `..._tool_snapshots` —
+  normalized connector projections (per-connection tool sets).
+- `workspace_integration_credentials` / `..._connection_credentials` — OAuth and
+  connection secrets, **encrypted at rest** (`crypto.Encrypt` with
+  `SECRET_ENCRYPTION_KEY`); migrations only ever copy already-encrypted columns.
+- `workspace_integration_tool_policies` — per-tool allow / require-approval.
+- `workspace_integration_guidance_overlays` — human- or telemetry-authored
+  guidance surfaced next to a tool.
+- `workspace_integration_call_events` — tool-call telemetry.
+
+### How a machine reaches its tools (native MCP)
+
+Rather than mounting a REST plugin per integration, config assembly injects a
+**single built-in MCP server** into the machine's OpenClaw config:
+
+```text
+config.mcp.servers.ocm = {
+  transport: "streamable-http",
+  url:       "<BACKEND_URL>/api/workspace-integrations/mcp",
+  headers:   { Authorization: "Bearer <per-machine workspace-integration JWT>" }
+}
+```
+
+The agent sees three facade tools — `ocm.search_tools`, `ocm.describe_tool`, and
+`ocm.call_tool` — instead of one tool per integration. It discovers a tool by
+intent (`search_tools`), optionally loads its schema (`describe_tool`), then
+invokes it by address (`call_tool`). The gateway resolves the address against the
+machine's enabled integrations, enforces per-tool policy (an
+`allow` / `require_approval` state), executes the call (reusing pooled outbound
+HTTP clients), and records a call event.
+
+The per-machine token is a short-TTL HS256 JWT minted by the control plane's
+workspace-integration signer; the gateway (`/api/ocm-integrations/*` and
+`/api/workspace-integrations/mcp`) validates its signing method, issuer, and
+expiry, and rejects unknown or expired tokens with `401`.
+
+### Degraded mode & fallback
+
+Token minting requires a `JWT_SECRET` of at least 16 bytes. When the secret is
+unset or too short, the signer is `nil`: config assembly **skips** the native MCP
+injection with a warning and leaves any bundled REST fallback plugin in place,
+rather than failing — a machine with zero integrations (and every other machine)
+must still get a valid config. Likewise, an error listing a machine's enabled
+integrations degrades to an empty set instead of aborting config assembly, so an
+integrations-subsystem fault cannot block provisioning fleet-wide. The REST
+plugin is only stripped once native MCP is actually wired.
+
+### Configuration
+
+`WORKSPACE_INTEGRATIONS_API_URL` overrides the gateway base URL; unset, it is
+derived as `${BACKEND_URL}/api/ocm-integrations`. OAuth providers are configured
+per slug (e.g. `google-workspace` → `GOOGLE_WORKSPACE_OAUTH_CLIENT_ID` /
+`..._SECRET`). `OCM_ALLOW_INSECURE_WORKSPACE_INTEGRATIONS` (loopback/private
+endpoints, local tests only) and the experimental
+`OCM_WORKSPACE_INTEGRATIONS_EXECUTE_ENABLED` / `..._WORKFLOWS_ENABLED` facade
+flags stay unset in operator deployments. See
+[docs/self-hosted-control-plane.md](self-hosted-control-plane.md) for the full
+operator env.
+
 ## Security Hardening
 
 ### Proxy Route Authentication

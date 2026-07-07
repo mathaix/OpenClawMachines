@@ -124,6 +124,11 @@ you own. Think: a mini-cloud for AI agents, that you self-host.
 5. **Routing / data plane** — every running VM gets its own subdomain and a
    Cloudflare Tunnel that terminates **inside the VM**, with auth enforced at
    the edge and again in-VM.
+6. **Workspace integrations (native MCP)** — connect external tools once per
+   workspace (GitHub, Google Workspace, or any OpenAPI / GraphQL / remote-MCP
+   endpoint); the control plane exposes them to each machine's agent through a
+   single built-in MCP server, so the agent discovers and calls them with
+   `search_tools` / `call_tool` instead of per-integration wiring.
 
 ```mermaid
 flowchart TB
@@ -175,7 +180,7 @@ ending with something working:
 
 - [**Getting Started**](docs/getting-started.md) — the three-stage guide above
 - [**User guide**](docs/user-guide.md) — using a machine day-to-day (model, chat, terminal, browser VM, files, logs, traces, backups)
-- [Architecture](docs/architecture.md) — data plane, routing, tunnels, lifecycle
+- [Architecture](docs/architecture.md) — data plane, routing, tunnels, lifecycle, [workspace integrations / native MCP](docs/architecture.md#workspace-integrations--native-mcp)
 - [Tech stack](docs/tech-stack.md) — the five layers, client to sandbox
 - [Local and BYO-host setup](docs/local-setup.md)
 - [Control plane deployment profiles](docs/control-plane-profiles.md)
