@@ -49,11 +49,13 @@ The `ocm` CLI lives in the separate
 
 ## Video link
 
-This is linked on YouTube, not embedded as a player:
+Click the screenshot to watch the 43-second demo on YouTube. This is a linked
+image, not an embedded player.
 
-- [43-second product demo](https://youtu.be/XJRNcXEvc34) — host onboarding, agent
-  spin-up, the running Firecracker VM terminal, workspace MCP integrations, and
-  an agent tool call end to end.
+[![OpenClaw Machines demo: an agent calling a workspace MCP tool](docs/images/demo-video-thumbnail.png)](https://youtu.be/XJRNcXEvc34)
+
+The demo covers host onboarding, agent spin-up, the running Firecracker VM
+terminal, workspace MCP integrations, and an agent tool call end to end.
 
 ![An OpenClaw machine running in a Firecracker microVM](docs/images/machine-running.png)
 
