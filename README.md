@@ -47,14 +47,16 @@ The Apache-2.0 **public core** ships every piece of that stack:
 The `ocm` CLI lives in the separate
 [`mathaix/ocm-cli`](https://github.com/mathaix/ocm-cli) Apache-2.0 repository.
 
-## Watch the videos
+## Video links
 
-- [Watch the 41-second product demo](openclaw-demo.mp4) to see host enrollment,
-  machine spin-up, the running Firecracker VM terminal, workspace MCP
-  integrations, and an agent tool call end to end.
-- [Watch the 33-second architecture overview](openclaw-machines.mp4) for the
-  animated tour of isolated microVMs, the control plane, browser VMs, routing,
-  and native MCP integrations.
+These are linked as MP4 files, not embedded players:
+
+- [41-second product demo](openclaw-demo.mp4) — host enrollment, machine
+  spin-up, the running Firecracker VM terminal, workspace MCP integrations, and
+  an agent tool call end to end.
+- [33-second architecture overview](openclaw-machines.mp4) — animated tour of
+  isolated microVMs, the control plane, browser VMs, routing, and native MCP
+  integrations.
 
 ![An OpenClaw machine running in a Firecracker microVM](docs/images/machine-running.png)
 
