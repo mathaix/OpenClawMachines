@@ -13,6 +13,7 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -498,7 +499,24 @@ func workspaceIntegrationIPBlocked(ip net.IP) bool {
 		ip.IsLinkLocalMulticast() || ip.IsUnspecified() || ip.IsMulticast()
 }
 
+// The outbound integration HTTP client depends only on allowInsecure (a
+// Server-level constant), so the two variants are built once and reused —
+// rebuilding a fresh Transport per call gave every request an empty connection
+// pool, forcing a full TCP+TLS handshake on the hottest path (every agent tool
+// call, and each OAuth-refresh retry).
+var (
+	secureWorkspaceIntegrationHTTPClient   = sync.OnceValue(func() *http.Client { return buildWorkspaceIntegrationHTTPClient(false) })
+	insecureWorkspaceIntegrationHTTPClient = sync.OnceValue(func() *http.Client { return buildWorkspaceIntegrationHTTPClient(true) })
+)
+
 func workspaceIntegrationHTTPClient(allowInsecure bool) *http.Client {
+	if allowInsecure {
+		return insecureWorkspaceIntegrationHTTPClient()
+	}
+	return secureWorkspaceIntegrationHTTPClient()
+}
+
+func buildWorkspaceIntegrationHTTPClient(allowInsecure bool) *http.Client {
 	transport := &http.Transport{
 		DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
 			return workspaceIntegrationProbeDialContext(ctx, network, address, allowInsecure)

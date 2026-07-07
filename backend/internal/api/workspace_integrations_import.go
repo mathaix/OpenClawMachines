@@ -1005,15 +1005,15 @@ func graphQLWorkspaceIntegrationToolsFromSDL(schema string, authSpec *workspaceI
 
 func parseGraphQLRootOperationTypes(schema string) (queryType, mutationType string, err error) {
 	clean := stripGraphQLComments(schema)
-	pattern := regexp.MustCompile(`(?s)\bschema\b[^{]*\{(.*?)\}`)
-	match := pattern.FindStringSubmatch(clean)
-	if len(match) != 2 {
+	blocks := findGraphQLBlocks(clean, graphQLSchemaHeaderRe)
+	if len(blocks) == 0 {
 		return "Query", "Mutation", nil
 	}
-	if err := validateGraphQLBlockDefinitionNames(match[1], "schema"); err != nil {
+	body := blocks[0].body
+	if err := validateGraphQLBlockDefinitionNames(body, "schema"); err != nil {
 		return "", "", err
 	}
-	for _, line := range splitGraphQLFieldLines(match[1]) {
+	for _, line := range splitGraphQLFieldLines(body) {
 		name, typ, ok := parseGraphQLNameType(line)
 		if !ok {
 			continue
@@ -1038,7 +1038,7 @@ func graphQLRootTypeName(rawType string) string {
 }
 
 func validGraphQLName(name string) bool {
-	return regexp.MustCompile(`^[_A-Za-z][_0-9A-Za-z]*$`).MatchString(strings.TrimSpace(name))
+	return graphQLNameRe.MatchString(strings.TrimSpace(name))
 }
 
 func validateGraphQLImportFields(fields []graphQLField) error {
@@ -1057,9 +1057,9 @@ func validateGraphQLImportFields(fields []graphQLField) error {
 
 func parseGraphQLInputObjects(schema string) (map[string]map[string]string, error) {
 	out := map[string]map[string]string{}
-	for _, match := range graphqlBlockRegexp("input").FindAllStringSubmatch(stripGraphQLComments(schema), -1) {
-		name := strings.TrimSpace(match[1])
-		body := match[2]
+	for _, block := range findGraphQLBlocks(stripGraphQLComments(schema), graphQLInputHeaderRe) {
+		name := strings.TrimSpace(block.name)
+		body := block.body
 		if err := validateGraphQLBlockDefinitionNames(body, "input"); err != nil {
 			return nil, err
 		}
@@ -1079,16 +1079,17 @@ func parseGraphQLInputObjects(schema string) (map[string]map[string]string, erro
 
 func parseGraphQLObjectFields(schema, typeName string, mutation bool) ([]graphQLField, error) {
 	clean := stripGraphQLComments(schema)
-	pattern := regexp.MustCompile(`(?s)\btype\s+` + regexp.QuoteMeta(typeName) + `\b[^{]*\{(.*?)\}`)
-	match := pattern.FindStringSubmatch(clean)
-	if len(match) != 2 {
+	headerRe := regexp.MustCompile(`(?s)\btype\s+` + regexp.QuoteMeta(typeName) + `\b[^{]*\{`)
+	blocks := findGraphQLBlocks(clean, headerRe)
+	if len(blocks) == 0 {
 		return nil, nil
 	}
-	if err := validateGraphQLBlockDefinitionNames(match[1], "field"); err != nil {
+	body := blocks[0].body
+	if err := validateGraphQLBlockDefinitionNames(body, "field"); err != nil {
 		return nil, err
 	}
 	var fields []graphQLField
-	for _, line := range splitGraphQLFieldLines(match[1]) {
+	for _, line := range splitGraphQLFieldLines(body) {
 		field, ok := parseGraphQLFieldLine(line, mutation)
 		if ok {
 			fields = append(fields, field)
@@ -1425,19 +1426,89 @@ func graphQLTypeString(raw interface{}) string {
 	}
 }
 
+// stripGraphQLComments removes `#`-to-end-of-line comments but does NOT treat a
+// `#` inside a string literal (including block strings) as a comment — otherwise
+// a description like "issue #42" would be truncated mid-string and corrupt the
+// downstream block extraction.
 func stripGraphQLComments(schema string) string {
-	var lines []string
-	for _, line := range strings.Split(schema, "\n") {
-		if index := strings.Index(line, "#"); index >= 0 {
-			line = line[:index]
+	var b strings.Builder
+	b.Grow(len(schema))
+	for i := 0; i < len(schema); {
+		switch schema[i] {
+		case '"':
+			end := skipGraphQLString(schema, i)
+			b.WriteString(schema[i:end])
+			i = end
+		case '#':
+			// Skip to end of line (keep the newline).
+			nl := strings.IndexByte(schema[i:], '\n')
+			if nl < 0 {
+				return b.String()
+			}
+			i += nl
+		default:
+			b.WriteByte(schema[i])
+			i++
 		}
-		lines = append(lines, line)
 	}
-	return strings.Join(lines, "\n")
+	return b.String()
 }
 
-func graphqlBlockRegexp(keyword string) *regexp.Regexp {
-	return regexp.MustCompile(`(?s)\b` + keyword + `\s+([A-Za-z_][A-Za-z0-9_]*)\b[^{]*\{(.*?)\}`)
+var (
+	graphQLNameRe         = regexp.MustCompile(`^[_A-Za-z][_0-9A-Za-z]*$`)
+	graphQLSchemaHeaderRe = regexp.MustCompile(`(?s)\bschema\b[^{]*\{`)
+	graphQLInputHeaderRe  = regexp.MustCompile(`(?s)\binput\s+([A-Za-z_][A-Za-z0-9_]*)\b[^{]*\{`)
+)
+
+type graphQLBlock struct {
+	name string
+	body string
+}
+
+// graphQLBlockBody returns the balanced body of a block: given open = the index
+// immediately after the block's opening '{', it returns the text up to the
+// matching '}'. Nested braces (e.g. object/list default values) and braces
+// inside string literals are respected, so a body like
+// `search(filter: Filter = {limit: 10}): Result` is not truncated at the inner
+// '}'. ok is false when there is no matching '}'.
+func graphQLBlockBody(s string, open int) (body string, ok bool) {
+	depth := 1
+	for i := open; i < len(s); {
+		switch s[i] {
+		case '"':
+			i = skipGraphQLString(s, i)
+			continue
+		case '{':
+			depth++
+		case '}':
+			depth--
+			if depth == 0 {
+				return s[open:i], true
+			}
+		}
+		i++
+	}
+	return "", false
+}
+
+// findGraphQLBlocks locates every block whose header matches headerRe — which
+// must match through the opening '{' and may capture the block name in submatch
+// group 1 — and returns each block's balanced body. Replaces `\{(.*?)\}`
+// extraction that stopped at the first '}' and silently truncated blocks.
+func findGraphQLBlocks(s string, headerRe *regexp.Regexp) []graphQLBlock {
+	var out []graphQLBlock
+	for _, loc := range headerRe.FindAllStringSubmatchIndex(s, -1) {
+		body, ok := graphQLBlockBody(s, loc[1]) // loc[1] = index just past the matched '{'
+		if !ok {
+			continue
+		}
+		name := ""
+		if len(loc) >= 4 && loc[2] >= 0 {
+			name = s[loc[2]:loc[3]]
+		}
+		out = append(out, graphQLBlock{name: name, body: body})
+	}
+	return out
 }
 
 func validateGraphQLBlockDefinitionNames(body, kind string) error {

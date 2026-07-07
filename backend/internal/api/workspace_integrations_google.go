@@ -14,7 +14,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
@@ -957,7 +956,17 @@ func (s *Server) handleStartCustomMCPWorkspaceIntegrationOAuth(w http.ResponseWr
 		writeError(w, http.StatusInternalServerError, "SECRET_ENCRYPTION_KEY not configured")
 		return
 	}
-	codeVerifier := randomStateNonce() + randomStateNonce()
+	verifierA, err := randomStateNonce()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to generate oauth verifier")
+		return
+	}
+	verifierB, err := randomStateNonce()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to generate oauth verifier")
+		return
+	}
+	codeVerifier := verifierA + verifierB
 	codeChallenge := workspaceIntegrationOAuthCodeChallenge(codeVerifier)
 	// The PKCE verifier must stay confidential. The state round-trips through the
 	// browser (and the untrusted remote authorization server), so encrypt the
@@ -965,6 +974,11 @@ func (s *Server) handleStartCustomMCPWorkspaceIntegrationOAuth(w http.ResponseWr
 	encryptedVerifier, err := crypto.Encrypt(codeVerifier, s.secretKey)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to protect oauth verifier")
+		return
+	}
+	nonce, err := randomStateNonce()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to create oauth state")
 		return
 	}
 	returnPath := "/integrations"
@@ -992,7 +1006,7 @@ func (s *Server) handleStartCustomMCPWorkspaceIntegrationOAuth(w http.ResponseWr
 			RegistrationEndpoint: registrationEndpoint,
 		},
 		ExpiresAt: time.Now().Add(10 * time.Minute).Unix(),
-		Nonce:     randomStateNonce(),
+		Nonce:     nonce,
 	})
 	if err != nil {
 		slog.Error("workspace_integrations.oauth.custom_mcp.state_failed", "workspace_id", workspace.ID, "integration_slug", slug, "error", err)
@@ -1056,6 +1070,11 @@ func (s *Server) handleStartWorkspaceIntegrationOAuth(w http.ResponseWriter, r *
 	if workspace.ID != "" {
 		returnPath = "/workspaces/" + url.PathEscape(workspace.ID) + "/integrations"
 	}
+	nonce, err := randomStateNonce()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to create oauth state")
+		return
+	}
 	state, err := s.signWorkspaceIntegrationOAuthState(workspaceIntegrationOAuthState{
 		Provider:         provider.Slug,
 		AccountID:        accountID,
@@ -1065,7 +1084,7 @@ func (s *Server) handleStartWorkspaceIntegrationOAuth(w http.ResponseWriter, r *
 		Scopes:           scopes,
 		PermissionLevels: permissionLevels,
 		ExpiresAt:        time.Now().Add(10 * time.Minute).Unix(),
-		Nonce:            randomStateNonce(),
+		Nonce:            nonce,
 	})
 	if err != nil {
 		slog.Error("workspace_integrations.oauth.state_failed", "provider", provider.Slug, "workspace_id", workspace.ID, "error", err)
@@ -1857,10 +1876,14 @@ func isAbsoluteHTTPURL(raw string) bool {
 	return err == nil && (parsed.Scheme == "http" || parsed.Scheme == "https") && parsed.Host != ""
 }
 
-func randomStateNonce() string {
+// randomStateNonce returns a 128-bit URL-safe random token. It returns an error
+// on RNG failure rather than falling back to a predictable value — this feeds
+// the PKCE code_verifier, so a guessable fallback would defeat auth-code
+// interception protection.
+func randomStateNonce() (string, error) {
 	var buf [16]byte
 	if _, err := rand.Read(buf[:]); err != nil {
-		return strconv.FormatInt(time.Now().UnixNano(), 36)
+		return "", fmt.Errorf("generate random nonce: %w", err)
 	}
-	return base64.RawURLEncoding.EncodeToString(buf[:])
+	return base64.RawURLEncoding.EncodeToString(buf[:]), nil
 }

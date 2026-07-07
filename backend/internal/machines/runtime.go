@@ -512,7 +512,12 @@ func (b *vmBootstrap) assembleSeedConfig() error {
 	var workspaceIntegrationConfigs []configassembly.WorkspaceIntegrationConfig
 	workspaceIntegrations, wiErr := b.rs.store.ListEnabledWorkspaceIntegrationsForMachine(b.ctx, b.machine.ID)
 	if wiErr != nil {
-		return fmt.Errorf("list workspace integrations for machine: %w", wiErr)
+		// Non-fatal: don't let an integrations-subsystem DB error (or a
+		// not-yet-applied migration) block seed-config assembly and machine
+		// boot. The native MCP server is injected regardless and fetches the
+		// live set at call time; this list feeds only logging. Continue empty.
+		slog.Warn("machine.seed.workspace_integrations_load_failed", "machine_id", b.machine.ID, "error", wiErr, "note", "continuing without integrations list")
+		workspaceIntegrations = nil
 	}
 	workspaceIntegrationConfigs = make([]configassembly.WorkspaceIntegrationConfig, 0, len(workspaceIntegrations))
 	for _, wi := range workspaceIntegrations {

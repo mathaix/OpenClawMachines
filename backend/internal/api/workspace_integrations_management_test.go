@@ -2524,12 +2524,16 @@ func TestWorkspaceIntegrationExtensibilityUsesGenericCreateRoute(t *testing.T) {
 		t.Fatalf("read server source: %v", err)
 	}
 	serverSource := string(serverSourceBytes)
+	// The generic create route is registered once via a prefix helper and
+	// applied under both the workspace-scoped and flat prefixes, so assert on
+	// the composing pieces rather than the fully-expanded literals.
 	for _, required := range []string{
-		`/workspaces/{workspaceID}/integrations/{integrationSlug}`,
-		`/workspace-integrations/{integrationSlug}`,
+		`registerWorkspaceIntegrationAdminRoutes("/workspaces/{workspaceID}/integrations")`,
+		`registerWorkspaceIntegrationAdminRoutes("/workspace-integrations")`,
+		`r.Post(prefix+"/{integrationSlug}", srv.handleCreateWorkspaceIntegration)`,
 	} {
 		if !strings.Contains(serverSource, required) {
-			t.Fatalf("server source missing generic create route %q", required)
+			t.Fatalf("server source missing generic create route wiring %q", required)
 		}
 	}
 	for _, forbidden := range []string{

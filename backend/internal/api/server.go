@@ -451,34 +451,36 @@ func NewServer(ctx context.Context, s store.Store, a *auth.Auth, authMode string
 
 				// Workspaces
 				r.Post("/workspaces", srv.handleCreateWorkspace)
-				r.Post("/workspaces/{workspaceID}/integrations/mock", srv.handleCreateMockWorkspaceIntegration)
-				r.Post("/workspaces/{workspaceID}/integrations/github", srv.handleCreateGitHubWorkspaceIntegration)
-				r.Post("/workspaces/{workspaceID}/integrations/probe", srv.handleProbeWorkspaceIntegration)
-				r.Post("/workspaces/{workspaceID}/integrations/import/preview", srv.handlePreviewWorkspaceIntegrationImport)
-				r.Post("/workspaces/{workspaceID}/integrations/import", srv.handleCreateWorkspaceIntegrationImport)
+
+				// The workspace-integration admin routes are exposed under two
+				// prefixes: the explicit /workspaces/{workspaceID}/integrations,
+				// and the flat /workspace-integrations (which resolves the
+				// account's default workspace). Register the shared set once via a
+				// prefix helper so the two surfaces can't silently drift.
+				registerWorkspaceIntegrationAdminRoutes := func(prefix string) {
+					r.Post(prefix+"/mock", srv.handleCreateMockWorkspaceIntegration)
+					r.Post(prefix+"/github", srv.handleCreateGitHubWorkspaceIntegration)
+					r.Post(prefix+"/probe", srv.handleProbeWorkspaceIntegration)
+					r.Post(prefix+"/import/preview", srv.handlePreviewWorkspaceIntegrationImport)
+					r.Post(prefix+"/import", srv.handleCreateWorkspaceIntegrationImport)
+					r.Post(prefix+"/{integrationSlug}", srv.handleCreateWorkspaceIntegration)
+					r.Post(prefix+"/{integrationSlug}/oauth/connect", srv.handleStartWorkspaceIntegrationOAuthBySlug)
+					r.Post(prefix+"/{integrationSlug}/test", srv.handleTestWorkspaceIntegration)
+					r.Put(prefix+"/{integrationSlug}/policy", srv.handleUpdateWorkspaceIntegrationPolicy)
+					r.Delete(prefix+"/{integrationSlug}", srv.handleRevokeWorkspaceIntegration)
+				}
+				registerWorkspaceIntegrationAdminRoutes("/workspaces/{workspaceID}/integrations")
+				registerWorkspaceIntegrationAdminRoutes("/workspace-integrations")
+
+				// Guidance + health are workspace-scoped only (no flat variant).
 				r.Get("/workspaces/{workspaceID}/integrations/guidance", srv.handleListWorkspaceIntegrationGuidance)
 				r.Post("/workspaces/{workspaceID}/integrations/guidance", srv.handleCreateWorkspaceIntegrationGuidance)
 				r.Post("/workspaces/{workspaceID}/integrations/guidance/draft", srv.handleDraftWorkspaceIntegrationGuidance)
 				r.Post("/workspaces/{workspaceID}/integrations/guidance/{overlayID}/approve", srv.handleApproveWorkspaceIntegrationGuidance)
-				r.Post("/workspaces/{workspaceID}/integrations/{integrationSlug}", srv.handleCreateWorkspaceIntegration)
-				r.Post("/workspaces/{workspaceID}/integrations/{integrationSlug}/oauth/connect", srv.handleStartWorkspaceIntegrationOAuthBySlug)
-				r.Post("/workspaces/{workspaceID}/integrations/{integrationSlug}/test", srv.handleTestWorkspaceIntegration)
-				r.Put("/workspaces/{workspaceID}/integrations/{integrationSlug}/policy", srv.handleUpdateWorkspaceIntegrationPolicy)
-				r.Delete("/workspaces/{workspaceID}/integrations/{integrationSlug}", srv.handleRevokeWorkspaceIntegration)
 				r.Get("/workspaces/{workspaceID}/integrations/health", srv.handleWorkspaceIntegrationHealth)
-				r.Post("/workspaces/{workspaceID}/machines/{machineID}/integrations-runtime/enable", srv.handleEnableWorkspaceIntegrationRuntime)
 
-				// Default workspace compatibility routes.
-				r.Post("/workspace-integrations/mock", srv.handleCreateMockWorkspaceIntegration)
-				r.Post("/workspace-integrations/github", srv.handleCreateGitHubWorkspaceIntegration)
-				r.Post("/workspace-integrations/probe", srv.handleProbeWorkspaceIntegration)
-				r.Post("/workspace-integrations/import/preview", srv.handlePreviewWorkspaceIntegrationImport)
-				r.Post("/workspace-integrations/import", srv.handleCreateWorkspaceIntegrationImport)
-				r.Post("/workspace-integrations/{integrationSlug}", srv.handleCreateWorkspaceIntegration)
-				r.Post("/workspace-integrations/{integrationSlug}/oauth/connect", srv.handleStartWorkspaceIntegrationOAuthBySlug)
-				r.Post("/workspace-integrations/{integrationSlug}/test", srv.handleTestWorkspaceIntegration)
-				r.Put("/workspace-integrations/{integrationSlug}/policy", srv.handleUpdateWorkspaceIntegrationPolicy)
-				r.Delete("/workspace-integrations/{integrationSlug}", srv.handleRevokeWorkspaceIntegration)
+				// Runtime-enable has a distinct path shape on each surface.
+				r.Post("/workspaces/{workspaceID}/machines/{machineID}/integrations-runtime/enable", srv.handleEnableWorkspaceIntegrationRuntime)
 				r.Post("/workspace-integrations/machines/{machineID}/enable", srv.handleEnableWorkspaceIntegrationRuntime)
 
 			})
@@ -796,13 +798,6 @@ func (s *Server) signComposioProxyToken(machineID string) (string, error) {
 		return "", fmt.Errorf("composio proxy token: signer not configured")
 	}
 	return s.composioProxyTokenSigner(machineID)
-}
-
-func (s *Server) signWorkspaceIntegrationToken(machineID string) (string, error) {
-	if s.workspaceIntegrationTokenSigner == nil {
-		return "", fmt.Errorf("workspace integration token: signer not configured")
-	}
-	return s.workspaceIntegrationTokenSigner(machineID)
 }
 
 func (s *Server) SetDataPlaneDomain(d string) {

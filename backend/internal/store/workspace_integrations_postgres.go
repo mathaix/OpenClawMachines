@@ -1054,12 +1054,15 @@ func (s *PostgresStore) CreateWorkspaceIntegrationGuidanceDraftsFromTelemetry(ct
 				tool_name,
 				failure_class,
 				COALESCE((
-					SELECT MAX(version) + 1
+					SELECT MAX(version)
 					  FROM workspace_integration_guidance_overlays existing
 					 WHERE existing.workspace_id = $2
 					   AND existing.tool_id = candidates.tool_id
 					   AND COALESCE(existing.tool_address, existing.tool_id) = candidates.aggregate_key
-				), 1) AS version,
+				), 0) + ROW_NUMBER() OVER (
+					PARTITION BY candidates.tool_id, candidates.aggregate_key
+					ORDER BY failure_class
+				)::INT AS version,
 				CASE
 					WHEN repo_bare_name THEN 'Repository arguments should use owner/name format; bare repository names have failed for this tool.'
 					WHEN date_parse_failed THEN 'Date and time arguments should use RFC3339 timestamps or YYYY-MM-DD dates accepted by the tool schema.'

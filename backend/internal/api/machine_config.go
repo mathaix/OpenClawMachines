@@ -520,8 +520,13 @@ func (s *Server) assembleConfigForMachine(ctx context.Context, machineID string,
 	var workspaceIntegrationConfigs []configassembly.WorkspaceIntegrationConfig
 	workspaceIntegrations, err := s.store.ListEnabledWorkspaceIntegrationsForMachine(ctx, machineID)
 	if err != nil {
-		slog.Error("machine.config.workspace_integrations_load_failed", "machine_hash", hashForLog(machineID), "error", err)
-		return nil, 0, warnings, fmt.Errorf("list workspace integrations for machine: %w", err)
+		// Non-fatal: a DB error or a not-yet-applied integrations migration must
+		// not abort config assembly for every machine (including machines with
+		// zero integrations). The native MCP server is injected regardless of
+		// this list — the gateway fetches the live integration set at call time,
+		// and here the list feeds only logging — so continue with an empty set.
+		slog.Warn("machine.config.workspace_integrations_load_failed", "machine_hash", hashForLog(machineID), "error", err, "note", "continuing without integrations list")
+		workspaceIntegrations = nil
 	}
 	workspaceIntegrationConfigs = make([]configassembly.WorkspaceIntegrationConfig, 0, len(workspaceIntegrations))
 	for _, wi := range workspaceIntegrations {
@@ -627,31 +632,35 @@ func (s *Server) assembleConfigForMachine(ctx context.Context, machineID string,
 
 	// 7. Assemble
 	params := configassembly.AssemblyParams{
-		MachineID:                       machineID,
-		Capabilities:                    cwts,
-		Identity:                        identity,
-		Credentials:                     credentials,
-		ChannelCredentialValues:         channelCredentialValues,
-		ProxyBaseURL:                    s.proxyBaseURL,
-		DefaultModel:                    defaultModel,
-		ModelFallbacks:                  modelFallbacks,
-		VMHostname:                      vmHostname,
-		AccountHostname:                 accountHostname,
-		BridgeIP:                        "192.168.100.1",
-		Agents:                          agentDefs,
-		Plugins:                         pluginSelections,
-		NativeMode:                      true, // all machines use native config mode with exec secret refs
-		ResolvedOpenclawVersion:         resolvedOpenclawVersion,
-		ModelCatalog:                    catalogModels,
-		ProviderCatalog:                 catalogProviders,
-		SearchProvider:                  searchProvider,
-		OpenAIAgentRuntime:              openAIAgentRuntime,
-		OpikAPIURL:                      s.opikAPIURL,
-		OpikAPIKey:                      s.getGatewayToken(ctx, machineID),
-		ComposioAPIURL:                  s.composioAPIURL,
-		ComposioProxyTokenSigner:        s.signComposioProxyToken,
-		WorkspaceIntegrationAPIURL:      s.workspaceIntegrationAPIURL,
-		WorkspaceIntegrationTokenSigner: s.signWorkspaceIntegrationToken,
+		MachineID:                  machineID,
+		Capabilities:               cwts,
+		Identity:                   identity,
+		Credentials:                credentials,
+		ChannelCredentialValues:    channelCredentialValues,
+		ProxyBaseURL:               s.proxyBaseURL,
+		DefaultModel:               defaultModel,
+		ModelFallbacks:             modelFallbacks,
+		VMHostname:                 vmHostname,
+		AccountHostname:            accountHostname,
+		BridgeIP:                   "192.168.100.1",
+		Agents:                     agentDefs,
+		Plugins:                    pluginSelections,
+		NativeMode:                 true, // all machines use native config mode with exec secret refs
+		ResolvedOpenclawVersion:    resolvedOpenclawVersion,
+		ModelCatalog:               catalogModels,
+		ProviderCatalog:            catalogProviders,
+		SearchProvider:             searchProvider,
+		OpenAIAgentRuntime:         openAIAgentRuntime,
+		OpikAPIURL:                 s.opikAPIURL,
+		OpikAPIKey:                 s.getGatewayToken(ctx, machineID),
+		ComposioAPIURL:             s.composioAPIURL,
+		ComposioProxyTokenSigner:   s.signComposioProxyToken,
+		WorkspaceIntegrationAPIURL: s.workspaceIntegrationAPIURL,
+		// Raw (nilable) signer, mirroring the seed path in machines/runtime.go —
+		// nil when the token signer is unconfigured (e.g. degraded JWT_SECRET),
+		// which the injector skips with a warning. Wrapping it in a never-nil
+		// method value here would defeat that skip and fail every config push.
+		WorkspaceIntegrationTokenSigner: s.workspaceIntegrationTokenSigner,
 		WorkspaceIntegrations:           workspaceIntegrationConfigs,
 	}
 	if len(browserVMIP) > 0 && browserVMIP[0] != "" {

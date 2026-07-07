@@ -1807,27 +1807,44 @@ func injectWorkspaceIntegrationNativeMCPConfig(result map[string]interface{}, ma
 		slog.Debug("configassembly.workspace_integrations_skipped", "reason", "no_api_url")
 		return nil
 	}
-	baseURL := strings.TrimRight(apiURL, "/")
-	if signer != nil {
-		token, err := signer(machineID)
-		if err != nil {
-			label := "workspace integration token"
-			if seed {
-				label += " (seed)"
-			}
-			return fmt.Errorf("%s: %w", label, err)
-		}
-		injectWorkspaceIntegrationMCPConfig(result, baseURL, token)
-	} else {
+	// Mint the per-machine gateway token. A configured signer can still fail to
+	// produce one in a degraded deployment (e.g. JWT_SECRET unset or < 16 bytes,
+	// which leaves the underlying signer nil). Skip native MCP injection with a
+	// warning rather than aborting config assembly — a machine with zero
+	// integrations must still get a valid config, and the config-push path
+	// passes a never-nil method value, so a hard error here would fail every
+	// machine's push. Leave the REST plugin (if bundled) as the fallback; only
+	// switch it off once native MCP is actually wired.
+	if signer == nil {
 		slog.Warn("configassembly.workspace_integrations_no_token_signer",
-			"machine_id", machineID,
-			"seed", seed,
-			"note", "native OCM workspace integration MCP server will be unable to authenticate to backend gateway")
+			"machine_id", machineID, "seed", seed,
+			"note", "native OCM workspace integration MCP server not injected; REST fallback left in place")
+		return nil
+	}
+	token, err := signer(machineID)
+	if err != nil {
+		slog.Warn("configassembly.workspace_integrations_token_sign_failed",
+			"machine_id", machineID, "seed", seed, "error", err,
+			"note", "native OCM workspace integration MCP server not injected; REST fallback left in place")
+		return nil
 	}
 
+	baseURL := strings.TrimRight(apiURL, "/")
+	injectWorkspaceIntegrationMCPConfig(result, baseURL, token)
 	disableWorkspaceIntegrationRESTPluginRuntime(result)
 	slog.Debug("configassembly.workspace_integrations_injected", "machine_id", machineID, "integration_count", len(integrations), "seed", seed, "runtime", "native_mcp")
 	return nil
+}
+
+// workspaceIntegrationRESTPluginSlug and workspaceIntegrationRESTPluginConfigKeys
+// couple this generic assembler to the legacy ocm-integrations REST plugin,
+// which native MCP supersedes. Centralized here so the slug and config-key list
+// have a single source of truth; keep the keys in sync with the plugin's config
+// schema (plugins/ocm-integrations-plugin/openclaw.plugin.json).
+const workspaceIntegrationRESTPluginSlug = "ocm-integrations"
+
+var workspaceIntegrationRESTPluginConfigKeys = []string{
+	"apiUrl", "manifestUrl", "toolsUrl", "machineToken", "workspaceIntegrations",
 }
 
 func disableWorkspaceIntegrationRESTPluginRuntime(result map[string]interface{}) {
@@ -1838,7 +1855,7 @@ func disableWorkspaceIntegrationRESTPluginRuntime(result map[string]interface{})
 	if allow, ok := plugins["allow"].([]interface{}); ok {
 		filtered := make([]interface{}, 0, len(allow))
 		for _, item := range allow {
-			if value, ok := item.(string); ok && value == "ocm-integrations" {
+			if value, ok := item.(string); ok && value == workspaceIntegrationRESTPluginSlug {
 				continue
 			}
 			filtered = append(filtered, item)
@@ -1849,18 +1866,16 @@ func disableWorkspaceIntegrationRESTPluginRuntime(result map[string]interface{})
 	if !ok {
 		return
 	}
-	entry, ok := entries["ocm-integrations"].(map[string]interface{})
+	entry, ok := entries[workspaceIntegrationRESTPluginSlug].(map[string]interface{})
 	if !ok {
 		return
 	}
 	entry["enabled"] = false
 	config := getOrCreateMap(entry, "config")
 	config["enabled"] = false
-	delete(config, "apiUrl")
-	delete(config, "manifestUrl")
-	delete(config, "toolsUrl")
-	delete(config, "machineToken")
-	delete(config, "workspaceIntegrations")
+	for _, key := range workspaceIntegrationRESTPluginConfigKeys {
+		delete(config, key)
+	}
 }
 
 func injectWorkspaceIntegrationMCPConfig(result map[string]interface{}, workspaceIntegrationAPIURL, machineToken string) {

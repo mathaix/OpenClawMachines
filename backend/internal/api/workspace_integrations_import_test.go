@@ -675,6 +675,51 @@ type PublishResult { id: ID! }
 	}
 }
 
+func TestWorkspaceIntegrationGraphQLImport_NestedBraceDefaultDoesNotTruncateBlock(t *testing.T) {
+	srv := &Server{allowInsecureWorkspaceIntegrationEndpoints: true}
+	build, err := srv.buildWorkspaceIntegrationImport(t.Context(), workspaceIntegrationImportRequest{
+		Type:     "graphql",
+		Slug:     "nested-brace-graphql",
+		Endpoint: "http://example.test/graphql",
+		// `search` has an object default value literal `{limit: 10}`. A
+		// first-`}` regex would end the Query block at the inner brace and
+		// silently drop `other`; brace-depth extraction must keep both fields.
+		SpecText: `
+type Query {
+  search(filter: Filter = {limit: 10}): String
+  other: String
+}
+input Filter { limit: Int }
+`,
+	})
+	if err != nil {
+		t.Fatalf("build nested-brace graphql import: %v", err)
+	}
+	names := map[string]bool{}
+	for _, tool := range build.Tools {
+		names[tool.Name] = true
+	}
+	for _, name := range []string{"search", "other"} {
+		if !names[name] {
+			t.Fatalf("GraphQL tools = %+v, missing %q (Query block likely truncated at the nested brace)", names, name)
+		}
+	}
+}
+
+func TestStripGraphQLComments_PreservesHashInStrings(t *testing.T) {
+	in := `type Query {
+  "tracks issue #42"
+  status: String # real comment
+}`
+	out := stripGraphQLComments(in)
+	if !strings.Contains(out, `issue #42`) {
+		t.Fatalf("stripGraphQLComments dropped a # inside a string literal: %q", out)
+	}
+	if strings.Contains(out, "real comment") {
+		t.Fatalf("stripGraphQLComments did not strip the real comment: %q", out)
+	}
+}
+
 func TestWorkspaceIntegrationGraphQLImport_UsesSchemaRootOperationTypes(t *testing.T) {
 	srv := &Server{allowInsecureWorkspaceIntegrationEndpoints: true}
 	build, err := srv.buildWorkspaceIntegrationImport(t.Context(), workspaceIntegrationImportRequest{

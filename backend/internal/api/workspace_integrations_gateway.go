@@ -1405,11 +1405,15 @@ func (s *Server) callWorkspaceIntegrationFacadeTool(ctx context.Context, machine
 		if err != nil {
 			return nil, http.StatusBadRequest, err
 		}
-		descriptor, resolution := resolveWorkspaceIntegrationFacadeToolDescriptor(s.buildWorkspaceIntegrationRuntimeToolDescriptors(ctx, machineID, integrations, false), requestedTool)
+		// Build descriptors once and share them between the ambiguity check and
+		// the resolution below, rather than rebuilding (and re-running the
+		// projection + guidance-overlay queries) for each.
+		descriptors, projectionAuthoritative := s.buildWorkspaceIntegrationRuntimeToolDescriptorsWithSource(ctx, machineID, integrations, false)
+		_, resolution := resolveWorkspaceIntegrationFacadeToolDescriptor(descriptors, requestedTool)
 		if resolution.Ambiguous {
 			return nil, http.StatusConflict, workspaceIntegrationAmbiguousToolError(requestedTool, resolution.Candidates)
 		}
-		integration, tool, descriptor, found := s.resolveWorkspaceIntegrationRuntimeTool(ctx, machineID, integrations, requestedTool)
+		integration, tool, descriptor, found := s.resolveWorkspaceIntegrationRuntimeToolFromDescriptors(ctx, descriptors, projectionAuthoritative, integrations, requestedTool)
 		if !found {
 			if resolution.Found && descriptor.LegacyIntegrationID == "" {
 				return nil, http.StatusNotImplemented, workspaceIntegrationNormalizedRuntimeUnsupportedError(descriptor)
@@ -1809,6 +1813,15 @@ func buildWorkspaceIntegrationToolDescriptors(integrations []store.WorkspaceInte
 
 func (s *Server) resolveWorkspaceIntegrationRuntimeTool(ctx context.Context, machineID string, integrations []store.WorkspaceIntegration, requestedTool string) (*store.WorkspaceIntegration, *workspaceIntegrationManifestTool, workspaceIntegrationToolDescriptor, bool) {
 	descriptors, projectionAuthoritative := s.buildWorkspaceIntegrationRuntimeToolDescriptorsWithSource(ctx, machineID, integrations, false)
+	return s.resolveWorkspaceIntegrationRuntimeToolFromDescriptors(ctx, descriptors, projectionAuthoritative, integrations, requestedTool)
+}
+
+// resolveWorkspaceIntegrationRuntimeToolFromDescriptors resolves a requested
+// tool against already-built descriptors. A caller that also needs the
+// descriptors (e.g. the call_tool ambiguity check) can build them once and pass
+// them in, instead of paying the projection + guidance-overlay queries twice
+// per tool call.
+func (s *Server) resolveWorkspaceIntegrationRuntimeToolFromDescriptors(ctx context.Context, descriptors []workspaceIntegrationToolDescriptor, projectionAuthoritative bool, integrations []store.WorkspaceIntegration, requestedTool string) (*store.WorkspaceIntegration, *workspaceIntegrationManifestTool, workspaceIntegrationToolDescriptor, bool) {
 	descriptor, hasDescriptor := describeWorkspaceIntegrationFacadeToolFromDescriptors(descriptors, requestedTool)
 	if !hasDescriptor && projectionAuthoritative {
 		return nil, nil, descriptor, false
