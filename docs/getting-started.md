@@ -69,9 +69,26 @@ gcloud compute instances create ocm-eval \
   --boot-disk-size=100GB --boot-disk-type=pd-ssd
 ```
 
+> If creation fails with `ZONE_RESOURCE_POOL_EXHAUSTED`, that zone is
+> temporarily out of `n2` capacity — retry with a different `--zone` (e.g.
+> `us-central1-a`, `us-west1-b`).
+
 ### 1.2 Prepare the box
 
-On the box, clone the repo and check readiness:
+A fresh Ubuntu 24.04 image has none of the developer tools. Install them first:
+
+```bash
+sudo apt-get update
+# make/docker/git plus the rootfs-build deps (buildx, mkfs.ext4, bsdtar, strings):
+sudo apt-get install -y make docker.io docker-buildx git curl jq e2fsprogs libarchive-tools binutils
+# Go ≥ 1.25.10 and Node ≥ 20 (adjust for your arch):
+curl -sL https://go.dev/dl/go1.26.2.linux-amd64.tar.gz | sudo tar -C /usr/local -xz
+echo 'export PATH=$PATH:/usr/local/go/bin' | sudo tee /etc/profile.d/golang.sh
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo bash - && sudo apt-get install -y nodejs
+sudo usermod -aG docker,kvm "$USER"   # log out/in for group changes to take effect
+```
+
+Then clone the repo and check readiness:
 
 ```bash
 git clone https://github.com/mathaix/OpenClawMachines.git
@@ -92,9 +109,21 @@ exactly what's missing. Two things it will ask for:
   sudo OCM_ARTIFACT_BUCKET=gs://YOUR-ARTIFACT-BUCKET bash scripts/provision-host.sh
   ```
 - **VM images** — a guest kernel at `/var/lib/ocm/vmlinux` and a rootfs at
-  `/var/lib/ocm/images/rootfs.ext4`. Where these come from (build them
-  yourself, or pull from a bucket you populate) is the [Artifacts](#artifacts)
-  section — read it once now; everything else refers back to it.
+  `/var/lib/ocm/images/rootfs.ext4`.
+  - The **kernel** is fetched by `provision-host.sh` above (or build one per
+    the [Firecracker docs](https://github.com/firecracker-microvm/firecracker/blob/main/docs/getting-started.md)).
+  - **Build the rootfs from source** — this is the recommended path for local
+    evaluation: it bakes in this repo's `scripts/init-openclaw.sh` (which boots
+    correctly in the no-tunnel local profile) and needs no artifact bucket.
+    Needs Docker **with the buildx plugin** (`docker buildx version`),
+    `mkfs.ext4`, and `bsdtar` — all installed in the toolchain step above.
+    ```bash
+    make install-vm-binaries   # authproxy, ocm-secrets, ocmptyd — baked into the image
+    make build-rootfs          # ~10 min; writes /var/lib/ocm/images/rootfs.ext4
+    ```
+  Pulling a prebuilt rootfs from a bucket you populate is the alternative — see
+  the [Artifacts](#artifacts) section (read it once now; everything else refers
+  back to it).
 
 ### 1.3 Bring the stack up
 
@@ -127,8 +156,12 @@ comes up. Or drive the same flow headlessly:
 
 ```bash
 cd frontend && PLAYWRIGHT_BASE_URL=http://localhost:5173 \
-  npx playwright test e2e/machine-lifecycle.spec.ts
+  npx playwright test e2e/machine-lifecycle.spec.ts --project=chromium-dev
 ```
+
+The `chromium-dev` project targets the `AUTH_MODE=dev` stack (no login form,
+uses the system Chrome channel); run `npx playwright install chrome` once if
+it is not already present.
 
 **Checkpoint — you should see this** (machine `running`, workspace streaming):
 
@@ -184,21 +217,61 @@ it. (One-click auto-provisioning per cloud is tracked in
 ### 2.1 Cloudflare: zone, Worker, KV
 
 The data plane uses Cloudflare for edge auth and a **per-VM tunnel**, so each
-machine gets its own subdomain with no inbound ports on your host. You need:
+machine gets its own subdomain with no inbound ports on your host. You configure
+the account-level pieces **once**; from then on the control plane mints each
+machine's tunnel + DNS record and publishes its route to KV automatically on
+start (and tears them down on stop) — you never create per-machine tunnels by
+hand.
 
 1. A **Cloudflare account** and a **domain (zone)** you control (your
    `DATA_PLANE_DOMAIN`, e.g. `example.com`). Machines get `m-<slug>.example.com`.
-2. An **API token** with permissions to manage that zone's DNS + Tunnels, plus
-   your **Account ID** and **Zone ID** (domain overview page).
+   Grab your **Account ID** and **Zone ID** from the zone's Overview page.
+
+2. An **API token** the control plane uses at runtime to manage tunnels, DNS,
+   and route KV. Create it at **My Profile → API Tokens → Create Token → Custom
+   token** with exactly these permission groups:
+
+   | Permission group | Scope | Used for |
+   |---|---|---|
+   | **Account · Cloudflare Tunnel · Edit** | your account | create/configure/delete per-VM tunnels |
+   | **Account · Workers KV Storage · Edit** | your account | publish/expire machine routes in the `OCM_ROUTES` namespace |
+   | **Zone · DNS · Edit** | your zone | create/delete the `m-<slug>` DNS records |
+   | **Zone · Zone · Read** | your zone | resolve the zone |
+
+   This token is `CLOUDFLARE_API_TOKEN` (§2.2). (The one-time Worker/KV commands
+   below authenticate separately via `wrangler login`; if you'd rather script
+   them with a token, that token additionally needs **Account · Workers Scripts ·
+   Edit**.)
+
 3. The Worker + KV pieces (log in first with `npx wrangler login`):
    ```bash
    cd worker
    npx wrangler kv namespace create OCM_ROUTES   # route-lookup KV namespace
-   npx wrangler deploy                           # the edge Worker
    ```
+   Then edit `worker/wrangler.toml`:
+   - replace `replace-with-operator-kv-namespace-id` under the `OCM_ROUTES`
+     binding with the returned namespace **id** (use the same id for
+     `CLOUDFLARE_KV_NAMESPACE_ID` in §2.2);
+   - set `BASE_DOMAIN` to your domain and `FRONTEND_ORIGIN_HOST` /
+     `BACKEND_ORIGIN_HOST` to origin hostnames **outside** the Worker route (so
+     the Worker's API/resolve fallback doesn't loop back on itself);
 
-See [self-hosted-control-plane.md](self-hosted-control-plane.md) for the full
-Cloudflare + auth prerequisites.
+   set the Worker secrets and deploy:
+   ```bash
+   npx wrangler secret put JWT_SECRET             # same value as the backend
+   npx wrangler secret put CF_SERVICE_TOKEN_ID    # for /internal/resolve
+   npx wrangler secret put CF_SERVICE_TOKEN_SECRET
+   npx wrangler deploy
+   ```
+   Finally, attach the Worker to your zone so machine subdomains hit it —
+   **Cloudflare dashboard → Workers Routes** (or a `routes` entry), pattern
+   `*.<your-domain>/*`. Route entries aren't in `wrangler.toml`.
+
+For **edge authentication** (`AUTH_MODE=cfaccess`) you also create a Cloudflare
+Access application over your control-plane/API hostnames — the exact steps
+(hostnames to cover, policy, where the AUD tag comes from) and the Firebase
+alternative are in
+[self-hosted-control-plane.md](self-hosted-control-plane.md#cloudflare).
 
 ### 2.2 Configure and run the control plane
 
@@ -342,12 +415,24 @@ flowchart LR
    `ready` host — the local worker from stage 1.3, or the host you enrolled in
    2.4 — and boots the microVM.
 3. The machine page is the workspace you first saw at the stage-1 checkpoint:
-   - **Web chat** with the OpenClaw agent (the in-VM gateway).
+   - **Web chat** with the OpenClaw agent (the in-VM gateway). Add a model
+     provider key on the machine's **Model** tab first (or via
+     `PUT /accounts/{id}/machines/{mid}/credentials/{provider}`); without one
+     the gateway logs `no API key configured for provider`.
    - **Live terminal** (ttyd) inside the VM.
    - **Browser VM** — pair a separate account-scoped microVM running headful
      Chromium; the agent drives it over CDP while you watch the live view.
      Browser VMs have their own lifecycle, so one can be created ahead of time
      and re-used across machine restarts.
+
+> **Two workspace panels need extra config in the pure-local (stage-1) path:**
+> the **Resources** tab's live CPU/memory charts are sampled from each VM's
+> systemd cgroup, so they populate only when the agent runs with the default
+> `VM_RUNTIME_OWNER=systemd-unit` (the `local-e2e-firecracker.sh` helper uses
+> `direct` for simplicity, which leaves the charts empty); and the **Traces**
+> tab (Opik) stays empty until the control plane advertises a trace endpoint
+> the VM can reach — set `OPIK_API_URL` (in stage 2 this is derived from
+> `PUBLIC_URL`). Both work out of the box in a stage-2 deployment.
 
 ### Lifecycle
 
@@ -389,10 +474,13 @@ Three artifacts make a host able to boot machines, plus one the machines run:
 multiple GB — over GitHub's 2 GB release-asset cap — so a **GCS bucket is the
 canonical artifact channel**
 ([#21](https://github.com/mathaix/OpenClawMachines/issues/21)). The flow is:
-build each component (one command each), upload with the matching
-`scripts/upload-*.sh` (each writes the artifact + a SHA-256 manifest into a
-standard bucket layout), and set `OCM_ARTIFACT_BUCKET=gs://your-bucket`
-everywhere this guide uses it — the provision and enroll scripts then pull and
+build each component (one command each), upload it with its `scripts/upload-*.sh`
+(the agent and rootfs each have one; the kernel and OpenClaw runtime release are
+uploaded manually — see [building.md](building.md)), and set
+`OCM_ARTIFACT_BUCKET=gs://your-bucket` everywhere this guide uses it. Each
+upload writes the artifact plus a `manifest.json` (whose `sha256` is the hash of
+the **uncompressed** image, even when the stored artifact is `.zst`-compressed)
+into a standard bucket layout; the provision and enroll scripts pull and
 hash-verify from your bucket via the host's service account.
 
 The component-by-component build manual — every build command, output, upload
@@ -400,10 +488,20 @@ script, and the bucket layout — is **[building.md](building.md)**. (The code
 also has a GitHub-Releases fallback URL for the small binaries, but no release
 has been cut yet; treat the bucket as the real channel.)
 
+> **Building from source is authoritative for self-hosting.** The prebuilt
+> artifacts in the project's own bucket are cut by the maintainers' release
+> pipeline and can lag this repository. In particular, a rootfs published before
+> the no-tunnel init fix **panics on a local/self-hosted (no-tunnel) boot**
+> (`[FATAL] tunnel_token is empty`). `make build-rootfs` from this repo bakes in
+> the current `scripts/init-openclaw.sh` and boots cleanly in every profile — so
+> for local evaluation, build the rootfs (see [1.2](#12-prepare-the-box)) rather
+> than pulling a prebuilt one.
+
 ---
 
 ## Where to go next
 
+- [User guide](user-guide.md) — **using** a machine day-to-day: model setup, chat, terminal, browser VM, files, logs, traces, backups, troubleshooting
 - [Building the components](building.md) — every component's build, the upload scripts, and the bucket layout
 - [Local Firecracker E2E](local-firecracker-e2e.md) — stage 1 in full depth, including everything `local-e2e-firecracker.sh` does
 - [Architecture](architecture.md) — data plane, routing, tunnels, lifecycle design

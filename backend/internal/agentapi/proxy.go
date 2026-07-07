@@ -701,12 +701,20 @@ func (s *Server) handleFilesProxy(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "failed to read response", http.StatusBadGateway)
 			return
 		}
-		prefix := "/" + mi.MachineSlug
+		// The external base is the URL prefix the browser uses to reach
+		// filebrowser. Production: /{slug}/files (subdomain routing). Dev: the
+		// control plane forwards X-Forwarded-Prefix (…/machines/{id}/files) so
+		// assets resolve through the control-plane proxy instead of a
+		// slug-prefixed path that only exists behind Cloudflare.
+		externalBase := r.Header.Get("X-Forwarded-Prefix")
+		if externalBase == "" {
+			externalBase = "/" + mi.MachineSlug + "/files"
+		}
 		// Rewrite "/files/" paths (href, src, url() references)
-		rewritten := bytes.ReplaceAll(body, []byte("/files/"), []byte(prefix+"/files/"))
-		// Rewrite quoted "/files" baseURL in JS (e.g. baseURL:"/files" → baseURL:"/{slug}/files")
-		rewritten = bytes.ReplaceAll(rewritten, []byte(`"/files"`), []byte(`"`+prefix+`/files"`))
-		rewritten = bytes.ReplaceAll(rewritten, []byte(`'/files'`), []byte(`'`+prefix+`/files'`))
+		rewritten := bytes.ReplaceAll(body, []byte("/files/"), []byte(externalBase+"/"))
+		// Rewrite quoted "/files" baseURL in JS (e.g. baseURL:"/files" → baseURL:"{base}")
+		rewritten = bytes.ReplaceAll(rewritten, []byte(`"/files"`), []byte(`"`+externalBase+`"`))
+		rewritten = bytes.ReplaceAll(rewritten, []byte(`'/files'`), []byte(`'`+externalBase+`'`))
 		w.Header().Set("Content-Length", strconv.Itoa(len(rewritten)))
 		w.WriteHeader(resp.StatusCode)
 		_, _ = w.Write(rewritten)

@@ -49,7 +49,12 @@ func TestMain(m *testing.M) {
 	// routing failures (VMs can't reach the metadata server).
 	cleanupStaleTestResources()
 
-	os.Exit(m.Run())
+	code := m.Run()
+	// Tear down the shared Cloudflare tunnel (if the tunnel E2E tests created
+	// one) after ALL tests complete — not per-test, which would kill it before
+	// later E2E tests run. No-op when no shared tunnel was created.
+	teardownSharedTunnel()
+	os.Exit(code)
 }
 
 // cleanupStaleTestResources removes leftover bridges, taps, and iptables rules

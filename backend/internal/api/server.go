@@ -451,6 +451,10 @@ func NewServer(ctx context.Context, s store.Store, a *auth.Auth, authMode string
 					r.Get("/files", srv.handleListFiles)
 					r.Get("/files/download", srv.handleDownloadFile)
 					r.Get("/files/download-zip", srv.handleDownloadZip)
+					// Filebrowser iframe UI (dev-mode data-plane fallback). More
+					// specific /files and /files/download* routes above win in
+					// chi's trie; this wildcard catches /files/ and its assets.
+					r.HandleFunc("/files/*", srv.handleFilesBrowserProxy)
 					r.Get("/metrics", srv.handleGetMachineMetrics)
 					r.Get("/traces", srv.handleListMachineTraces)
 					r.Get("/traces/{traceID}", srv.handleGetMachineTrace)

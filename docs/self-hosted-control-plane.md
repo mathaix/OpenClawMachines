@@ -48,8 +48,17 @@ control plane:
 
 - Cloudflare account ID.
 - Cloudflare zone ID for the data-plane domain.
-- Cloudflare API token with enough permission to manage DNS records, Tunnels,
-  and Worker/KV resources used by OCM.
+- Cloudflare API token (`CLOUDFLARE_API_TOKEN`) with these exact permission
+  groups — the control plane uses it to mint per-VM tunnels, DNS records, and
+  route KV entries at runtime:
+  - **Account · Cloudflare Tunnel · Edit**
+  - **Account · Workers KV Storage · Edit**
+  - **Zone · DNS · Edit** (scoped to the data-plane zone)
+  - **Zone · Zone · Read** (scoped to the data-plane zone)
+
+  Deploying the Worker/KV with `wrangler` is a separate, one-time step that
+  authenticates via `wrangler login`; if scripted with a token instead, add
+  **Account · Workers Scripts · Edit**.
 - Cloudflare Tunnel for the control-plane origin.
 - Cloudflare Tunnel for registered KVM hosts.
 - Per-machine Cloudflare Tunnel and DNS records.
@@ -90,16 +99,24 @@ whether the original identity provider was Firebase or Cloudflare Access.
 
 #### Cloudflare Access
 
-Use Cloudflare Access when the operator wants identity enforced at the edge.
+Use Cloudflare Access when the operator wants identity enforced at the edge. The
+control plane only **validates** the Access JWT — it does not create the Access
+application, so you set it up once in the Cloudflare Zero Trust dashboard:
 
-Required:
-
-- Cloudflare Access application covering the control-plane/API hostnames.
-- Access team domain.
-- Access application AUD tag.
-- `AUTH_MODE=cfaccess`.
-- `CF_ACCESS_TEAM_DOMAIN`.
-- `CF_ACCESS_AUD`.
+1. **Zero Trust → Settings → Custom Pages / team domain** — note your **team
+   domain** (`<your-team>.cloudflareaccess.com`); this is `CF_ACCESS_TEAM_DOMAIN`.
+2. **Zero Trust → Access → Applications → Add an application → Self-hosted.**
+   - **Application domain(s):** cover the control-plane/API hostname (your
+     `BACKEND_URL` host) and the frontend host. The per-VM `m-<slug>` and
+     `ssh-<slug>` hostnames are authenticated by the in-VM auth proxy + machine
+     tokens, so they do **not** need to be inside this Access app.
+   - **Identity/policy:** add an Allow policy (e.g. emails in `OCM_ADMIN_EMAILS`,
+     or your IdP group). Anyone the policy admits becomes an OCM user on first
+     request.
+3. After creating the app, open its **Overview → Application Audience (AUD) tag**
+   — that value is `CF_ACCESS_AUD`.
+4. Set `AUTH_MODE=cfaccess`, `CF_ACCESS_TEAM_DOMAIN`, and `CF_ACCESS_AUD` in the
+   control-plane env.
 
 Flow:
 

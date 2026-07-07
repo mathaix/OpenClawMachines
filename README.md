@@ -174,6 +174,7 @@ ending with something working:
 ## Project docs
 
 - [**Getting Started**](docs/getting-started.md) — the three-stage guide above
+- [**User guide**](docs/user-guide.md) — using a machine day-to-day (model, chat, terminal, browser VM, files, logs, traces, backups)
 - [Architecture](docs/architecture.md) — data plane, routing, tunnels, lifecycle
 - [Tech stack](docs/tech-stack.md) — the five layers, client to sandbox
 - [Local and BYO-host setup](docs/local-setup.md)
