@@ -146,6 +146,9 @@ Generate and store these before deployment:
 - `FRONTEND_URL`: public frontend URL.
 - `CORS_ORIGINS`: expected browser origins.
 - `CONTROL_PLANE_PROFILE=operator`.
+- `WORKSPACE_INTEGRATIONS_API_URL`: optional override for the per-machine
+  native MCP token audience. Leave unset to derive
+  `${BACKEND_URL}/api/ocm-integrations`.
 
 The self-hosted target also needs operator bootstrap values:
 
@@ -157,6 +160,17 @@ The self-hosted target also needs operator bootstrap values:
   `COOKIE_DOMAIN`; if unset, the frontend falls back to `VITE_DATA_PLANE_DOMAIN`.
 - `VITE_OCM_ADMIN_EMAILS`: frontend admin UI hint. Keep it aligned with
   `OCM_ADMIN_EMAILS`; backend authorization still comes from the server.
+- `GOOGLE_WORKSPACE_OAUTH_CLIENT_ID` and
+  `GOOGLE_WORKSPACE_OAUTH_CLIENT_SECRET`: required only when enabling Google
+  Workspace integrations. Other OAuth providers use the same slug-derived form,
+  for example `NOTION_OAUTH_CLIENT_ID`.
+
+Keep `OCM_ALLOW_INSECURE_WORKSPACE_INTEGRATIONS` unset in operator deployments.
+It exists only for trusted local tests that intentionally probe HTTP/private
+integration endpoints. `OCM_WORKSPACE_INTEGRATIONS_EXECUTE_ENABLED` and
+`OCM_WORKSPACE_INTEGRATIONS_WORKFLOWS_ENABLED` are optional experimental MCP
+facade flags and should stay disabled unless the operator has explicitly chosen
+to expose those tools.
 
 ### KVM Worker Host
 

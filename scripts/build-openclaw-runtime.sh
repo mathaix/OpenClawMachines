@@ -201,9 +201,11 @@ echo "Copying entrypoint..."
 $DOCKER exec "${CONTAINER_ID}" cat /tmp/oc/bin/openclaw > "${OC_PKG}/openclaw.mjs"
 
 # --- Bundle platform plugins into dist/extensions ---
-# Platform plugins are installed here alongside openclaw
-# so they're versioned together in the artifact. User-installed plugins live
-# separately on the data volume (~/.openclaw/extensions/) and are NOT bundled here.
+# Platform plugins are installed here alongside openclaw so they're versioned
+# together in the artifact. Workspace integrations use native mcp.servers.ocm
+# plus the rootfs-bundled ocm-integrations skill; the legacy REST plugin is not
+# bundled by default. User-installed plugins live separately on the data volume
+# (~/.openclaw/extensions/) and are NOT bundled here.
 EXT_DIR="${OC_PKG}/dist/extensions"
 mkdir -p "${EXT_DIR}"
 

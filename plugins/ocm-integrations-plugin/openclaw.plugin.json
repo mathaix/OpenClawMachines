@@ -1,0 +1,54 @@
+{
+  "id": "ocm-integrations",
+  "name": "OCM Integrations",
+  "description": "Legacy REST fallback for workspace-scoped integrations served by OCM",
+  "skills": [
+    "./skills"
+  ],
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "enabled": {
+        "type": "boolean",
+        "description": "Enable or disable the legacy OCM integrations fallback"
+      },
+      "apiUrl": {
+        "type": "string",
+        "description": "Legacy backend integration gateway URL injected by OCM only for fallback/debug use"
+      },
+      "manifestUrl": {
+        "type": "string",
+        "description": "Legacy backend integration manifest URL injected by OCM only for fallback/debug use"
+      },
+      "toolsUrl": {
+        "type": "string",
+        "description": "Legacy backend integration tools URL injected by OCM only for fallback/debug use"
+      },
+      "machineToken": {
+        "type": "string",
+        "description": "Per-machine bearer token injected by OCM only for fallback/debug use"
+      },
+      "workspaceIntegrations": {
+        "type": "array",
+        "description": "Non-secret summary of enabled workspace integrations"
+      }
+    }
+  },
+  "uiHints": {
+    "enabled": {
+      "label": "Enable OCM Integrations",
+      "help": "Enable or disable the legacy workspace integrations fallback"
+    },
+    "apiUrl": {
+      "label": "API URL",
+      "help": "Injected by OCM",
+      "advanced": true
+    },
+    "machineToken": {
+      "label": "Machine token",
+      "help": "Injected by OCM",
+      "advanced": true
+    }
+  }
+}

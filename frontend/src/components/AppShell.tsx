@@ -1,11 +1,12 @@
 import { Link, Outlet, useLocation, Navigate } from "react-router-dom";
-import { Activity, LayoutDashboard, Settings, Globe } from "lucide-react";
+import { Activity, LayoutDashboard, Settings, Globe, PanelsTopLeft } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { UserMenu } from "./UserMenu";
 
 const navItems = [
   { label: "Dashboard", path: "/dashboard", Icon: LayoutDashboard },
   { label: "Observability", path: "/observability", Icon: Activity },
+  { label: "Workspaces", path: "/workspaces", Icon: PanelsTopLeft },
   { label: "Browser VMs", path: "/browser-vms", Icon: Globe },
   { label: "Settings", path: "/settings", Icon: Settings },
 ];

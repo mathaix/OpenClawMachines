@@ -294,6 +294,8 @@ Required for the host-enrollment + machine flow:
 | `CLOUDFLARE_KV_NAMESPACE_ID` | the `OCM_ROUTES` namespace id from 2.1 |
 | `OCM_ADMIN_EMAILS` | comma-separated admin emails (who can manage hosts) |
 | `OCM_ARTIFACT_BUCKET` | the bucket hosts pull artifacts from — see [Artifacts](#artifacts) |
+| `WORKSPACE_INTEGRATIONS_API_URL` | optional; leave blank to derive from `BACKEND_URL` |
+| `GOOGLE_WORKSPACE_OAUTH_CLIENT_ID` / `GOOGLE_WORKSPACE_OAUTH_CLIENT_SECRET` | optional; set when enabling Google Workspace integrations |
 
 Frontend env (`frontend/.env.local`) must include `VITE_OCM_ADMIN_EMAILS` with
 the **same** admin email(s), or the admin UI won't show. (Backend

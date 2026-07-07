@@ -500,6 +500,15 @@ type PluginSelection struct {
 	ConfigOverrides map[string]interface{}
 }
 
+type WorkspaceIntegrationConfig struct {
+	ID          string
+	Slug        string
+	DisplayName string
+	Kind        string
+	Transport   string
+	ToolCount   int
+}
+
 // AssemblyParams contains all inputs needed to assemble a machine's OpenClaw config.
 type AssemblyParams struct {
 	MachineID               string
@@ -529,8 +538,14 @@ type AssemblyParams struct {
 	// backend uses the token's machine_id claim as the Composio user_id,
 	// ignoring any user_id supplied by the caller. nil = skip (back-compat
 	// for tests/dev; production callers must always set this).
-	ComposioProxyTokenSigner func(machineID string) (string, error)
-	RuntimeSource            string // Always "artifact" — plugins are bundled in the artifact.
+	ComposioProxyTokenSigner   func(machineID string) (string, error)
+	WorkspaceIntegrationAPIURL string // Backend gateway URL for native OCM workspace integrations.
+	// WorkspaceIntegrationTokenSigner mints per-machine tokens used by the
+	// native OCM MCP server. The backend derives workspace scope from the
+	// token's machine_id claim and never trusts caller-supplied workspace IDs.
+	WorkspaceIntegrationTokenSigner func(machineID string) (string, error)
+	WorkspaceIntegrations           []WorkspaceIntegrationConfig
+	RuntimeSource                   string // Always "artifact" — plugins are bundled in the artifact.
 	// ResolvedOpenclawVersion is the machine's resolved OpenClaw runtime
 	// version (e.g. "v2026.5.28-r4"). Version-sensitive config (the Codex
 	// provider api value) is keyed on it; empty emits the legacy shape.
@@ -968,6 +983,10 @@ func AssembleConfig(params AssemblyParams) ([]byte, error) {
 		slog.Debug("configassembly.composio_skipped", "reason", "no_api_url")
 	}
 
+	if err := injectWorkspaceIntegrationNativeMCPConfig(result, params.MachineID, params.WorkspaceIntegrationAPIURL, params.WorkspaceIntegrationTokenSigner, params.WorkspaceIntegrations, false); err != nil {
+		return nil, err
+	}
+
 	// 5e. Inject channel credential tokens as plaintext into the config.
 	if len(params.ChannelCredentialValues) > 0 {
 		channels, _ := result["channels"].(map[string]interface{})
@@ -1061,8 +1080,11 @@ type SeedParams struct {
 	// ComposioProxyTokenSigner mints a short-lived per-machine token the
 	// in-VM Composio plugin presents to the backend proxy. See
 	// AssemblyParams.ComposioProxyTokenSigner.
-	ComposioProxyTokenSigner func(machineID string) (string, error)
-	RuntimeSource            string // Always "artifact"
+	ComposioProxyTokenSigner        func(machineID string) (string, error)
+	WorkspaceIntegrationAPIURL      string // Backend gateway URL for native OCM workspace integrations.
+	WorkspaceIntegrationTokenSigner func(machineID string) (string, error)
+	WorkspaceIntegrations           []WorkspaceIntegrationConfig
+	RuntimeSource                   string // Always "artifact"
 	// ResolvedOpenclawVersion keys version-sensitive config (Codex provider
 	// api value). Empty emits the legacy shape. See AssemblyParams.
 	ResolvedOpenclawVersion string
@@ -1672,6 +1694,10 @@ func AssembleSeedConfig(params SeedParams) ([]byte, error) {
 		}
 	}
 
+	if err := injectWorkspaceIntegrationNativeMCPConfig(result, params.MachineID, params.WorkspaceIntegrationAPIURL, params.WorkspaceIntegrationTokenSigner, params.WorkspaceIntegrations, true); err != nil {
+		return nil, err
+	}
+
 	// Emit auth.profiles for codex OAuth when provider is configured.
 	// The gateway reads auth.profiles from openclaw.json to know which profiles
 	// to look up in auth-profiles.json. mode: "oauth" triggers native token refresh.
@@ -1774,6 +1800,91 @@ func configMapKeys(m map[string]interface{}) []string {
 		keys = append(keys, k)
 	}
 	return keys
+}
+
+func injectWorkspaceIntegrationNativeMCPConfig(result map[string]interface{}, machineID, apiURL string, signer func(string) (string, error), integrations []WorkspaceIntegrationConfig, seed bool) error {
+	if apiURL == "" {
+		slog.Debug("configassembly.workspace_integrations_skipped", "reason", "no_api_url")
+		return nil
+	}
+	baseURL := strings.TrimRight(apiURL, "/")
+	if signer != nil {
+		token, err := signer(machineID)
+		if err != nil {
+			label := "workspace integration token"
+			if seed {
+				label += " (seed)"
+			}
+			return fmt.Errorf("%s: %w", label, err)
+		}
+		injectWorkspaceIntegrationMCPConfig(result, baseURL, token)
+	} else {
+		slog.Warn("configassembly.workspace_integrations_no_token_signer",
+			"machine_id", machineID,
+			"seed", seed,
+			"note", "native OCM workspace integration MCP server will be unable to authenticate to backend gateway")
+	}
+
+	disableWorkspaceIntegrationRESTPluginRuntime(result)
+	slog.Debug("configassembly.workspace_integrations_injected", "machine_id", machineID, "integration_count", len(integrations), "seed", seed, "runtime", "native_mcp")
+	return nil
+}
+
+func disableWorkspaceIntegrationRESTPluginRuntime(result map[string]interface{}) {
+	plugins, ok := result["plugins"].(map[string]interface{})
+	if !ok {
+		return
+	}
+	if allow, ok := plugins["allow"].([]interface{}); ok {
+		filtered := make([]interface{}, 0, len(allow))
+		for _, item := range allow {
+			if value, ok := item.(string); ok && value == "ocm-integrations" {
+				continue
+			}
+			filtered = append(filtered, item)
+		}
+		plugins["allow"] = filtered
+	}
+	entries, ok := plugins["entries"].(map[string]interface{})
+	if !ok {
+		return
+	}
+	entry, ok := entries["ocm-integrations"].(map[string]interface{})
+	if !ok {
+		return
+	}
+	entry["enabled"] = false
+	config := getOrCreateMap(entry, "config")
+	config["enabled"] = false
+	delete(config, "apiUrl")
+	delete(config, "manifestUrl")
+	delete(config, "toolsUrl")
+	delete(config, "machineToken")
+	delete(config, "workspaceIntegrations")
+}
+
+func injectWorkspaceIntegrationMCPConfig(result map[string]interface{}, workspaceIntegrationAPIURL, machineToken string) {
+	mcp := getOrCreateMap(result, "mcp")
+	servers := getOrCreateMap(mcp, "servers")
+	servers["ocm"] = map[string]interface{}{
+		"transport": "streamable-http",
+		"url":       workspaceIntegrationMCPURL(workspaceIntegrationAPIURL),
+		"headers": map[string]interface{}{
+			"Authorization": "Bearer " + machineToken,
+		},
+	}
+}
+
+func workspaceIntegrationMCPURL(workspaceIntegrationAPIURL string) string {
+	baseURL := strings.TrimRight(workspaceIntegrationAPIURL, "/")
+	switch {
+	case strings.HasSuffix(baseURL, "/api/ocm-integrations"):
+		return strings.TrimSuffix(baseURL, "/api/ocm-integrations") + "/api/workspace-integrations/mcp"
+	case strings.HasSuffix(baseURL, "/api/workspace-integrations"):
+		return baseURL + "/mcp"
+	default:
+		return baseURL + "/mcp"
+	}
 }
 
 func getOrCreateMap(parent map[string]interface{}, key string) map[string]interface{} {

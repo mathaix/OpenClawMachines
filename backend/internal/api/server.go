@@ -80,14 +80,21 @@ type Server struct {
 	opikAPIURL               string
 	composioClient           *composio.Client
 	composioAPIURL           string
+	// allowInsecureWorkspaceIntegrationEndpoints is test/dev-only. Production
+	// custom remote MCP probes require HTTPS and public routable hosts.
+	allowInsecureWorkspaceIntegrationEndpoints bool
+	workspaceIntegrationExecuteEnabled         bool
+	workspaceIntegrationWorkflowsEnabled       bool
 	// composioProxyTokenSigner mints per-machine Composio proxy tokens. Wired
 	// separately from s.auth so it survives worker-mode startup (which
 	// constructs Server via NewWorkerServer without an auth instance).
-	composioProxyTokenSigner func(machineID string) (string, error)
-	dataPlaneDomain          string
-	cookieDomainOverride     string
-	cfAccessAuthDomain       string
-	sshCAPrivateKey          string // platform SSH CA private key (PEM)
+	composioProxyTokenSigner        func(machineID string) (string, error)
+	workspaceIntegrationAPIURL      string
+	workspaceIntegrationTokenSigner func(machineID string) (string, error)
+	dataPlaneDomain                 string
+	cookieDomainOverride            string
+	cfAccessAuthDomain              string
+	sshCAPrivateKey                 string // platform SSH CA private key (PEM)
 
 	// vm-metrics ingest rate limiter, lazily initialized per server.
 	vmMetricsRLOnce sync.Once
@@ -130,15 +137,18 @@ func vcpuOversubscriptionRatio() int {
 // execution in worker-only mode (no HTTP router, no auth, no CORS).
 // Migration workflows need agentClient, placement, machines, and kvStore.
 func NewWorkerServer(s store.Store, placementSvc *fleet.PlacementService, agentCli *agentclient.Client, kv *kvstore.KVStore, tunnelMgr *tunnel.Manager, machineRuntime *machines.RuntimeService, backupMasterKey string) *Server {
+	orchestrationFlags := workspaceIntegrationOrchestrationFeatureFlagsFromEnv()
 	srv := &Server{
-		store:           s,
-		placement:       placementSvc,
-		agentClient:     agentCli,
-		kvStore:         kv,
-		tunnelMgr:       tunnelMgr,
-		machines:        machineRuntime,
-		backupMasterKey: backupMasterKey,
-		hostUpdateOps:   make(map[string]*hostUpdateOperation),
+		store:                                s,
+		placement:                            placementSvc,
+		agentClient:                          agentCli,
+		kvStore:                              kv,
+		tunnelMgr:                            tunnelMgr,
+		machines:                             machineRuntime,
+		backupMasterKey:                      backupMasterKey,
+		workspaceIntegrationExecuteEnabled:   orchestrationFlags.Execute,
+		workspaceIntegrationWorkflowsEnabled: orchestrationFlags.Workflows,
+		hostUpdateOps:                        make(map[string]*hostUpdateOperation),
 	}
 	srv.opikAPIURL = os.Getenv("OPIK_API_URL")
 	if srv.opikAPIURL == "" {
@@ -177,38 +187,41 @@ func NewWorkerServer(s store.Store, placementSvc *fleet.PlacementService, agentC
 
 func NewServer(ctx context.Context, s store.Store, a *auth.Auth, authMode string, cfAuth *auth.CfAccessAuth, firebaseAuth *auth.FirebaseAuth, placementSvc *fleet.PlacementService, agentCli *agentclient.Client, prov *provisioner.Provisioner, tunnelMgr *tunnel.Manager, corsOrigins string, secretKey string, kv *kvstore.KVStore, cfTokenID, cfTokenSecret string, agentToken string, rootfsDataVersion int, devUserEmail string, cfSSHCAPubKey string, proxyBaseURL string, oauthClientID, oauthClientSecret string, machineRuntime *machines.RuntimeService, backendURL, rootfsGCSManifest, agentGCSManifest, browserRootfsGCSManifest, browserRootfsVersion, gcsServiceAccountKey, backupMasterKey, backupGCSBucket, backupGCSPrefix string) *Server {
 	ratio := vcpuOversubscriptionRatio()
+	orchestrationFlags := workspaceIntegrationOrchestrationFeatureFlagsFromEnv()
 	slog.Info("vcpu_oversub_ratio.configured", "ratio", ratio)
 
 	srv := &Server{
-		store:                    s,
-		auth:                     a,
-		authMode:                 authMode,
-		cfAuth:                   cfAuth,
-		firebaseAuth:             firebaseAuth,
-		placement:                placementSvc,
-		agentClient:              agentCli,
-		provisioner:              prov,
-		tunnelMgr:                tunnelMgr,
-		kvStore:                  kv,
-		machines:                 machineRuntime,
-		secretKey:                secretKey,
-		cfServiceTokenID:         cfTokenID,
-		cfServiceTokenSec:        cfTokenSecret,
-		agentToken:               agentToken,
-		rootfsDataVersion:        rootfsDataVersion,
-		cfSSHCAPubKey:            cfSSHCAPubKey,
-		proxyBaseURL:             proxyBaseURL,
-		oauthClientID:            oauthClientID,
-		oauthClientSecret:        oauthClientSecret,
-		backendURL:               backendURL,
-		rootfsGCSManifest:        rootfsGCSManifest,
-		agentGCSManifest:         agentGCSManifest,
-		browserRootfsGCSManifest: browserRootfsGCSManifest,
-		browserRootfsVersion:     browserRootfsVersion,
-		gcsServiceAccountKey:     gcsServiceAccountKey,
-		backupMasterKey:          backupMasterKey,
-		vcpuOversubRatio:         ratio,
-		hostUpdateOps:            make(map[string]*hostUpdateOperation),
+		store:                                s,
+		auth:                                 a,
+		authMode:                             authMode,
+		cfAuth:                               cfAuth,
+		firebaseAuth:                         firebaseAuth,
+		placement:                            placementSvc,
+		agentClient:                          agentCli,
+		provisioner:                          prov,
+		tunnelMgr:                            tunnelMgr,
+		kvStore:                              kv,
+		machines:                             machineRuntime,
+		secretKey:                            secretKey,
+		cfServiceTokenID:                     cfTokenID,
+		cfServiceTokenSec:                    cfTokenSecret,
+		agentToken:                           agentToken,
+		rootfsDataVersion:                    rootfsDataVersion,
+		cfSSHCAPubKey:                        cfSSHCAPubKey,
+		proxyBaseURL:                         proxyBaseURL,
+		oauthClientID:                        oauthClientID,
+		oauthClientSecret:                    oauthClientSecret,
+		backendURL:                           backendURL,
+		rootfsGCSManifest:                    rootfsGCSManifest,
+		agentGCSManifest:                     agentGCSManifest,
+		browserRootfsGCSManifest:             browserRootfsGCSManifest,
+		browserRootfsVersion:                 browserRootfsVersion,
+		gcsServiceAccountKey:                 gcsServiceAccountKey,
+		backupMasterKey:                      backupMasterKey,
+		vcpuOversubRatio:                     ratio,
+		workspaceIntegrationExecuteEnabled:   orchestrationFlags.Execute,
+		workspaceIntegrationWorkflowsEnabled: orchestrationFlags.Workflows,
+		hostUpdateOps:                        make(map[string]*hostUpdateOperation),
 	}
 
 	// Initialize backup store for direct GCS downloads (when host is unavailable).
@@ -329,6 +342,10 @@ func NewServer(ctx context.Context, s store.Store, a *auth.Auth, authMode string
 	// Safe: only proxies to Composio REST API using the platform key, no secrets exposed.
 	r.Get("/api/composio/tools", srv.handleComposioListTools)
 	r.Post("/api/composio/actions/{action}/execute", srv.handleComposioExecuteAction)
+	r.Get("/api/ocm-integrations/manifest", srv.handleWorkspaceIntegrationManifest)
+	r.Get("/api/ocm-integrations/tools", srv.handleWorkspaceIntegrationListTools)
+	r.Post("/api/ocm-integrations/tools/{tool}/call", srv.handleWorkspaceIntegrationCallTool)
+	r.Post("/api/workspace-integrations/mcp", srv.handleWorkspaceIntegrationMCP)
 
 	// Firebase session exchange (public — the Firebase ID token IS the auth)
 	if srv.firebaseAuth != nil {
@@ -372,6 +389,7 @@ func NewServer(ctx context.Context, s store.Store, a *auth.Auth, authMode string
 		// Accounts
 		r.Get("/api/accounts", srv.handleListAccounts)
 		r.Post("/api/accounts", srv.handleCreateAccount)
+		r.Get("/api/workspace-integrations/oauth/callback", srv.handleWorkspaceIntegrationOAuthCallback)
 
 		// Invitations (user-scoped, not account-scoped)
 		r.Get("/api/invitations/pending", srv.handleListPendingInvitations)
@@ -397,6 +415,16 @@ func NewServer(ctx context.Context, s store.Store, a *auth.Auth, authMode string
 			r.Put("/traces/{traceID}/tags", srv.handleUpdateTraceTags)
 			r.Get("/traces/{traceID}/feedback", srv.handleListTraceFeedback)
 			r.Post("/traces/{traceID}/feedback", srv.handleCreateTraceFeedback)
+			r.Get("/workspace-integrations", srv.handleListWorkspaceIntegrations)
+			r.Get("/workspace-integrations/catalog", srv.handleListWorkspaceIntegrationCatalog)
+			r.Get("/workspaces", srv.handleListWorkspaces)
+			r.Route("/workspaces/{workspaceID}", func(r chi.Router) {
+				r.Get("/", srv.handleGetWorkspace)
+				r.Get("/machines", srv.handleListWorkspaceMachines)
+				r.Post("/machines", srv.handleCreateMachine)
+				r.Get("/integrations", srv.handleListWorkspaceIntegrations)
+				r.Get("/integrations/catalog", srv.handleListWorkspaceIntegrationCatalog)
+			})
 
 			// Invitations (account-scoped)
 			r.Post("/invitations", srv.handleCreateInvitation)
@@ -420,6 +448,38 @@ func NewServer(ctx context.Context, s store.Store, a *auth.Auth, authMode string
 				r.Get("/registry/{entryId}", srv.handleAdminGetRegistryEntry)
 				r.Put("/registry/{entryId}", srv.handleAdminUpdateRegistryEntry)
 				r.Delete("/registry/{entryId}", srv.handleAdminDeleteRegistryEntry)
+
+				// Workspaces
+				r.Post("/workspaces", srv.handleCreateWorkspace)
+				r.Post("/workspaces/{workspaceID}/integrations/mock", srv.handleCreateMockWorkspaceIntegration)
+				r.Post("/workspaces/{workspaceID}/integrations/github", srv.handleCreateGitHubWorkspaceIntegration)
+				r.Post("/workspaces/{workspaceID}/integrations/probe", srv.handleProbeWorkspaceIntegration)
+				r.Post("/workspaces/{workspaceID}/integrations/import/preview", srv.handlePreviewWorkspaceIntegrationImport)
+				r.Post("/workspaces/{workspaceID}/integrations/import", srv.handleCreateWorkspaceIntegrationImport)
+				r.Get("/workspaces/{workspaceID}/integrations/guidance", srv.handleListWorkspaceIntegrationGuidance)
+				r.Post("/workspaces/{workspaceID}/integrations/guidance", srv.handleCreateWorkspaceIntegrationGuidance)
+				r.Post("/workspaces/{workspaceID}/integrations/guidance/draft", srv.handleDraftWorkspaceIntegrationGuidance)
+				r.Post("/workspaces/{workspaceID}/integrations/guidance/{overlayID}/approve", srv.handleApproveWorkspaceIntegrationGuidance)
+				r.Post("/workspaces/{workspaceID}/integrations/{integrationSlug}", srv.handleCreateWorkspaceIntegration)
+				r.Post("/workspaces/{workspaceID}/integrations/{integrationSlug}/oauth/connect", srv.handleStartWorkspaceIntegrationOAuthBySlug)
+				r.Post("/workspaces/{workspaceID}/integrations/{integrationSlug}/test", srv.handleTestWorkspaceIntegration)
+				r.Put("/workspaces/{workspaceID}/integrations/{integrationSlug}/policy", srv.handleUpdateWorkspaceIntegrationPolicy)
+				r.Delete("/workspaces/{workspaceID}/integrations/{integrationSlug}", srv.handleRevokeWorkspaceIntegration)
+				r.Get("/workspaces/{workspaceID}/integrations/health", srv.handleWorkspaceIntegrationHealth)
+				r.Post("/workspaces/{workspaceID}/machines/{machineID}/integrations-runtime/enable", srv.handleEnableWorkspaceIntegrationRuntime)
+
+				// Default workspace compatibility routes.
+				r.Post("/workspace-integrations/mock", srv.handleCreateMockWorkspaceIntegration)
+				r.Post("/workspace-integrations/github", srv.handleCreateGitHubWorkspaceIntegration)
+				r.Post("/workspace-integrations/probe", srv.handleProbeWorkspaceIntegration)
+				r.Post("/workspace-integrations/import/preview", srv.handlePreviewWorkspaceIntegrationImport)
+				r.Post("/workspace-integrations/import", srv.handleCreateWorkspaceIntegrationImport)
+				r.Post("/workspace-integrations/{integrationSlug}", srv.handleCreateWorkspaceIntegration)
+				r.Post("/workspace-integrations/{integrationSlug}/oauth/connect", srv.handleStartWorkspaceIntegrationOAuthBySlug)
+				r.Post("/workspace-integrations/{integrationSlug}/test", srv.handleTestWorkspaceIntegration)
+				r.Put("/workspace-integrations/{integrationSlug}/policy", srv.handleUpdateWorkspaceIntegrationPolicy)
+				r.Delete("/workspace-integrations/{integrationSlug}", srv.handleRevokeWorkspaceIntegration)
+				r.Post("/workspace-integrations/machines/{machineID}/enable", srv.handleEnableWorkspaceIntegrationRuntime)
 
 			})
 
@@ -692,6 +752,16 @@ func (s *Server) SetComposioAPIURL(url string) {
 	s.composioAPIURL = url
 }
 
+func (s *Server) SetWorkspaceIntegrationAPIURL(url string) {
+	s.workspaceIntegrationAPIURL = url
+}
+
+// SetAllowInsecureWorkspaceIntegrationEndpoints enables HTTP/private-host MCP
+// endpoints for local harnesses. Leave false in production.
+func (s *Server) SetAllowInsecureWorkspaceIntegrationEndpoints(allow bool) {
+	s.allowInsecureWorkspaceIntegrationEndpoints = allow
+}
+
 // ComposioProxyTokenTTL is the lifetime of per-machine Composio proxy tokens.
 // Tokens are delivered to VMs in the assembled plugin config; config pushes
 // happen at boot and on settings changes but are not strictly periodic, so
@@ -711,6 +781,14 @@ func (s *Server) SetComposioProxyTokenSigner(f func(machineID string) (string, e
 	s.composioProxyTokenSigner = f
 }
 
+// WorkspaceIntegrationTokenTTL mirrors the Composio proxy token lifetime for the
+// native mcp.servers.ocm workspace integrations path.
+const WorkspaceIntegrationTokenTTL = 30 * 24 * time.Hour
+
+func (s *Server) SetWorkspaceIntegrationTokenSigner(f func(machineID string) (string, error)) {
+	s.workspaceIntegrationTokenSigner = f
+}
+
 // signComposioProxyToken mints a per-machine Composio proxy token.
 // Suitable as a configassembly token signer.
 func (s *Server) signComposioProxyToken(machineID string) (string, error) {
@@ -718,6 +796,13 @@ func (s *Server) signComposioProxyToken(machineID string) (string, error) {
 		return "", fmt.Errorf("composio proxy token: signer not configured")
 	}
 	return s.composioProxyTokenSigner(machineID)
+}
+
+func (s *Server) signWorkspaceIntegrationToken(machineID string) (string, error) {
+	if s.workspaceIntegrationTokenSigner == nil {
+		return "", fmt.Errorf("workspace integration token: signer not configured")
+	}
+	return s.workspaceIntegrationTokenSigner(machineID)
 }
 
 func (s *Server) SetDataPlaneDomain(d string) {

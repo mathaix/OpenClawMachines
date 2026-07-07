@@ -38,6 +38,17 @@ func retryDBQuery[T any](fn func() (T, error)) (T, error) {
 	return zero, lastErr
 }
 
+func countWorkspaceIntegrationManifestTools(manifest json.RawMessage) int {
+	if len(manifest) == 0 {
+		return 0
+	}
+	var tools []json.RawMessage
+	if err := json.Unmarshal(manifest, &tools); err != nil {
+		return 0
+	}
+	return len(tools)
+}
+
 func normalizePreferredModelOverride(model string) string {
 	switch model {
 	case "openai/gpt-5.5":
@@ -506,6 +517,24 @@ func (s *Server) assembleConfigForMachine(ctx context.Context, machineID string,
 		pluginSelections = append(pluginSelections, ps)
 	}
 
+	var workspaceIntegrationConfigs []configassembly.WorkspaceIntegrationConfig
+	workspaceIntegrations, err := s.store.ListEnabledWorkspaceIntegrationsForMachine(ctx, machineID)
+	if err != nil {
+		slog.Error("machine.config.workspace_integrations_load_failed", "machine_hash", hashForLog(machineID), "error", err)
+		return nil, 0, warnings, fmt.Errorf("list workspace integrations for machine: %w", err)
+	}
+	workspaceIntegrationConfigs = make([]configassembly.WorkspaceIntegrationConfig, 0, len(workspaceIntegrations))
+	for _, wi := range workspaceIntegrations {
+		workspaceIntegrationConfigs = append(workspaceIntegrationConfigs, configassembly.WorkspaceIntegrationConfig{
+			ID:          wi.ID,
+			Slug:        wi.Slug,
+			DisplayName: wi.DisplayName,
+			Kind:        wi.Kind,
+			Transport:   wi.Transport,
+			ToolCount:   countWorkspaceIntegrationManifestTools(wi.ToolManifest),
+		})
+	}
+
 	// 5. Load decrypted channel credential values for direct injection into config.
 	// Channel tokens (e.g. Telegram bot token) are injected as plaintext so the
 	// gateway has them immediately at startup without needing SecretRef resolution.
@@ -598,29 +627,32 @@ func (s *Server) assembleConfigForMachine(ctx context.Context, machineID string,
 
 	// 7. Assemble
 	params := configassembly.AssemblyParams{
-		MachineID:                machineID,
-		Capabilities:             cwts,
-		Identity:                 identity,
-		Credentials:              credentials,
-		ChannelCredentialValues:  channelCredentialValues,
-		ProxyBaseURL:             s.proxyBaseURL,
-		DefaultModel:             defaultModel,
-		ModelFallbacks:           modelFallbacks,
-		VMHostname:               vmHostname,
-		AccountHostname:          accountHostname,
-		BridgeIP:                 "192.168.100.1",
-		Agents:                   agentDefs,
-		Plugins:                  pluginSelections,
-		NativeMode:               true, // all machines use native config mode with exec secret refs
-		ResolvedOpenclawVersion:  resolvedOpenclawVersion,
-		ModelCatalog:             catalogModels,
-		ProviderCatalog:          catalogProviders,
-		SearchProvider:           searchProvider,
-		OpenAIAgentRuntime:       openAIAgentRuntime,
-		OpikAPIURL:               s.opikAPIURL,
-		OpikAPIKey:               s.getGatewayToken(ctx, machineID),
-		ComposioAPIURL:           s.composioAPIURL,
-		ComposioProxyTokenSigner: s.signComposioProxyToken,
+		MachineID:                       machineID,
+		Capabilities:                    cwts,
+		Identity:                        identity,
+		Credentials:                     credentials,
+		ChannelCredentialValues:         channelCredentialValues,
+		ProxyBaseURL:                    s.proxyBaseURL,
+		DefaultModel:                    defaultModel,
+		ModelFallbacks:                  modelFallbacks,
+		VMHostname:                      vmHostname,
+		AccountHostname:                 accountHostname,
+		BridgeIP:                        "192.168.100.1",
+		Agents:                          agentDefs,
+		Plugins:                         pluginSelections,
+		NativeMode:                      true, // all machines use native config mode with exec secret refs
+		ResolvedOpenclawVersion:         resolvedOpenclawVersion,
+		ModelCatalog:                    catalogModels,
+		ProviderCatalog:                 catalogProviders,
+		SearchProvider:                  searchProvider,
+		OpenAIAgentRuntime:              openAIAgentRuntime,
+		OpikAPIURL:                      s.opikAPIURL,
+		OpikAPIKey:                      s.getGatewayToken(ctx, machineID),
+		ComposioAPIURL:                  s.composioAPIURL,
+		ComposioProxyTokenSigner:        s.signComposioProxyToken,
+		WorkspaceIntegrationAPIURL:      s.workspaceIntegrationAPIURL,
+		WorkspaceIntegrationTokenSigner: s.signWorkspaceIntegrationToken,
+		WorkspaceIntegrations:           workspaceIntegrationConfigs,
 	}
 	if len(browserVMIP) > 0 && browserVMIP[0] != "" {
 		params.BrowserVMIP = browserVMIP[0]

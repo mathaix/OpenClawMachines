@@ -25,6 +25,10 @@ import (
 	"github.com/mathaix/openclawmachines/backend/pkg/version"
 )
 
+type runtimeWorkspaceIntegrationRepo interface {
+	ListEnabledWorkspaceIntegrationsForMachine(ctx context.Context, machineID string) ([]store.WorkspaceIntegration, error)
+}
+
 // RuntimeStore is the subset of store interfaces the RuntimeService needs.
 type RuntimeStore interface {
 	store.MachineRepo
@@ -42,6 +46,7 @@ type RuntimeStore interface {
 	store.ProviderCatalogRepo
 	store.PluginCatalogRepo
 	store.MachinePluginRepo
+	runtimeWorkspaceIntegrationRepo
 	store.ArtifactReleaseRepo
 	store.BrowserVMRepo
 }
@@ -57,17 +62,19 @@ type RuntimeService struct {
 	progress    *progress.Tracker
 	secretKey   string
 
-	rootfsDataVersion            int
-	cfSSHCAPubKey                string
-	proxyBaseURL                 string
-	nebiusAPIKey                 string
-	opikAPIURL                   string
-	composioAPIURL               string
-	composioProxyTokenSigner     func(machineID string) (string, error)
-	enableRuntimeVersionResolver bool
-	openClawManifestURI          string
-	hermesManifestURI            string
-	hermesRootfsManifestURI      string
+	rootfsDataVersion               int
+	cfSSHCAPubKey                   string
+	proxyBaseURL                    string
+	nebiusAPIKey                    string
+	opikAPIURL                      string
+	composioAPIURL                  string
+	composioProxyTokenSigner        func(machineID string) (string, error)
+	workspaceIntegrationAPIURL      string
+	workspaceIntegrationTokenSigner func(machineID string) (string, error)
+	enableRuntimeVersionResolver    bool
+	openClawManifestURI             string
+	hermesManifestURI               string
+	hermesRootfsManifestURI         string
 
 	// OnRunning is called after a VM transitions to "running" status.
 	// Used to trigger post-start actions like plugin reconciliation.
@@ -88,11 +95,13 @@ type RuntimeConfig struct {
 	// in-VM Composio plugin's config. The backend proxy validates this token
 	// and uses its machine_id claim as the Composio user_id, ignoring any
 	// user_id supplied by the caller (IDOR mitigation).
-	ComposioProxyTokenSigner     func(machineID string) (string, error)
-	EnableRuntimeVersionResolver bool
-	OpenClawManifestURI          string // GCS manifest URI for openclaw artifact staging
-	HermesManifestURI            string // GCS manifest URI for Hermes artifact staging
-	HermesRootfsManifestURI      string // GCS manifest URI for Hermes rootfs staging
+	ComposioProxyTokenSigner        func(machineID string) (string, error)
+	WorkspaceIntegrationAPIURL      string
+	WorkspaceIntegrationTokenSigner func(machineID string) (string, error)
+	EnableRuntimeVersionResolver    bool
+	OpenClawManifestURI             string // GCS manifest URI for openclaw artifact staging
+	HermesManifestURI               string // GCS manifest URI for Hermes artifact staging
+	HermesRootfsManifestURI         string // GCS manifest URI for Hermes rootfs staging
 }
 
 // NewRuntimeService creates a new RuntimeService.
@@ -109,30 +118,43 @@ func NewRuntimeService(
 	hermesRootfsManifestURI := strings.TrimSpace(cfg.HermesRootfsManifestURI)
 
 	return &RuntimeService{
-		store:                        s,
-		placement:                    placement,
-		agentClient:                  agent,
-		tunnelMgr:                    tmgr,
-		routing:                      routeSvc,
-		progress:                     prog,
-		secretKey:                    cfg.SecretKey,
-		rootfsDataVersion:            cfg.RootfsDataVersion,
-		cfSSHCAPubKey:                cfg.CfSSHCAPubKey,
-		proxyBaseURL:                 cfg.ProxyBaseURL,
-		nebiusAPIKey:                 cfg.NebiusAPIKey,
-		opikAPIURL:                   cfg.OpikAPIURL,
-		composioAPIURL:               cfg.ComposioAPIURL,
-		composioProxyTokenSigner:     cfg.ComposioProxyTokenSigner,
-		enableRuntimeVersionResolver: cfg.EnableRuntimeVersionResolver,
-		openClawManifestURI:          cfg.OpenClawManifestURI,
-		hermesManifestURI:            hermesManifestURI,
-		hermesRootfsManifestURI:      hermesRootfsManifestURI,
+		store:                           s,
+		placement:                       placement,
+		agentClient:                     agent,
+		tunnelMgr:                       tmgr,
+		routing:                         routeSvc,
+		progress:                        prog,
+		secretKey:                       cfg.SecretKey,
+		rootfsDataVersion:               cfg.RootfsDataVersion,
+		cfSSHCAPubKey:                   cfg.CfSSHCAPubKey,
+		proxyBaseURL:                    cfg.ProxyBaseURL,
+		nebiusAPIKey:                    cfg.NebiusAPIKey,
+		opikAPIURL:                      cfg.OpikAPIURL,
+		composioAPIURL:                  cfg.ComposioAPIURL,
+		composioProxyTokenSigner:        cfg.ComposioProxyTokenSigner,
+		workspaceIntegrationAPIURL:      cfg.WorkspaceIntegrationAPIURL,
+		workspaceIntegrationTokenSigner: cfg.WorkspaceIntegrationTokenSigner,
+		enableRuntimeVersionResolver:    cfg.EnableRuntimeVersionResolver,
+		openClawManifestURI:             cfg.OpenClawManifestURI,
+		hermesManifestURI:               hermesManifestURI,
+		hermesRootfsManifestURI:         hermesRootfsManifestURI,
 	}
 }
 
 // RuntimeVersionResolverEnabled returns true if the runtime version resolver feature flag is on.
 func (rs *RuntimeService) RuntimeVersionResolverEnabled() bool {
 	return rs != nil && rs.enableRuntimeVersionResolver
+}
+
+func countWorkspaceIntegrationManifestTools(manifest json.RawMessage) int {
+	if len(manifest) == 0 {
+		return 0
+	}
+	var tools []json.RawMessage
+	if err := json.Unmarshal(manifest, &tools); err != nil {
+		return 0
+	}
+	return len(tools)
 }
 
 // PlatformNebiusAPIKey returns the platform Nebius API key, or "" if not configured.
@@ -487,6 +509,23 @@ func (b *vmBootstrap) assembleSeedConfig() error {
 		}
 	}
 
+	var workspaceIntegrationConfigs []configassembly.WorkspaceIntegrationConfig
+	workspaceIntegrations, wiErr := b.rs.store.ListEnabledWorkspaceIntegrationsForMachine(b.ctx, b.machine.ID)
+	if wiErr != nil {
+		return fmt.Errorf("list workspace integrations for machine: %w", wiErr)
+	}
+	workspaceIntegrationConfigs = make([]configassembly.WorkspaceIntegrationConfig, 0, len(workspaceIntegrations))
+	for _, wi := range workspaceIntegrations {
+		workspaceIntegrationConfigs = append(workspaceIntegrationConfigs, configassembly.WorkspaceIntegrationConfig{
+			ID:          wi.ID,
+			Slug:        wi.Slug,
+			DisplayName: wi.DisplayName,
+			Kind:        wi.Kind,
+			Transport:   wi.Transport,
+			ToolCount:   countWorkspaceIntegrationManifestTools(wi.ToolManifest),
+		})
+	}
+
 	// Resolve opik API key from gateway token
 	var opikAPIKey string
 	if b.rs.opikAPIURL != "" && b.machine.GatewayToken != nil {
@@ -556,22 +595,25 @@ func (b *vmBootstrap) assembleSeedConfig() error {
 
 	var err error
 	b.seedConfig, err = configassembly.AssembleSeedConfig(configassembly.SeedParams{
-		MachineID:                b.machine.ID,
-		DefaultModel:             defaultModel,
-		ModelFallbacks:           seedModelFallbacks,
-		Providers:                providerNames,
-		ProxyBaseURL:             b.rs.proxyBaseURL,
-		ModelCatalog:             catalogModels,
-		ProviderCatalog:          seedCatalogProviders,
-		SearchProvider:           seedSearchProvider,
-		OpenAIAgentRuntime:       seedOpenAIAgentRuntime,
-		ChannelConfigs:           channelConfigs,
-		Plugins:                  pluginSelections,
-		OpikAPIURL:               b.rs.opikAPIURL,
-		OpikAPIKey:               opikAPIKey,
-		ComposioAPIURL:           b.rs.composioAPIURL,
-		ComposioProxyTokenSigner: b.rs.composioProxyTokenSigner,
-		ResolvedOpenclawVersion:  b.resolvedOpenclawVersion,
+		MachineID:                       b.machine.ID,
+		DefaultModel:                    defaultModel,
+		ModelFallbacks:                  seedModelFallbacks,
+		Providers:                       providerNames,
+		ProxyBaseURL:                    b.rs.proxyBaseURL,
+		ModelCatalog:                    catalogModels,
+		ProviderCatalog:                 seedCatalogProviders,
+		SearchProvider:                  seedSearchProvider,
+		OpenAIAgentRuntime:              seedOpenAIAgentRuntime,
+		ChannelConfigs:                  channelConfigs,
+		Plugins:                         pluginSelections,
+		OpikAPIURL:                      b.rs.opikAPIURL,
+		OpikAPIKey:                      opikAPIKey,
+		ComposioAPIURL:                  b.rs.composioAPIURL,
+		ComposioProxyTokenSigner:        b.rs.composioProxyTokenSigner,
+		WorkspaceIntegrationAPIURL:      b.rs.workspaceIntegrationAPIURL,
+		WorkspaceIntegrationTokenSigner: b.rs.workspaceIntegrationTokenSigner,
+		WorkspaceIntegrations:           workspaceIntegrationConfigs,
+		ResolvedOpenclawVersion:         b.resolvedOpenclawVersion,
 	})
 	if err != nil {
 		return fmt.Errorf("assemble seed config: %w", err)

@@ -9,6 +9,8 @@ import { MachineView } from "./pages/MachineView";
 import { MachineWorkspace } from "./pages/MachineWorkspace";
 import { Settings } from "./pages/Settings";
 import { Observability } from "./pages/Observability";
+import { WorkspaceIntegrations } from "./pages/WorkspaceIntegrations";
+import { DefaultWorkspaceIntegrationsRedirect, WorkspaceOverview, Workspaces } from "./pages/Workspaces";
 import { BrowserVMsPage } from "./pages/BrowserVMsPage";
 import { BrowserVMLivePage } from "./pages/BrowserVMLivePage";
 import { BrowserVMDetailPage } from "./pages/BrowserVMDetailPage";
@@ -92,6 +94,11 @@ export function App() {
         <Route path="/chat" element={<Suspense fallback={chatFallback}><ChatPage /></Suspense>} />
         <Route path="/chat/:machineId" element={<Suspense fallback={chatFallback}><ChatPage /></Suspense>} />
         <Route path="/observability" element={<Observability />} />
+        <Route path="/workspaces" element={<Workspaces />} />
+        <Route path="/workspaces/:workspaceId" element={<WorkspaceOverview />} />
+        <Route path="/workspaces/:workspaceId/integrations" element={<WorkspaceIntegrations />} />
+        <Route path="/workspaces/:workspaceId/integrations/:catalogId" element={<WorkspaceIntegrations />} />
+        <Route path="/integrations" element={<DefaultWorkspaceIntegrationsRedirect />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/settings/:tab" element={<Settings />} />
         <Route path="/browser-vms" element={<BrowserVMsPage />} />

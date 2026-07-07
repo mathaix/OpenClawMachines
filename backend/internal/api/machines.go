@@ -39,6 +39,15 @@ func (s *Server) handleListMachines(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleCreateMachine(w http.ResponseWriter, r *http.Request) {
 	accountID := accountIDFromContext(r.Context())
 	claims := auth.UserFromContext(r.Context())
+	var workspaceID *string
+	if rawWorkspaceID := strings.TrimSpace(chi.URLParam(r, "workspaceID")); rawWorkspaceID != "" {
+		workspace, err := s.store.GetWorkspace(r.Context(), accountID, rawWorkspaceID)
+		if err != nil {
+			writeError(w, http.StatusNotFound, "workspace not found")
+			return
+		}
+		workspaceID = &workspace.ID
+	}
 
 	var req struct {
 		Name            string            `json:"name"`
@@ -137,6 +146,7 @@ func (s *Server) handleCreateMachine(w http.ResponseWriter, r *http.Request) {
 		}
 		machine = &store.Machine{
 			AccountID:              accountID,
+			WorkspaceID:            workspaceID,
 			Kind:                   machineKind,
 			Name:                   req.Name,
 			Slug:                   generateShortID(),

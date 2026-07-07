@@ -1,0 +1,25 @@
+{
+  "name": "@mathaix/ocm-openclaw-integrations-plugin",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "OpenClaw plugin for OCM workspace-scoped MCP/API integrations",
+  "keywords": [
+    "openclaw",
+    "ocm",
+    "integrations",
+    "mcp",
+    "plugin"
+  ],
+  "license": "UNLICENSED",
+  "files": [
+    "index.ts",
+    "skills",
+    "openclaw.plugin.json",
+    "README.md"
+  ],
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}
