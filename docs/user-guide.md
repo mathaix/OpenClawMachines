@@ -66,16 +66,19 @@ providers that need it, and enable it. Credentials are stored encrypted; you
 never paste them into a machine.
 
 **How the agent uses them.** Rather than a separate tool per integration, each
-machine's agent gets one built-in tool server and three verbs:
+machine's agent gets one built-in MCP server and three facade tools:
 
-- `search_tools` — find a tool by intent ("create a GitHub issue").
-- `describe_tool` — load its exact input schema.
-- `call_tool` — run it by address.
+- `ocm.search_tools` — find a tool by intent ("create a GitHub issue").
+- `ocm.describe_tool` — load its exact input schema.
+- `ocm.call_tool` — run it by address.
 
 So you enable integrations at the workspace level and the agent discovers and
 calls them on its own during chat. You can set a tool's policy to **require
 approval** so a call pauses for your confirmation, and attach **guidance** notes
 that the agent sees alongside a tool.
+
+For the full tool flow, token requirements, policy states, and troubleshooting,
+see [Workspace Integrations And Native MCP](workspace-integrations-mcp.md).
 
 > If integrations don't appear for a machine, confirm the machine's workspace
 > has them **enabled**, and that the control plane has a `JWT_SECRET` of at least

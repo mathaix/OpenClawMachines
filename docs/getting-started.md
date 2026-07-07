@@ -426,6 +426,11 @@ flowchart LR
      Chromium; the agent drives it over CDP while you watch the live view.
      Browser VMs have their own lifecycle, so one can be created ahead of time
      and re-used across machine restarts.
+   - **Workspace integrations / native MCP** — connect GitHub, Google
+     Workspace, OpenAPI, GraphQL, or remote-MCP tools once on the workspace's
+     **Integrations** page. Each machine in that workspace gets the built-in
+     `ocm` MCP server and can discover tools with `ocm.search_tools`, inspect
+     schemas with `ocm.describe_tool`, and execute with `ocm.call_tool`.
 
 > **Two workspace panels need extra config in the pure-local (stage-1) path:**
 > the **Resources** tab's live CPU/memory charts are sampled from each VM's
@@ -504,6 +509,7 @@ has been cut yet; treat the bucket as the real channel.)
 ## Where to go next
 
 - [User guide](user-guide.md) — **using** a machine day-to-day: model setup, chat, terminal, browser VM, files, logs, traces, backups, troubleshooting
+- [Workspace integrations and native MCP](workspace-integrations-mcp.md) — connect external tools once per workspace and expose them to agents through the OCM MCP facade
 - [Building the components](building.md) — every component's build, the upload scripts, and the bucket layout
 - [Local Firecracker E2E](local-firecracker-e2e.md) — stage 1 in full depth, including everything `local-e2e-firecracker.sh` does
 - [Architecture](architecture.md) — data plane, routing, tunnels, lifecycle design

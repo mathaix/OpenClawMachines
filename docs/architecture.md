@@ -1582,6 +1582,10 @@ workspace (`machines.workspace_id`), and an integration enabled in a workspace i
 offered to that workspace's machines. This model is deliberately parallel to the
 older Composio-backed integration path and does not replace it.
 
+For user-facing setup, agent behavior, policy semantics, and operator
+troubleshooting, see
+[Workspace Integrations And Native MCP](workspace-integrations-mcp.md).
+
 ### Data model
 
 Migrations **099–108** add the schema:
@@ -1616,9 +1620,9 @@ config.mcp.servers.ocm = {
 
 The agent sees three facade tools — `ocm.search_tools`, `ocm.describe_tool`, and
 `ocm.call_tool` — instead of one tool per integration. It discovers a tool by
-intent (`search_tools`), optionally loads its schema (`describe_tool`), then
-invokes it by address (`call_tool`). The gateway resolves the address against the
-machine's enabled integrations, enforces per-tool policy (an
+intent (`ocm.search_tools`), optionally loads its schema (`ocm.describe_tool`),
+then invokes it by address (`ocm.call_tool`). The gateway resolves the address
+against the machine's enabled integrations, enforces per-tool policy (an
 `allow` / `require_approval` state), executes the call (reusing pooled outbound
 HTTP clients), and records a call event.
 

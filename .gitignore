@@ -13,6 +13,7 @@ frontend/node_modules/
 
 # Build output
 frontend/dist/
+video-remotion/out/
 .gocache/
 *.tsbuildinfo
 *.tar.gz

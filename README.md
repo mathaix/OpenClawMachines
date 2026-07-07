@@ -37,12 +37,21 @@ The Apache-2.0 **public core** ships every piece of that stack:
   artifact-driven runtime staging/upgrade flow;
 - the [**browser runtime**](docs/architecture.md#browser-vms-cdp--live-view) —
   paired Chromium browser VMs with CDP routing and a watchable live view;
+- [**workspace integrations / native MCP**](docs/workspace-integrations-mcp.md)
+  — GitHub, Google Workspace, OpenAPI, GraphQL, and remote-MCP tools connected
+  once per workspace and exposed to machines through the OCM MCP facade;
 - and the [**build pipelines**](docs/building.md) that assemble it all — every
   component's build command, the GCS artifact bucket layout, host provisioning
   scripts, and the [release lanes](docs/ci-release.md).
 
 The `ocm` CLI lives in the separate
 [`mathaix/ocm-cli`](https://github.com/mathaix/ocm-cli) Apache-2.0 repository.
+
+## Watch the demo
+
+[Watch the 41-second product demo](openclaw-demo.mp4) to see host enrollment,
+machine spin-up, the running Firecracker VM terminal, workspace MCP
+integrations, and an agent tool call end to end.
 
 ![An OpenClaw machine running in a Firecracker microVM](docs/images/machine-running.png)
 
@@ -66,8 +75,9 @@ The `ocm` CLI lives in the separate
   encrypted per-machine secrets, and capacity/placement policies across your
   fleet.
 - **Ecosystem.** Browser VMs for web automation, live terminal and web chat,
-  per-VM routing, backups/snapshots, agent memory, and observability with
-  OpenTelemetry/Opik tracing and per-machine usage tracking.
+  per-VM routing, workspace-scoped native MCP integrations, backups/snapshots,
+  agent memory, and observability with OpenTelemetry/Opik tracing and
+  per-machine usage tracking.
 
 ## How the options compare
 
@@ -128,7 +138,7 @@ you own. Think: a mini-cloud for AI agents, that you self-host.
    workspace (GitHub, Google Workspace, or any OpenAPI / GraphQL / remote-MCP
    endpoint); the control plane exposes them to each machine's agent through a
    single built-in MCP server, so the agent discovers and calls them with
-   `search_tools` / `call_tool` instead of per-integration wiring.
+   `ocm.search_tools` / `ocm.call_tool` instead of per-integration wiring.
 
 ```mermaid
 flowchart TB
@@ -180,6 +190,7 @@ ending with something working:
 
 - [**Getting Started**](docs/getting-started.md) — the three-stage guide above
 - [**User guide**](docs/user-guide.md) — using a machine day-to-day (model, chat, terminal, browser VM, files, logs, traces, backups)
+- [**Workspace integrations / native MCP**](docs/workspace-integrations-mcp.md) — connect GitHub, Google Workspace, OpenAPI, GraphQL, and remote-MCP tools once per workspace
 - [Architecture](docs/architecture.md) — data plane, routing, tunnels, lifecycle, [workspace integrations / native MCP](docs/architecture.md#workspace-integrations--native-mcp)
 - [Tech stack](docs/tech-stack.md) — the five layers, client to sandbox
 - [Local and BYO-host setup](docs/local-setup.md)

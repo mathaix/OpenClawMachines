@@ -172,6 +172,9 @@ integration endpoints. `OCM_WORKSPACE_INTEGRATIONS_EXECUTE_ENABLED` and
 facade flags and should stay disabled unless the operator has explicitly chosen
 to expose those tools.
 
+For the runtime tool flow and native MCP troubleshooting, see
+[Workspace Integrations And Native MCP](workspace-integrations-mcp.md).
+
 ### KVM Worker Host
 
 Each worker host needs:
