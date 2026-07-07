@@ -52,6 +52,41 @@ tries the fallbacks in order.
 
 ---
 
+## Workspace integrations (external tools)
+
+Integrations let the agent use external services — **GitHub**, **Google
+Workspace**, or any endpoint you import from an **OpenAPI**, **GraphQL**, or
+**remote-MCP** spec — without you wiring anything into the VM. They are
+**workspace-scoped**: connect a tool once and it's available to every machine in
+that workspace (each account starts with a `default` workspace).
+
+**Connect one** from the workspace's **Integrations** view: pick a provider (or
+paste an OpenAPI/GraphQL/MCP endpoint to import), complete the OAuth consent for
+providers that need it, and enable it. Credentials are stored encrypted; you
+never paste them into a machine.
+
+**How the agent uses them.** Rather than a separate tool per integration, each
+machine's agent gets one built-in MCP server and three facade tools:
+
+- `ocm.search_tools` — find a tool by intent ("create a GitHub issue").
+- `ocm.describe_tool` — load its exact input schema.
+- `ocm.call_tool` — run it by address.
+
+So you enable integrations at the workspace level and the agent discovers and
+calls them on its own during chat. You can set a tool's policy to **require
+approval** so a call pauses for your confirmation, and attach **guidance** notes
+that the agent sees alongside a tool.
+
+For the full tool flow, token requirements, policy states, and troubleshooting,
+see [Workspace Integrations And Native MCP](workspace-integrations-mcp.md).
+
+> If integrations don't appear for a machine, confirm the machine's workspace
+> has them **enabled**, and that the control plane has a `JWT_SECRET` of at least
+> 16 characters — without it the machine falls back to no native tool server (see
+> Troubleshooting).
+
+---
+
 ## Web chat
 
 **Chat** (header button, or the sidebar in the chat view) opens a conversation
@@ -159,6 +194,7 @@ it `m-<name>.your-domain.com` behind edge auth.
 | **Traces** empty after running a task | On a local deployment, tracing needs the operator to set `OPIK_API_URL`. On Stage-2 it should populate within ~10s. |
 | **Resources** charts show "Waiting for first sample…" | The host is running the `direct` runtime owner (local eval); live metrics need the `systemd-unit` owner. |
 | Machine won't leave **provisioning** / returns to `stopped` | The VM failed to boot — the operator should check the host agent logs (`journalctl -u ocm-agent`). |
+| Agent has no workspace tools even though integrations are enabled | The control plane's `JWT_SECRET` is unset or shorter than 16 characters, so it can't mint the per-machine tool-server token — the machine still boots, but with no native MCP server. The operator should set a proper `JWT_SECRET` and re-push config. |
 
 For anything host- or platform-level, see
 [getting-started.md](getting-started.md) and

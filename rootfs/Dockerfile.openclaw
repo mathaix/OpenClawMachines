@@ -313,10 +313,10 @@ COPY browser-harness/bh /usr/local/bin/bh
 COPY browser-harness/install.sh /usr/local/libexec/ocm/install-browser-harness
 RUN chmod +x /usr/local/bin/bh /usr/local/libexec/ocm/install-browser-harness
 
-# OCM companion skill — ships the operator-authored skill that teaches the
-# agent about the bridge, pairing, and readiness-check semantics. Synced
-# into the workspace skills dir at first boot by install-browser-harness.
+# OCM companion skills - synced into the workspace skills dir at first boot by
+# install-browser-harness.
 COPY skills/ocm-browser /opt/ocm-browser
+COPY skills/ocm-integrations /opt/ocm-integrations-skill
 
 # Install pnpm via corepack (kept for user runtime — users may install npm packages).
 # PNPM_HOME points at the openclaw user's home (which the init script bind-mounts

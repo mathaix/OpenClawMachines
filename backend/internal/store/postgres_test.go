@@ -33,6 +33,7 @@ func TestScanMachine_MapsRuntimeSelectionFields(t *testing.T) {
 		"custom.example.com",
 		"gateway-token",
 		"proxy-token",
+		now,
 		"ready",
 		now,
 		now,
@@ -60,6 +61,7 @@ func TestScanMachine_MapsRuntimeSelectionFields(t *testing.T) {
 		true,
 		[]byte("backup-key"),
 		"browser-vm-1",
+		"workspace-1",
 	}
 
 	m, err := scanMachine(func(dest ...any) error {
@@ -107,6 +109,12 @@ func TestScanMachine_MapsRuntimeSelectionFields(t *testing.T) {
 	}
 	if m.RuntimeSource == nil || *m.RuntimeSource != "artifact" {
 		t.Fatalf("RuntimeSource = %v", m.RuntimeSource)
+	}
+	if m.WorkspaceIntegrationTokensValidAfter == nil || !m.WorkspaceIntegrationTokensValidAfter.Equal(now) {
+		t.Fatalf("WorkspaceIntegrationTokensValidAfter = %v", m.WorkspaceIntegrationTokensValidAfter)
+	}
+	if m.WorkspaceID == nil || *m.WorkspaceID != "workspace-1" {
+		t.Fatalf("WorkspaceID = %v", m.WorkspaceID)
 	}
 }
 

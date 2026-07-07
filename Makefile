@@ -1,6 +1,6 @@
 # OpenClaw Machines public-core Makefile
 
-.PHONY: help dev local-env local-postgres local-migrate local-backend local-frontend local-status local-stop preflight backend frontend status check check-go check-scripts test test-go test-unit test-frontend typecheck test-worker test-integration test-integration-local-e2e test-integration-tunnel-e2e test-integration-e2e test-integration-run integration-kvm build build-server build-agent build-authproxy build-ocm-secrets build-ocmptyd install-vm-binaries build-rootfs test-rootfs build-openclaw setup-local-openclaw clean
+.PHONY: help dev local-env local-postgres local-migrate local-backend local-frontend local-status local-stop preflight backend frontend status check check-go check-scripts test test-go test-unit test-frontend typecheck test-worker test-integration test-integration-local-e2e test-integration-tunnel-e2e test-integration-e2e test-integration-run integration-kvm build build-server build-agent build-authproxy build-ocm-secrets build-ocmptyd install-vm-binaries build-rootfs test-rootfs build-openclaw build-ocm-integrations-plugin setup-local-openclaw clean
 
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 GIT_COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
@@ -39,6 +39,7 @@ help:
 	@echo "  make build-rootfs   - Build local Firecracker rootfs image"
 	@echo "  make test-rootfs    - Verify built rootfs contents"
 	@echo "  make build-openclaw - Build local OpenClaw runtime artifact"
+	@echo "  make build-ocm-integrations-plugin - Build legacy OCM integrations fallback plugin"
 	@echo "  make clean          - Remove local build artifacts"
 
 dev:
@@ -177,6 +178,9 @@ test-rootfs:
 
 build-openclaw:
 	@bash scripts/build-openclaw-runtime.sh
+
+build-ocm-integrations-plugin:
+	@bash scripts/build-ocm-integrations-plugin.sh
 
 setup-local-openclaw:
 	@bash scripts/check-openclaw-version.sh

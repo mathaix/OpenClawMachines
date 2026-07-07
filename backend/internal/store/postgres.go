@@ -458,23 +458,23 @@ func (s *PostgresStore) ExpireOldInvitations(ctx context.Context) (int64, error)
 // machineColumns is the column list for SELECT queries on the machines table.
 const machineColumns = `id, account_id, kind, name, slug, preferred_region, status, status_message, vcpus, memory_mb,
 	host_id, vm_ip, tunnel_hostname, custom_domain, gateway_token, proxy_token,
-	provision_step, provisioning_started_at, provisioning_completed_at,
+	workspace_integration_tokens_valid_after, provision_step, provisioning_started_at, provisioning_completed_at,
 	budget_microcents, created_at, started_at, stopped_at, data_volume_gb,
 	desired_rootfs_version, desired_openclaw_version, desired_channel,
 	resolved_rootfs_version, resolved_openclaw_version, actual_rootfs_version, actual_openclaw_version, version_source, runtime_source,
 	rootfs_snapshot, openclaw_version, last_started_at, tunnel_id, signing_key,
-	home_host_id, storage_mode, backups_enabled, backup_key, browser_vm_id`
+	home_host_id, storage_mode, backups_enabled, backup_key, browser_vm_id, workspace_id`
 
 func scanMachine(scan func(dest ...any) error) (*Machine, error) {
 	m := &Machine{}
 	err := scan(&m.ID, &m.AccountID, &m.Kind, &m.Name, &m.Slug, &m.PreferredRegion, &m.Status, &m.StatusMessage,
 		&m.VCPUs, &m.MemoryMB, &m.HostID, &m.VMIP, &m.TunnelHostname, &m.CustomDomain,
-		&m.GatewayToken, &m.ProxyToken, &m.ProvisionStep, &m.ProvisioningStartedAt, &m.ProvisioningCompletedAt,
+		&m.GatewayToken, &m.ProxyToken, &m.WorkspaceIntegrationTokensValidAfter, &m.ProvisionStep, &m.ProvisioningStartedAt, &m.ProvisioningCompletedAt,
 		&m.BudgetMicrocents, &m.CreatedAt, &m.StartedAt, &m.StoppedAt, &m.DataVolumeGB,
 		&m.DesiredRootfsVersion, &m.DesiredOpenclawVersion, &m.DesiredChannel,
 		&m.ResolvedRootfsVersion, &m.ResolvedOpenclawVersion, &m.ActualRootfsVersion, &m.ActualOpenclawVersion, &m.VersionSource, &m.RuntimeSource,
 		&m.RootfsSnapshot, &m.OpenclawVersion, &m.LastStartedAt, &m.TunnelID, &m.SigningKey,
-		&m.HomeHostID, &m.StorageMode, &m.BackupsEnabled, &m.BackupKey, &m.BrowserVMID)
+		&m.HomeHostID, &m.StorageMode, &m.BackupsEnabled, &m.BackupKey, &m.BrowserVMID, &m.WorkspaceID)
 	if err != nil {
 		return nil, err
 	}
@@ -483,13 +483,24 @@ func scanMachine(scan func(dest ...any) error) (*Machine, error) {
 
 func (s *PostgresStore) CreateMachine(ctx context.Context, m *Machine) error {
 	return s.pool.QueryRow(ctx,
-		`INSERT INTO machines (
-			account_id, kind, name, slug, preferred_region, status, vcpus, memory_mb, data_volume_gb, gateway_token,
+		`WITH default_workspace AS (
+			INSERT INTO workspaces (account_id, slug, name)
+			VALUES ($1, 'default', 'Default')
+			ON CONFLICT (account_id, slug) DO NOTHING
+			RETURNING id
+		), selected_workspace AS (
+			SELECT id FROM default_workspace
+			UNION ALL
+			SELECT id FROM workspaces WHERE account_id = $1 AND slug = 'default'
+			LIMIT 1
+		)
+		 INSERT INTO machines (
+			account_id, workspace_id, kind, name, slug, preferred_region, status, vcpus, memory_mb, data_volume_gb, gateway_token,
 			desired_rootfs_version, desired_openclaw_version, desired_channel, version_source, runtime_source
 		)
-		 VALUES ($1, COALESCE(NULLIF($2, ''), 'openclaw'), $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, COALESCE($15, 'auto'))
+		 VALUES ($1, COALESCE($2::uuid, (SELECT id FROM selected_workspace)), COALESCE(NULLIF($3, ''), 'openclaw'), $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, COALESCE($16, 'auto'))
 		 RETURNING id, created_at`,
-		m.AccountID, m.Kind, m.Name, m.Slug, m.PreferredRegion, m.Status, m.VCPUs, m.MemoryMB, m.DataVolumeGB, m.GatewayToken,
+		m.AccountID, m.WorkspaceID, m.Kind, m.Name, m.Slug, m.PreferredRegion, m.Status, m.VCPUs, m.MemoryMB, m.DataVolumeGB, m.GatewayToken,
 		m.DesiredRootfsVersion, m.DesiredOpenclawVersion, m.DesiredChannel, m.VersionSource, m.RuntimeSource,
 	).Scan(&m.ID, &m.CreatedAt)
 }

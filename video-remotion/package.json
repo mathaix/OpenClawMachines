@@ -1,0 +1,22 @@
+{
+  "name": "ocm-video",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "remotion studio",
+    "render": "remotion render src/index.ts OpenClawDemo out/openclaw-demo.mp4 --codec=h264",
+    "render:demo": "remotion render src/index.ts OpenClawDemo out/openclaw-demo.mp4 --codec=h264",
+    "render:machines": "remotion render src/index.ts OpenClawMachines out/openclaw-machines.mp4 --codec=h264"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.485",
+    "playwright": "^1.61.1",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "remotion": "4.0.485"
+  },
+  "devDependencies": {
+    "@types/react": "19.0.0",
+    "typescript": "5.6.3"
+  }
+}

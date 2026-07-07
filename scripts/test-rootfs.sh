@@ -64,6 +64,16 @@ check "op exists"            "test -x /usr/local/bin/op"
 check "seed-entropy exists"  "test -x /usr/local/bin/seed-entropy"
 echo ""
 
+# --- OCM companion skills ---
+echo "OCM companion skills:"
+check "ocm-browser skill baked" "test -f /opt/ocm-browser/SKILL.md"
+check "ocm-integrations skill baked" "test -f /opt/ocm-integrations-skill/SKILL.md"
+check "ocm-integrations skill teaches native MCP" "grep -q 'mcp.servers.ocm' /opt/ocm-integrations-skill/SKILL.md"
+check "ocm-integrations skill documents MCP guidance resource" "grep -q 'ocm://workspace-integrations/agent-guidance' /opt/ocm-integrations-skill/SKILL.md"
+check "installer syncs ocm-integrations skill" "grep -q 'OCM_INTEGRATIONS_SKILL_SRC=\"/opt/ocm-integrations-skill\"' /usr/local/libexec/ocm/install-browser-harness"
+check "installer refreshes ocm-integrations skill on rerun" "tmp=\$(mktemp -d) && WORKSPACE_DIR=\$tmp /usr/local/libexec/ocm/install-browser-harness >/tmp/ocm-install-1.log 2>&1 && echo stale > \$tmp/skills/ocm-integrations/stale.txt && printf 'stale\n' > \$tmp/skills/ocm-integrations/SKILL.md && WORKSPACE_DIR=\$tmp /usr/local/libexec/ocm/install-browser-harness >/tmp/ocm-install-2.log 2>&1 && grep -q 'mcp.servers.ocm' \$tmp/skills/ocm-integrations/SKILL.md && test ! -e \$tmp/skills/ocm-integrations/stale.txt"
+echo ""
+
 # --- User and workspace ---
 echo "User and workspace:"
 check "openclaw user exists"        "id openclaw"

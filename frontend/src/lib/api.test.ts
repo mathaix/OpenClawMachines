@@ -15,6 +15,15 @@ import {
   triggerHostUpdate,
   drainHostUpdate,
   configureHostBrowserStorage,
+  listWorkspaces,
+  createWorkspace,
+  listWorkspaceIntegrations,
+  listWorkspaceIntegrationCatalog,
+  createWorkspaceIntegration,
+  probeWorkspaceIntegration,
+  startWorkspaceIntegrationOAuth,
+  updateWorkspaceIntegrationPolicy,
+  revokeWorkspaceIntegration,
 } from './api';
 import { ApiError } from './errors';
 
@@ -519,6 +528,191 @@ describe('API client', () => {
       expect(mockFetch).toHaveBeenCalledWith(
         '/api/accounts/1/machines/machine-1/stop',
         expect.objectContaining({ method: 'POST' })
+      );
+    });
+  });
+
+  describe('workspace integrations', () => {
+    it('should list and create workspaces', async () => {
+      const workspace = {
+        id: 'workspace-1',
+        account_id: 1,
+        slug: 'default',
+        name: 'Default',
+        machine_count: 1,
+        integration_count: 2,
+        created_at: '2026-06-16T00:00:00Z',
+        updated_at: '2026-06-16T00:00:00Z',
+      };
+
+      mockFetch
+        .mockResolvedValueOnce({ ok: true, status: 200, json: async () => [workspace] })
+        .mockResolvedValueOnce({ ok: true, status: 201, json: async () => workspace });
+
+      await expect(listWorkspaces(1)).resolves.toEqual([workspace]);
+      await expect(createWorkspace(1, { name: 'Default' })).resolves.toEqual(workspace);
+
+      expect(mockFetch).toHaveBeenNthCalledWith(
+        1,
+        '/api/accounts/1/workspaces',
+        expect.objectContaining({ credentials: 'include' }),
+      );
+      expect(mockFetch).toHaveBeenNthCalledWith(
+        2,
+        '/api/accounts/1/workspaces',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ name: 'Default' }),
+        }),
+      );
+    });
+
+    it('should use explicit workspace-scoped integration routes', async () => {
+      const response = {
+        workspace: {
+          id: 'workspace-1',
+          account_id: 1,
+          slug: 'default',
+          name: 'Default',
+          created_at: '2026-06-16T00:00:00Z',
+          updated_at: '2026-06-16T00:00:00Z',
+        },
+        integrations: [],
+        machines: [],
+      };
+
+      mockFetch.mockResolvedValueOnce({ ok: true, status: 200, json: async () => response });
+
+      await expect(listWorkspaceIntegrations(1, 'workspace-1')).resolves.toEqual(response);
+      expect(mockFetch).toHaveBeenCalledWith(
+        '/api/accounts/1/workspaces/workspace-1/integrations',
+        expect.objectContaining({ credentials: 'include' }),
+      );
+    });
+
+    it('should list catalog and create custom integrations', async () => {
+      const catalog = {
+        integrations: [{
+          slug: 'github',
+          display_name: 'GitHub',
+          description: 'Repository access',
+          category: 'Featured',
+          auth_kind: 'bearer',
+          transport: 'http',
+          developer: 'GitHub',
+          website: 'github.com',
+          privacy: 'github.com/site/privacy',
+          terms: 'docs.github.com/site-policy',
+          tools: [{ name: 'get_repo', access: 'Read', mode: 'Interactive' }],
+        }],
+      };
+      const created = {
+        id: 'linear-1',
+        workspace_id: 'workspace-1',
+        slug: 'linear',
+        display_name: 'Linear',
+        kind: 'linear',
+        transport: 'http',
+        enabled: true,
+        tool_count: 1,
+        created_at: '2026-06-16T00:00:00Z',
+        updated_at: '2026-06-16T00:00:00Z',
+      };
+      const body = {
+        display_name: 'Linear',
+        kind: 'linear',
+        transport: 'http' as const,
+        endpoint: 'https://api.linear.example',
+        tool_manifest: [{ name: 'list_issues' }],
+      };
+
+      mockFetch
+        .mockResolvedValueOnce({ ok: true, status: 200, json: async () => catalog })
+        .mockResolvedValueOnce({ ok: true, status: 200, json: async () => created });
+
+      await expect(listWorkspaceIntegrationCatalog(1, 'workspace-1')).resolves.toEqual(catalog);
+      await expect(createWorkspaceIntegration(1, 'linear', body, 'workspace-1')).resolves.toEqual(created);
+
+      expect(mockFetch).toHaveBeenNthCalledWith(
+        1,
+        '/api/accounts/1/workspaces/workspace-1/integrations/catalog',
+        expect.objectContaining({ credentials: 'include' }),
+      );
+      expect(mockFetch).toHaveBeenNthCalledWith(
+        2,
+        '/api/accounts/1/workspaces/workspace-1/integrations/linear',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify(body),
+        }),
+      );
+    });
+
+    it('should probe, start oauth, update policy, and revoke by slug', async () => {
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: async () => ({
+            url: 'https://mcp.example.com',
+            server: { name: 'Example MCP' },
+            tools: [{ name: 'search_records' }],
+            auth_required: false,
+            probed_at: '2026-06-23T00:00:00Z',
+          }),
+        })
+        .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ url: 'https://accounts.google.com/o/oauth2/v2/auth?state=abc' }) })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: async () => ({
+            id: 'github-1',
+            workspace_id: 'workspace-1',
+            slug: 'github',
+            display_name: 'GitHub',
+            kind: 'github',
+            transport: 'http',
+            enabled: true,
+            tool_count: 1,
+            created_at: '2026-06-16T00:00:00Z',
+            updated_at: '2026-06-16T00:00:00Z',
+          }),
+        })
+        .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ status: 'revoked', integration: { slug: 'github' } }) });
+
+      await probeWorkspaceIntegration(1, { url: 'https://mcp.example.com', token: 'secret' }, 'workspace-1');
+      await startWorkspaceIntegrationOAuth(1, 'google-workspace', 'workspace-1', { permissions: { gmail: 'read' } });
+      await updateWorkspaceIntegrationPolicy(1, 'github', { allowed_tools: ['get_repo'], denied_tools: [] }, 'workspace-1');
+      await revokeWorkspaceIntegration(1, 'github', 'workspace-1');
+
+      expect(mockFetch).toHaveBeenNthCalledWith(
+        1,
+        '/api/accounts/1/workspaces/workspace-1/integrations/probe',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ url: 'https://mcp.example.com', token: 'secret' }),
+        }),
+      );
+      expect(mockFetch).toHaveBeenNthCalledWith(
+        2,
+        '/api/accounts/1/workspaces/workspace-1/integrations/google-workspace/oauth/connect',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ permissions: { gmail: 'read' } }),
+        }),
+      );
+      expect(mockFetch).toHaveBeenNthCalledWith(
+        3,
+        '/api/accounts/1/workspaces/workspace-1/integrations/github/policy',
+        expect.objectContaining({
+          method: 'PUT',
+          body: JSON.stringify({ allowed_tools: ['get_repo'], denied_tools: [] }),
+        }),
+      );
+      expect(mockFetch).toHaveBeenNthCalledWith(
+        4,
+        '/api/accounts/1/workspaces/workspace-1/integrations/github',
+        expect.objectContaining({ method: 'DELETE' }),
       );
     });
   });
