@@ -321,7 +321,7 @@ export const HostProvisioning: React.FC<{
             marginTop: 22,
           }}
         >
-          Provision your own KVM host
+          Onboard your KVM host
         </div>
         <div
           style={{
@@ -333,8 +333,8 @@ export const HostProvisioning: React.FC<{
             marginTop: 26,
           }}
         >
-          Install the worker on a Linux box, enroll it with the control plane, then
-          OpenClaw can place Firecracker microVMs there.
+          Generate an enrollment token, install the worker on a Linux box, and
+          wait for its heartbeat before placing machines there.
         </div>
       </div>
 

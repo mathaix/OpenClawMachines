@@ -50,7 +50,7 @@ export const DemoVideo: React.FC = () => {
 
         <Series.Sequence durationInFrames={D.chapter}>
           <Scene glow={A_ORANGE}>
-            <ChapterCard num="1" title="Spin up an instance" accent={A_ORANGE} />
+            <ChapterCard num="1" title="Onboard a host" accent={A_ORANGE} />
           </Scene>
         </Series.Sequence>
         <Series.Sequence durationInFrames={D.hostProvisioning}>
@@ -58,11 +58,17 @@ export const DemoVideo: React.FC = () => {
             <HostProvisioning chapter="1" accent={A_ORANGE} />
           </Scene>
         </Series.Sequence>
+
+        <Series.Sequence durationInFrames={D.chapter}>
+          <Scene glow={A_ORANGE}>
+            <ChapterCard num="2" title="Provision an agent" accent={A_ORANGE} />
+          </Scene>
+        </Series.Sequence>
         <Series.Sequence durationInFrames={D.dashboard}>
           <Scene glow={A_ORANGE}>
             <DemoScene
-              chapter="1"
-              step="Dashboard"
+              chapter="2"
+              step="Fleet"
               title="Your fleet of agents"
               note="Every machine is one AI agent in its own Firecracker microVM."
               accent={A_ORANGE}
@@ -76,7 +82,7 @@ export const DemoVideo: React.FC = () => {
         <Series.Sequence durationInFrames={D.newMachine}>
           <Scene glow={A_ORANGE}>
             <DemoScene
-              chapter="1"
+              chapter="2"
               step="New machine"
               title="Name it, size it, create"
               note="Pick OpenClaw, a size, and a runtime version — the control plane places it on the ready host."
@@ -91,7 +97,7 @@ export const DemoVideo: React.FC = () => {
         <Series.Sequence durationInFrames={D.provisioned}>
           <Scene glow={A_ORANGE}>
             <DemoScene
-              chapter="1"
+              chapter="2"
               step="Provisioned"
               title="demo-agent is live"
               note="The selected host stages the rootfs, starts Firecracker, and wires the gateway for this machine."
@@ -106,7 +112,7 @@ export const DemoVideo: React.FC = () => {
         <Series.Sequence durationInFrames={D.runningVm}>
           <Scene glow={theme.green}>
             <DemoScene
-              chapter="1"
+              chapter="2"
               step="Running VM"
               title="Open the VM after boot"
               note="After the spin-up finishes, you can enter the live terminal inside the running Firecracker microVM."
@@ -121,13 +127,13 @@ export const DemoVideo: React.FC = () => {
 
         <Series.Sequence durationInFrames={D.chapter}>
           <Scene glow={A_VIOLET}>
-            <ChapterCard num="2" title="Connect MCP tools" accent={A_VIOLET} />
+            <ChapterCard num="3" title="Connect tools" accent={A_VIOLET} />
           </Scene>
         </Series.Sequence>
         <Series.Sequence durationInFrames={D.workspace}>
           <Scene glow={A_VIOLET}>
             <DemoScene
-              chapter="2"
+              chapter="3"
               step="Workspaces"
               title="Tools live in a workspace"
               note="Connect an app once; every machine in the workspace inherits it."
@@ -142,7 +148,7 @@ export const DemoVideo: React.FC = () => {
         <Series.Sequence durationInFrames={D.integrations}>
           <Scene glow={A_VIOLET}>
             <DemoScene
-              chapter="2"
+              chapter="3"
               step="Integrations"
               title="One catalog of MCP tools"
               note="GitHub, Google, or any OpenAPI / GraphQL / remote-MCP endpoint — added with a click."
@@ -157,12 +163,12 @@ export const DemoVideo: React.FC = () => {
 
         <Series.Sequence durationInFrames={D.chapter}>
           <Scene glow={A_VIOLET}>
-            <ChapterCard num="3" title="The running agent uses them" accent={A_VIOLET} />
+            <ChapterCard num="4" title="Use tools from the agent" accent={A_VIOLET} />
           </Scene>
         </Series.Sequence>
         <Series.Sequence durationInFrames={D.toolCall}>
           <Scene glow={A_VIOLET}>
-            <ConsoleToolCall />
+            <ConsoleToolCall chapter="4" />
           </Scene>
         </Series.Sequence>
 
@@ -180,6 +186,7 @@ export const DEMO_FRAMES =
   D.intro +
   D.chapter +
   D.hostProvisioning +
+  D.chapter +
   D.dashboard +
   D.newMachine +
   D.provisioned +

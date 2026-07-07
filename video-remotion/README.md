@@ -2,8 +2,8 @@
 
 Two 1080p compositions:
 
-- **OpenClawDemo** — a real product demo: provision a host → spin up an
-  instance → open the running VM → connect MCP tools → the agent calls a tool,
+- **OpenClawDemo** — a real product demo: onboard a host → provision an
+  agent → open the running VM → connect MCP tools → the agent calls a tool,
   narrated with captions. Built from real screenshots of the running app (in
   `public/shots/`, captured by `capture.mjs`) plus animated host-provisioning
   and a terminal panel showing an actual `ocm.call_tool` request/response.

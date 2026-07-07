@@ -51,7 +51,7 @@ The `ocm` CLI lives in the separate
 
 These are linked as MP4 files, not embedded players:
 
-- [41-second product demo](openclaw-demo.mp4) — host enrollment, machine
+- [43-second product demo](openclaw-demo.mp4) — host onboarding, agent
   spin-up, the running Firecracker VM terminal, workspace MCP integrations, and
   an agent tool call end to end.
 - [33-second architecture overview](openclaw-machines.mp4) — animated tour of

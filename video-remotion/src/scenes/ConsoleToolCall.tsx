@@ -13,7 +13,7 @@ const RESULT_LINES: [string, string][] = [
   ['  "tool_id": "mock-echo.echo" }', theme.muted],
 ];
 
-export const ConsoleToolCall: React.FC = () => {
+export const ConsoleToolCall: React.FC<{ chapter?: string }> = ({ chapter = "4" }) => {
   const c = useReveal(4);
   const t = useReveal(10);
   const n = useReveal(18);
@@ -23,15 +23,15 @@ export const ConsoleToolCall: React.FC = () => {
     <AbsoluteFill style={{ flexDirection: "row", alignItems: "center", padding: "0 90px", gap: 48 }}>
       <div style={{ width: 470, flexShrink: 0 }}>
         <div style={{ ...c, display: "flex", alignItems: "center", gap: 14 }}>
-          <span style={{ fontFamily: font, fontSize: 20, fontWeight: 800, color: theme.bgDeep, background: theme.violet, borderRadius: 999, width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center" }}>3</span>
-          <span style={{ fontFamily: font, fontSize: 22, fontWeight: 700, letterSpacing: 3, textTransform: "uppercase", color: theme.violet }}>In the console</span>
+          <span style={{ fontFamily: font, fontSize: 20, fontWeight: 800, color: theme.bgDeep, background: theme.violet, borderRadius: 999, width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center" }}>{chapter}</span>
+          <span style={{ fontFamily: font, fontSize: 22, fontWeight: 700, letterSpacing: 3, textTransform: "uppercase", color: theme.violet }}>Tool call</span>
         </div>
         <div style={{ ...t, fontFamily: font, fontSize: 54, fontWeight: 800, color: theme.text, lineHeight: 1.08, letterSpacing: -1, marginTop: 22 }}>
           The agent calls the tool
         </div>
         <div style={{ ...n, fontFamily: font, fontSize: 27, lineHeight: 1.5, color: theme.muted, marginTop: 24 }}>
-          A real Gemini agent runs <span style={{ color: theme.text }}>search_tools</span> then{" "}
-          <span style={{ color: theme.text }}>call_tool</span> — the gateway executes it and returns live.
+          A real Gemini agent runs <span style={{ color: theme.text }}>ocm.search_tools</span> then{" "}
+          <span style={{ color: theme.text }}>ocm.call_tool</span> — the gateway executes it and returns live.
         </div>
 
         {/* real returned payload */}
