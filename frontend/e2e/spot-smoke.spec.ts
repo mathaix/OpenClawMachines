@@ -55,7 +55,7 @@ test.describe.serial("Spot host provisioning smoke", () => {
     // Then assert the running UI on a fresh load: the "Workspace" link renders
     // only in the status === "running" branch of MachineView.
     await page.reload();
-    await expect(page.getByRole("link", { name: "Workspace" })).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole("link", { name: "Workspace", exact: true })).toBeVisible({ timeout: 30_000 });
 
     // Labeled validation evidence in the artifact/report.
     await testInfo.attach("firecracker-running", {

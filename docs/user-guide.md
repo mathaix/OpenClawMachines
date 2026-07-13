@@ -32,19 +32,37 @@ shortcuts to the same things covered below.
 
 ## Give the agent a model (required for chat)
 
-A fresh machine has no model provider, so chat will fail with
-`no API key configured for provider …` until you add one.
+A machine needs both a usable provider credential and a saved default model.
+The Model tab may display catalog entries before their operator credential is
+configured, so seeing or selecting a model is not by itself a connection. Chat
+fails with `no API key configured for provider …` when the selected provider
+has no usable credential.
 
 1. Open the **Model** tab.
-2. Under **bring-your-own-key**, pick a provider (Anthropic, OpenAI, Google,
-   OpenRouter), paste your API key, and connect it. The key is stored encrypted
-   and scoped to this machine.
-3. Choose a default model from that provider and save. The change is pushed to
+2. Connect a credential using one of the available paths:
+   - Under **Bring Your Own API Key**, pick Anthropic, OpenAI, Google, or
+     OpenRouter, paste your API key, and connect it. The key is stored encrypted
+     and scoped to this machine.
+   - Use a supported **Subscription Model** connection.
+   - If your operator configured the control plane's `NEBIUS_API_KEY`, use a
+     built-in Nebius platform model. Catalog visibility alone does not confirm
+     that this operator-level key exists.
+3. Select **Configure models**, choose a default model backed by that
+   credential, and choose **Save & apply**. The change is pushed to
    the running machine live; a restart is only needed if the push reports it
    couldn't apply.
+4. Open **Chat**. OpenClaw may show a one-time **Change Gateway URL** trust
+   confirmation; verify that the displayed URL is the expected OCM machine
+   gateway before confirming it.
+5. Send a short prompt. A real assistant response and a completed run are the
+   connection proof. A healthy gateway only proves that OpenClaw is running,
+   not that model authentication works.
 
 You can set **fallback** models too — if the primary is unavailable the agent
 tries the fallbacks in order.
+
+> **Charges:** Provider and subscription model calls may incur usage charges
+> separate from the host or cloud-VM charges.
 
 > **Model IDs must be current.** Providers retire model IDs; if you pin a
 > retired one the runtime rejects it at config validation. Pick from the Model
@@ -119,6 +137,12 @@ separate, account-scoped microVM running headful Chromium. The agent drives it
 over CDP while you watch the **live view**. Browser VMs have their own lifecycle,
 so one can be created ahead of time and reused across machine restarts.
 
+Browser VMs are optional operator infrastructure. The control plane and host
+must have a published `BROWSER_ROOTFS_GCS_MANIFEST` and version. If **Launch
+browser here** says that the manifest is required, ask the operator to publish
+and configure the browser-rootfs artifact; the primary OpenClaw machine can
+still be used without it.
+
 ---
 
 ## Files
@@ -165,7 +189,10 @@ with the last few minutes charted, and a **History** view.
 
 Per-machine backups are built in. From the **Backups** tab (or the API) you can
 **create**, **restore**, **download**, and **delete** backups. Retention is
-enforced by the server.
+enforced by the server. They are unavailable until the operator configures a
+stable `BACKUP_MASTER_KEY`, a backup bucket/prefix on the control plane and
+agents, and storage credentials on both sides. The machine must have started at
+least once and be stopped before creating or restoring a backup.
 
 ---
 
@@ -188,7 +215,7 @@ it `m-<name>.your-domain.com` behind edge auth.
 
 | Symptom | Likely cause / fix |
 |---|---|
-| Chat replies `no API key configured for provider …` | No model credential — add one on the **Model** tab. |
+| Chat replies `no API key configured for provider …` | The selected model has no usable credential. Connect one on the **Model** tab, or ask the operator to configure the platform provider key. |
 | A model save fails with "Unknown model … Use …" | The pinned model ID was retired; pick a current one from the Model tab. |
 | Terminal stuck on **Connecting** | The gateway isn't ready yet, or was just restarted — wait, or use **Restart Gateway**. If it persists, check the **Logs** tab. |
 | **Traces** empty after running a task | On a local deployment, tracing needs the operator to set `OPIK_API_URL`. On Stage-2 it should populate within ~10s. |

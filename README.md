@@ -14,7 +14,9 @@ agent runs in its own
 them — hardware-isolated, safe for untrusted and agent-generated code. A
 **Cloudflare data plane** is the front door: every machine gets its own
 subdomain behind edge auth, reached through a tunnel that terminates *inside*
-the VM — no inbound ports on your hosts. See it running at
+the VM — no host port is exposed for user-to-VM traffic. The current control
+plane still needs private or firewall-restricted access to each agent's
+authenticated control API on `9090`. See it running at
 [openclawmachines.com](https://openclawmachines.com).
 
 The Apache-2.0 **public core** ships every piece of that stack:
@@ -183,8 +185,13 @@ make preflight
 **[The Getting Started guide](docs/getting-started.md)** is three stages, each
 ending with something working:
 
-1. **Local evaluation** — the full stack + a real Firecracker machine on one KVM
-   box. No Cloudflare, no cloud account.
+> **Using a coding agent?** Point it at
+> [`docs/getting-started.md`](docs/getting-started.md) and ask it to follow the
+> guide from Stage 1.
+
+1. **Local evaluation** — the full stack + a real Firecracker machine on one
+   KVM-capable Linux box. No Cloudflare or public domain is required; use an
+   existing KVM host or the optional GCP provisioning example.
 2. **Cloudflare + a dedicated host** — the production-shaped deployment:
    domain, tunnels, edge auth, and an enrolled cloud or bare-metal host.
 3. **The full workflow** — create and use machines (chat, terminal, browser
