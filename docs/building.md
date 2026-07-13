@@ -108,20 +108,57 @@ boot the host agent attaches the staged release read-only into the VM at
 `/ocm-runtime`.
 
 ```bash
-OPENCLAW_VERSION=2026.4.2 make build-openclaw
+export OPENCLAW_VERSION="$(jq -r '.openclaw' versions.json)"  # tested pin, no leading v
+bash scripts/build-opik-plugin.sh              # fetch pinned plugin tarball
+sudo install -d -o "$USER" -g "$USER" -m 0755 /var/lib/ocm/openclaw-artifacts
+OPENCLAW_VERSION="$OPENCLAW_VERSION" make build-openclaw
                         # scripts/build-openclaw-runtime.sh — Docker + zstd,
                         # npm flat install (pnpm links don't survive tar)
 # → /var/lib/ocm/openclaw-artifacts/openclaw-v<version>-linux-amd64.tar.zst
 ```
 
-Distribute and activate:
+Distribute and activate it with an operator-controlled version and bucket:
 
-1. Upload the tarball + a `manifest.json` to
-   `gs://your-bucket/openclaw/releases/<version>/`.
-2. Register the release:
-   `INSERT INTO artifact_releases (kind,version,channel,url,sha256) VALUES ('openclaw', …)`.
-3. Set `OPENCLAW_GCS_MANIFEST='gs://your-bucket/openclaw/releases/{version}/manifest.json'`
-   on the control plane — `{version}` is filled from the resolved release.
+```bash
+export RELEASE_VERSION="v${OPENCLAW_VERSION}"
+export GCS_BUCKET=YOUR_BUCKET_NAME
+export ARTIFACT="/var/lib/ocm/openclaw-artifacts/openclaw-${RELEASE_VERSION}-linux-amd64.tar.zst"
+export ARTIFACT_URL="gs://${GCS_BUCKET}/openclaw/releases/${RELEASE_VERSION}/$(basename "$ARTIFACT")"
+export ARTIFACT_SHA256="$(sha256sum "$ARTIFACT" | awk '{print $1}')"
+export MANIFEST="$(mktemp)"
+
+cat >"$MANIFEST" <<EOF
+{
+  "version": "${RELEASE_VERSION}",
+  "channel": "stable",
+  "artifact_url": "${ARTIFACT_URL}",
+  "compression": "zstd",
+  "sha256": "${ARTIFACT_SHA256}",
+  "runtime": {
+    "entrypoint_relpath": "bin/openclaw",
+    "bundled_plugins_relpath": "node_modules/openclaw/dist/extensions"
+  }
+}
+EOF
+
+gsutil cp "$ARTIFACT" "$ARTIFACT_URL"
+gsutil cp "$MANIFEST" \
+  "gs://${GCS_BUCKET}/openclaw/releases/${RELEASE_VERSION}/manifest.json"
+
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 \
+  -v version="$RELEASE_VERSION" -v url="$ARTIFACT_URL" -v sha="$ARTIFACT_SHA256" <<'SQL'
+INSERT INTO artifact_releases (kind, version, channel, url, sha256)
+VALUES ('openclaw', :'version', 'stable', :'url', :'sha')
+ON CONFLICT (kind, version) DO UPDATE
+SET channel = EXCLUDED.channel, url = EXCLUDED.url, sha256 = EXCLUDED.sha256;
+SQL
+```
+
+Set
+`OPENCLAW_GCS_MANIFEST='gs://your-bucket/openclaw/releases/{version}/manifest.json'`
+on the control plane. `{version}` is replaced with the catalog version at
+runtime. The manifest SHA-256 is for the compressed `.tar.zst` file; the
+OpenClaw fetcher verifies it before publishing the staged release.
 
 New/restarted machines pick the version up automatically — this is the
 [runtime-upgrade flow](getting-started.md#runtime-upgrades) in stage 3.

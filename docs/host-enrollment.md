@@ -63,8 +63,23 @@ This will:
 2. Create a Cloudflare Tunnel automatically (for user-facing traffic)
 3. Install cloudflared and write the tunnel token to agent config
 4. Write configuration to `/etc/ocm-agent/agent.env`
-5. Write GCS credentials (for rootfs/agent updates) to `/etc/ocm-agent/gcs-key.json`
-6. Install and start the `ocm-agent` systemd service
+5. Write explicit GCS credentials, when the control plane supplies them, to
+   `/etc/ocm-agent/gcs-key.json`
+6. Download, verify, install, and start the `ocm-agent` systemd service
+
+The current generated installer does not use ambient GCE ADC for the private
+agent-manifest download. If it reports `No GCS credentials available`, the
+registration and tunnel steps may have succeeded even though the agent binary
+was not installed. Install a manifest-verified `ocm-agent` manually before
+starting the service.
+
+For an operator-domain deployment, add the domain to the agent environment and
+restart it so routed WebSocket origins are accepted:
+
+```bash
+echo 'DATA_PLANE_DOMAIN=your-domain.com' | sudo tee -a /etc/ocm-agent/agent.env
+sudo systemctl restart ocm-agent
+```
 
 ## Step 4: Verify Enrollment
 

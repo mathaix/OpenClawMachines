@@ -41,6 +41,13 @@ ssh-{machine-slug}.{DATA_PLANE_DOMAIN}
 ocm-host-*.{DATA_PLANE_DOMAIN}
 ```
 
+Attach the Worker route and create proxied DNS coverage for the account
+hostnames. A Workers route does not create DNS. Use a proxied wildcard record
+on a dedicated data-plane domain or provision one proxied record per account;
+otherwise `{account-slug}.{DATA_PLANE_DOMAIN}` returns `NXDOMAIN` before the
+Worker can authorize or route it. The control plane manages the `m-*`, `ssh-*`,
+and enrolled-host records separately.
+
 ### Cloudflare
 
 The self-hosted control plane uses the same Cloudflare primitives as the hosted
@@ -65,8 +72,16 @@ control plane:
 - Cloudflare Worker deployed on the data-plane routes.
 - Cloudflare KV namespace for route and account cache entries.
 
-Cloudflare Tunnel is the ingress model. The control plane and workers should not
-require open inbound firewall ports.
+The `SEO_CACHE` KV and Browser Rendering bindings in `worker/wrangler.toml` are
+optional hosted-site prerendering features, not machine-routing dependencies.
+Remove those two blocks for an operator data-plane Worker, or provision both
+resources and replace the SEO cache placeholder before deploying.
+
+Cloudflare Tunnel is the ingress model for users and VM services. The current
+control plane nevertheless calls each registered agent's authenticated control
+API on port `9090`. Prefer private connectivity; if a public rule is necessary,
+restrict it to the control plane's egress CIDR. Do not expose the agent's
+workspace proxy on `9091` directly.
 
 ### Human Auth
 
@@ -146,9 +161,19 @@ Generate and store these before deployment:
 - `FRONTEND_URL`: public frontend URL.
 - `CORS_ORIGINS`: expected browser origins.
 - `CONTROL_PLANE_PROFILE=operator`.
+- `OCM_ARTIFACT_BUCKET`: bucket used by `provision-host.sh` for the guest
+  kernel and browser assets.
+- `AGENT_GCS_MANIFEST`, `ROOTFS_GCS_MANIFEST`, and
+  `OPENCLAW_GCS_MANIFEST`: explicit operator artifact manifests. They are not
+  derived from `OCM_ARTIFACT_BUCKET`; use the standard paths shown in
+  `docs/self-hosted.env.example`.
 - `WORKSPACE_INTEGRATIONS_API_URL`: optional override for the per-machine
   native MCP token audience. Leave unset to derive
   `${BACKEND_URL}/api/ocm-integrations`.
+- `NEBIUS_API_KEY`: optional operator-level credential for the built-in Nebius
+  platform-model catalog. Catalog entries can still appear without it, but
+  selecting one will not make chat work. Leave it unset when users will connect
+  per-machine BYOK or subscription credentials. Provider usage charges apply.
 
 The self-hosted target also needs operator bootstrap values:
 
@@ -186,14 +211,37 @@ Each worker host needs:
 - Kernel/rootfs/runtime assets or operator-managed artifact manifests.
 - Outbound network access to Cloudflare and the control plane.
 - Enough CPU, memory, and disk capacity for placed machines.
+- Network reachability from the control plane to the authenticated agent API
+  on `9090`, preferably over private networking or a narrowly scoped firewall
+  rule. Port `9091` is not a public control-plane endpoint.
 
 The worker registers with OCM using an enrollment token created by an admin. The
 worker is infrastructure, not a human user; do not authenticate workers through
 Firebase.
 
+After enrollment, set `DATA_PLANE_DOMAIN` in
+`/etc/ocm-agent/agent.env` and restart `ocm-agent`. The agent uses it to accept
+the operator domain as a WebSocket origin. A host can appear `ready` while
+routed gateway and terminal WebSockets still fail if this value is absent.
+
+The current generated installer does not use a GCE host's ambient ADC when it
+downloads the private `AGENT_GCS_MANIFEST`. If it reports that no GCS
+credentials are available, the host record and tunnel may already exist but
+`/usr/local/bin/ocm-agent` does not. Install a manifest-verified agent artifact
+manually (or a trusted local `make build-agent` build) and enable the systemd
+unit. Do not treat a successful registration message as proof that the binary
+was installed.
+
+Backups are optional and disabled by default. To enable them, set
+`BACKUP_MASTER_KEY` (the 64-character hex output of `openssl rand -hex 32`),
+`BACKUP_GCS_BUCKET`, and `BACKUP_GCS_PREFIX` on the control plane. Set the same
+bucket and prefix—but not the master key—on every agent. Both sides also need
+GCS credentials through workload identity/ADC or `GCS_SERVICE_ACCOUNT_KEY`.
+
 ## Setup Order
 
-1. Put the operator domain under Cloudflare DNS.
+1. Put the operator domain under Cloudflare DNS, including proxied account-host
+   coverage for the Worker route.
 2. Create Cloudflare API credentials.
 3. Create or select the Worker KV namespace.
 4. Deploy the data-plane Worker for the operator domain.
@@ -244,9 +292,13 @@ Before calling the deployment ready:
 - `/api/auth/me` returns the expected OCM user.
 - `ocm_token` is set for the operator domain.
 - Worker can read/write the route KV namespace.
+- Account hostname resolves to Cloudflare; the Worker route alone is not a DNS
+  record.
 - Worker rejects unauthenticated account-subdomain requests.
 - Admin can create a host enrollment token.
 - KVM host can register and appears online.
+- Enrolled agent has `DATA_PLANE_DOMAIN` and is reachable from the control plane
+  on authenticated port `9090`.
 - Machine create/start reaches `running`.
 - Terminal/gateway routes work through the data-plane domain.
 - SSH certificate issuance works if SSH is enabled.
