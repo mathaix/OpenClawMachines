@@ -6,6 +6,8 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -67,6 +69,34 @@ func skipIfNoTunnelCreds(t *testing.T) {
 	}
 }
 
+// newTunnelOriginServer starts the agent ProxyRouter on the fixed origin
+// 127.0.0.1:9091 that ConfigureTunnel points cloudflared at. Plain
+// httptest.NewServer binds a random port, so cloudflared would dial a closed
+// :9091 and every through-tunnel request would 502 (connection refused).
+func newTunnelOriginServer(t *testing.T, handler http.Handler) *httptest.Server {
+	t.Helper()
+	l, err := net.Listen("tcp", "127.0.0.1:9091")
+	if err != nil {
+		t.Fatalf("bind tunnel origin 127.0.0.1:9091 (is another proxy/agent holding it?): %v", err)
+	}
+	srv := httptest.NewUnstartedServer(handler)
+	_ = srv.Listener.Close()
+	srv.Listener = l
+	srv.Start()
+	return srv
+}
+
+// testDomain returns the zone apex the test creates tunnel hostnames + DNS
+// routes under. It must match the zone identified by CF_ZONE_ID, so it is
+// configurable via CF_TEST_DOMAIN (default openclawmachines.com) — otherwise a
+// non-openclawmachines.com CF_ZONE_ID fails DNS route creation.
+func testDomain() string {
+	if d := os.Getenv("CF_TEST_DOMAIN"); d != "" {
+		return d
+	}
+	return "openclawmachines.com"
+}
+
 // setupSharedTunnel creates a Cloudflare tunnel that points to the given local proxy URL.
 // Uses sync.Once so multiple tests share the same tunnel.
 func setupSharedTunnel(t *testing.T, localProxyURL string) *tunnelEnv {
@@ -85,7 +115,7 @@ func setupSharedTunnel(t *testing.T, localProxyURL string) *tunnelEnv {
 
 		ts := time.Now().Unix()
 		name := fmt.Sprintf("ocm-test-%d", ts)
-		hostname := fmt.Sprintf("test-%d.openclawmachines.com", ts)
+		hostname := fmt.Sprintf("test-%d.%s", ts, testDomain())
 
 		t.Logf("Creating tunnel %s → %s", name, hostname)
 
@@ -137,23 +167,26 @@ func setupSharedTunnel(t *testing.T, localProxyURL string) *tunnelEnv {
 		t.Fatal("Shared tunnel not initialized")
 	}
 
-	// Register cleanup (idempotent — only first cleanup does work)
-	t.Cleanup(func() {
-		cleanupSharedTunnel(t)
-	})
-
+	// NOTE: teardown is NOT registered via t.Cleanup here — that would fire at
+	// the end of the *first* test to call setupSharedTunnel, killing cloudflared
+	// and deleting the tunnel before the remaining E2E tests run (leaving them
+	// with no tunnel). It is torn down once, after all tests, from TestMain via
+	// teardownSharedTunnel().
 	return sharedTunnel
 }
 
 var cleanupOnce sync.Once
 
-func cleanupSharedTunnel(t *testing.T) {
+// teardownSharedTunnel stops cloudflared and deletes the shared tunnel + DNS.
+// Called from TestMain after all tests complete, so it must not depend on a
+// *testing.T. Idempotent.
+func teardownSharedTunnel() {
 	cleanupOnce.Do(func() {
 		if sharedTunnel == nil {
 			return
 		}
 
-		t.Log("Cleaning up shared tunnel...")
+		slog.Info("tunnel.test.cleanup.start", "hostname", sharedTunnel.hostname)
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
@@ -171,13 +204,13 @@ func cleanupSharedTunnel(t *testing.T) {
 
 		// Delete DNS + tunnel
 		if err := sharedTunnel.manager.DeleteDNSRoute(ctx, sharedTunnel.hostname); err != nil {
-			t.Logf("Warning: failed to delete DNS route: %v", err)
+			slog.Warn("tunnel.test.cleanup.dns_delete_failed", "error", err)
 		}
 		if err := sharedTunnel.manager.DeleteTunnel(ctx, sharedTunnel.tunnelID); err != nil {
-			t.Logf("Warning: failed to delete tunnel: %v", err)
+			slog.Warn("tunnel.test.cleanup.tunnel_delete_failed", "error", err)
 		}
 
-		t.Logf("Tunnel %s cleaned up", sharedTunnel.hostname)
+		slog.Info("tunnel.test.cleanup.done", "hostname", sharedTunnel.hostname)
 	})
 }
 
@@ -225,7 +258,7 @@ func TestTunnel_Lifecycle(t *testing.T) {
 
 	ts := time.Now().Unix()
 	name := fmt.Sprintf("ocm-lifecycle-test-%d", ts)
-	hostname := fmt.Sprintf("lifecycle-test-%d.openclawmachines.com", ts)
+	hostname := fmt.Sprintf("lifecycle-test-%d.%s", ts, testDomain())
 
 	// Create tunnel
 	tunnelID, token, err := mgr.CreateTunnel(ctx, name)
@@ -303,7 +336,7 @@ func TestTunnel_HealthE2E(t *testing.T) {
 	orch.SetMetadataRegistrar(metaSrv)
 
 	srv := agentapi.NewServer(cfg.AgentToken, orch, "", nil, "", nil, nil, nil, false, nil, "")
-	proxyServer := httptest.NewServer(srv.ProxyRouter())
+	proxyServer := newTunnelOriginServer(t, srv.ProxyRouter())
 	defer proxyServer.Close()
 
 	// Create VM
@@ -362,7 +395,7 @@ func TestTunnel_TerminalE2E(t *testing.T) {
 	orch.SetMetadataRegistrar(metaSrv)
 
 	srv := agentapi.NewServer(cfg.AgentToken, orch, "", nil, "", nil, nil, nil, false, nil, "")
-	proxyServer := httptest.NewServer(srv.ProxyRouter())
+	proxyServer := newTunnelOriginServer(t, srv.ProxyRouter())
 	defer proxyServer.Close()
 
 	// Create VM
@@ -449,7 +482,7 @@ func TestTunnel_GatewayE2E(t *testing.T) {
 	orch.SetMetadataRegistrar(metaSrv)
 
 	srv := agentapi.NewServer(cfg.AgentToken, orch, "", nil, "", nil, nil, nil, false, nil, "")
-	proxyServer := httptest.NewServer(srv.ProxyRouter())
+	proxyServer := newTunnelOriginServer(t, srv.ProxyRouter())
 	defer proxyServer.Close()
 
 	// Create VM

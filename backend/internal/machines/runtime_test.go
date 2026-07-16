@@ -170,6 +170,10 @@ func (m *mockStore) ListMachineCapabilities(_ context.Context, _ string) ([]stor
 	return m.listMachineCapabilitiesResult, nil
 }
 
+func (m *mockStore) ListEnabledWorkspaceIntegrationsForMachine(_ context.Context, _ string) ([]store.WorkspaceIntegration, error) {
+	return nil, nil
+}
+
 func (m *mockStore) UpdateMachineVersion(_ context.Context, _, _, _ string) error {
 	return nil
 }

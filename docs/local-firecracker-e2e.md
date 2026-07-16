@@ -18,9 +18,10 @@ adaptive debugging session: bring up a component → hit a failure → diagnose 
 
 The deterministic ~90% (everything except the live debugging) is now captured in
 [`scripts/local-e2e-firecracker.sh`](../scripts/local-e2e-firecracker.sh). The browser
-step is **not** in that script — it is the Playwright layer
-([`frontend/e2e/machine-lifecycle.spec.ts`](../frontend/e2e/machine-lifecycle.spec.ts)),
-or a manual/agent‑driven browser session.
+step is **not** in that script. The current lifecycle smoke is
+[`frontend/e2e/spot-smoke.spec.ts`](../frontend/e2e/spot-smoke.spec.ts); it verifies
+create/auto-start, `running`, stop, and delete, but does not open the workspace.
+Use a manual/agent-driven browser session for the gateway and terminal checkpoint.
 
 ## Architecture for a single box
 
@@ -52,8 +53,8 @@ locally — the workspace is reached through the agent proxy (`:9091`).
 ```bash
 scripts/local-e2e-firecracker.sh up        # stack up, host registered, agent running, host=ready
 # then provision a VM by driving the browser:
-cd frontend && PLAYWRIGHT_BASE_URL=http://localhost:5173 npx playwright test e2e/machine-lifecycle.spec.ts
-# or manually at http://localhost:5173/dashboard : New Machine -> Basic / region External -> Create -> Start
+cd frontend && PLAYWRIGHT_BASE_URL=http://localhost:5173 npx playwright test e2e/spot-smoke.spec.ts --project=chromium-dev
+# or manually at http://localhost:5173/dashboard : New Machine -> OpenClaw / region External -> Create
 scripts/local-e2e-firecracker.sh status    # component health + host/machine status
 scripts/local-e2e-firecracker.sh down      # stop agent + backend + frontend
 ```
@@ -89,8 +90,9 @@ region selector defaults to **External**, which matches the registered host.
 
 ## The browser step (agent‑ or test‑driven)
 
-From a logged‑in dashboard: **New Machine → Basic, region External → Create → Start**.
-Start triggers: scheduler reserves the host + a VM IP (`192.168.100.10`), control plane
+From a logged-in dashboard: **New Machine → OpenClaw, region External → Create**.
+The modal submits `auto_start: true`; there is no separate Start step. Creation
+triggers: scheduler reserves the host + a VM IP (`192.168.100.10`), control plane
 calls the agent's `POST /vms`, and the agent boots a real Firecracker microVM:
 
 ```
@@ -98,7 +100,23 @@ vm.create_start → allocating → rootfs → network → booting → booted
 → vm.started pid=… vm_ip=192.168.100.10 → machine_ready
 ```
 
-This is exactly what `frontend/e2e/machine-lifecycle.spec.ts` automates.
+`frontend/e2e/spot-smoke.spec.ts` automates the lifecycle through `running`,
+stop, and delete. Open **Workspace** manually to verify the gateway output and
+shell; `machine-lifecycle.spec.ts` still describes the older pre-modal UI and
+must not be used as current proof.
+
+Open the dashboard on the literal `http://localhost:5173` origin. Local
+data-plane routing and WebSocket origin checks do not treat `127.0.0.1` or a
+different forwarded port as equivalent. In Workspace, **Logs** and **Shell**
+should both reach `connected`; verify the gateway from Shell with:
+
+```bash
+curl -sf http://127.0.0.1:18789/health >/dev/null && echo GATEWAY_OK
+```
+
+The local header badge may still read `Gateway: unreachable` because its
+data-plane-only health route is not exposed by the control-plane fallback.
+`GATEWAY_OK` plus streaming gateway logs is the local proof.
 
 ## Code fixes required
 

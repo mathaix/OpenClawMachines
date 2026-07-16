@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # local-e2e-firecracker.sh — stand up the full OpenClaw control plane + a LOCAL
 # Firecracker worker on a single KVM box, so you can provision a REAL Firecracker
-# microVM through the browser (or via frontend/e2e/machine-lifecycle.spec.ts).
+# microVM through the browser (or the current lifecycle smoke).
 #
 # This is the deterministic distillation of an interactive bring-up. It does NOT
 # drive the browser — that is the Playwright layer (see docs/local-firecracker-e2e.md).
@@ -136,8 +136,11 @@ cmd_up() {
   Run dir/logs  : $RUN_DIR
 
 Now drive the browser to provision a real Firecracker VM, either:
-  - manually at $FRONTEND_URL/dashboard  (New Machine -> Basic / region External -> Create -> Start), or
-  - headless:  cd frontend && PLAYWRIGHT_BASE_URL=$FRONTEND_URL npx playwright test e2e/machine-lifecycle.spec.ts
+  - manually at $FRONTEND_URL/dashboard  (New Machine -> OpenClaw / region External -> Create; it auto-starts), or
+  - lifecycle smoke: cd frontend && PLAYWRIGHT_BASE_URL=$FRONTEND_URL npx playwright test e2e/spot-smoke.spec.ts --project=chromium-dev
+
+The smoke stops and deletes the machine but does not open Workspace. Use the
+manual flow to verify gateway output and shell connectivity.
 
 Tear down with: scripts/local-e2e-firecracker.sh down
 EOF

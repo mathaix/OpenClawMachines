@@ -62,50 +62,52 @@ type AccountInvitation struct {
 }
 
 type Machine struct {
-	ID                      string     `json:"id"`
-	AccountID               int        `json:"account_id"`
-	Kind                    string     `json:"kind"`
-	Name                    string     `json:"name"`
-	Slug                    string     `json:"slug"`
-	PreferredRegion         *string    `json:"preferred_region,omitempty"`
-	Status                  string     `json:"status"`
-	StatusMessage           *string    `json:"status_message,omitempty"`
-	VCPUs                   int        `json:"vcpus"`
-	MemoryMB                int        `json:"memory_mb"`
-	HostID                  *int       `json:"host_id,omitempty"`
-	VMIP                    *string    `json:"vm_ip,omitempty"`
-	TunnelHostname          *string    `json:"tunnel_hostname,omitempty"`
-	CustomDomain            *string    `json:"custom_domain,omitempty"`
-	GatewayToken            *string    `json:"gateway_token,omitempty"`
-	ProxyToken              *string    `json:"proxy_token,omitempty"`
-	ProvisionStep           *string    `json:"provision_step,omitempty"`
-	ProvisioningStartedAt   *time.Time `json:"provisioning_started_at,omitempty"`
-	ProvisioningCompletedAt *time.Time `json:"provisioning_completed_at,omitempty"`
-	BudgetMicrocents        *int64     `json:"budget_microcents,omitempty"`
-	CreatedAt               time.Time  `json:"created_at"`
-	StartedAt               *time.Time `json:"started_at,omitempty"`
-	StoppedAt               *time.Time `json:"stopped_at,omitempty"`
-	DataVolumeGB            int        `json:"data_volume_gb"`
-	DesiredRootfsVersion    *string    `json:"desired_rootfs_version,omitempty"`
-	DesiredOpenclawVersion  *string    `json:"desired_openclaw_version,omitempty"`
-	DesiredChannel          *string    `json:"desired_channel,omitempty"`
-	ResolvedRootfsVersion   *string    `json:"resolved_rootfs_version,omitempty"`
-	ResolvedOpenclawVersion *string    `json:"resolved_openclaw_version,omitempty"`
-	ActualRootfsVersion     *string    `json:"actual_rootfs_version,omitempty"`
-	ActualOpenclawVersion   *string    `json:"actual_openclaw_version,omitempty"`
-	VersionSource           *string    `json:"version_source,omitempty"`
-	RuntimeSource           *string    `json:"runtime_source,omitempty"`
-	RootfsSnapshot          *string    `json:"rootfs_snapshot,omitempty"`
-	OpenclawVersion         *string    `json:"openclaw_version,omitempty"`
-	LastStartedAt           *time.Time `json:"last_started_at,omitempty"`
-	TunnelID                *string    `json:"tunnel_id,omitempty"`
-	SigningKey              *string    `json:"-"`
-	TunnelToken             string     `json:"-"` // transient: not persisted, passed to VM at boot
-	HomeHostID              *int       `json:"home_host_id,omitempty"`
-	StorageMode             string     `json:"storage_mode"`
-	BackupsEnabled          bool       `json:"backups_enabled"`
-	BackupKey               []byte     `json:"-"` // encrypted with platform master key
-	BrowserVMID             *string    `json:"browser_vm_id,omitempty"`
+	ID                                   string     `json:"id"`
+	AccountID                            int        `json:"account_id"`
+	WorkspaceID                          *string    `json:"workspace_id,omitempty"`
+	Kind                                 string     `json:"kind"`
+	Name                                 string     `json:"name"`
+	Slug                                 string     `json:"slug"`
+	PreferredRegion                      *string    `json:"preferred_region,omitempty"`
+	Status                               string     `json:"status"`
+	StatusMessage                        *string    `json:"status_message,omitempty"`
+	VCPUs                                int        `json:"vcpus"`
+	MemoryMB                             int        `json:"memory_mb"`
+	HostID                               *int       `json:"host_id,omitempty"`
+	VMIP                                 *string    `json:"vm_ip,omitempty"`
+	TunnelHostname                       *string    `json:"tunnel_hostname,omitempty"`
+	CustomDomain                         *string    `json:"custom_domain,omitempty"`
+	GatewayToken                         *string    `json:"gateway_token,omitempty"`
+	ProxyToken                           *string    `json:"proxy_token,omitempty"`
+	WorkspaceIntegrationTokensValidAfter *time.Time `json:"workspace_integration_tokens_valid_after,omitempty"`
+	ProvisionStep                        *string    `json:"provision_step,omitempty"`
+	ProvisioningStartedAt                *time.Time `json:"provisioning_started_at,omitempty"`
+	ProvisioningCompletedAt              *time.Time `json:"provisioning_completed_at,omitempty"`
+	BudgetMicrocents                     *int64     `json:"budget_microcents,omitempty"`
+	CreatedAt                            time.Time  `json:"created_at"`
+	StartedAt                            *time.Time `json:"started_at,omitempty"`
+	StoppedAt                            *time.Time `json:"stopped_at,omitempty"`
+	DataVolumeGB                         int        `json:"data_volume_gb"`
+	DesiredRootfsVersion                 *string    `json:"desired_rootfs_version,omitempty"`
+	DesiredOpenclawVersion               *string    `json:"desired_openclaw_version,omitempty"`
+	DesiredChannel                       *string    `json:"desired_channel,omitempty"`
+	ResolvedRootfsVersion                *string    `json:"resolved_rootfs_version,omitempty"`
+	ResolvedOpenclawVersion              *string    `json:"resolved_openclaw_version,omitempty"`
+	ActualRootfsVersion                  *string    `json:"actual_rootfs_version,omitempty"`
+	ActualOpenclawVersion                *string    `json:"actual_openclaw_version,omitempty"`
+	VersionSource                        *string    `json:"version_source,omitempty"`
+	RuntimeSource                        *string    `json:"runtime_source,omitempty"`
+	RootfsSnapshot                       *string    `json:"rootfs_snapshot,omitempty"`
+	OpenclawVersion                      *string    `json:"openclaw_version,omitempty"`
+	LastStartedAt                        *time.Time `json:"last_started_at,omitempty"`
+	TunnelID                             *string    `json:"tunnel_id,omitempty"`
+	SigningKey                           *string    `json:"-"`
+	TunnelToken                          string     `json:"-"` // transient: not persisted, passed to VM at boot
+	HomeHostID                           *int       `json:"home_host_id,omitempty"`
+	StorageMode                          string     `json:"storage_mode"`
+	BackupsEnabled                       bool       `json:"backups_enabled"`
+	BackupKey                            []byte     `json:"-"` // encrypted with platform master key
+	BrowserVMID                          *string    `json:"browser_vm_id,omitempty"`
 }
 
 const (
@@ -386,6 +388,205 @@ type MachinePluginWithCatalog struct {
 	CatalogVersion string  `json:"catalog_version"`
 }
 
+type Workspace struct {
+	ID        string    `json:"id"`
+	AccountID int       `json:"account_id"`
+	Slug      string    `json:"slug"`
+	Name      string    `json:"name"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type WorkspaceIntegration struct {
+	ID           string          `json:"id"`
+	WorkspaceID  string          `json:"workspace_id"`
+	Slug         string          `json:"slug"`
+	DisplayName  string          `json:"display_name"`
+	Kind         string          `json:"kind"`
+	Transport    string          `json:"transport"`
+	Endpoint     *string         `json:"endpoint,omitempty"`
+	Enabled      bool            `json:"enabled"`
+	ToolManifest json.RawMessage `json:"tool_manifest"`
+	Config       json.RawMessage `json:"config"`
+	AllowedTools []string        `json:"allowed_tools,omitempty"`
+	DeniedTools  []string        `json:"denied_tools,omitempty"`
+	// CredentialRefKind/ID are runtime-only fields used while normalized
+	// connection credentials migrate off legacy workspace_integrations rows.
+	CredentialRefKind string     `json:"-"`
+	CredentialRefID   string     `json:"-"`
+	ApprovedBy        *int       `json:"approved_by_user_id,omitempty"`
+	ApprovedAt        *time.Time `json:"approved_at,omitempty"`
+	ConnectedBy       *int       `json:"connected_by_user_id,omitempty"`
+	ConnectedAt       *time.Time `json:"connected_at,omitempty"`
+	CreatedAt         time.Time  `json:"created_at"`
+	UpdatedAt         time.Time  `json:"updated_at"`
+}
+
+type WorkspaceIntegrationCredential struct {
+	ID            string     `json:"id"`
+	IntegrationID string     `json:"integration_id"`
+	SecretEnc     string     `json:"-"`
+	RefreshEnc    *string    `json:"-"`
+	TokenType     *string    `json:"token_type,omitempty"`
+	ExpiresAt     *time.Time `json:"expires_at,omitempty"`
+	CreatedAt     time.Time  `json:"created_at"`
+	UpdatedAt     time.Time  `json:"updated_at"`
+}
+
+type WorkspaceIntegrationConnectionCredential struct {
+	ID           string     `json:"id"`
+	ConnectionID string     `json:"connection_id"`
+	SecretEnc    string     `json:"-"`
+	RefreshEnc   *string    `json:"-"`
+	TokenType    *string    `json:"token_type,omitempty"`
+	ExpiresAt    *time.Time `json:"expires_at,omitempty"`
+	CreatedAt    time.Time  `json:"created_at"`
+	UpdatedAt    time.Time  `json:"updated_at"`
+}
+
+type WorkspaceIntegrationSource struct {
+	ID          string          `json:"id"`
+	WorkspaceID string          `json:"workspace_id"`
+	Slug        string          `json:"slug"`
+	DisplayName string          `json:"display_name"`
+	Kind        string          `json:"kind"`
+	Importer    string          `json:"importer"`
+	Config      json.RawMessage `json:"config"`
+	CreatedAt   time.Time       `json:"created_at"`
+	UpdatedAt   time.Time       `json:"updated_at"`
+}
+
+type WorkspaceIntegrationConnection struct {
+	ID                  string          `json:"id"`
+	WorkspaceID         string          `json:"workspace_id"`
+	SourceID            string          `json:"source_id"`
+	LegacyIntegrationID *string         `json:"legacy_integration_id,omitempty"`
+	Slug                string          `json:"slug"`
+	DisplayName         string          `json:"display_name"`
+	Scope               string          `json:"scope"`
+	OwnerUserID         *int            `json:"owner_user_id"`
+	CredentialState     string          `json:"credential_state"`
+	Enabled             bool            `json:"enabled"`
+	Config              json.RawMessage `json:"config"`
+	CreatedAt           time.Time       `json:"created_at"`
+	UpdatedAt           time.Time       `json:"updated_at"`
+}
+
+type WorkspaceIntegrationToolSnapshot struct {
+	ID            string          `json:"id"`
+	WorkspaceID   string          `json:"workspace_id"`
+	ConnectionID  string          `json:"connection_id"`
+	ToolName      string          `json:"tool_name"`
+	ToolAddress   string          `json:"tool_address"`
+	LegacyToolID  *string         `json:"legacy_tool_id,omitempty"`
+	Description   string          `json:"description"`
+	InputSchema   json.RawMessage `json:"input_schema"`
+	OutputSchema  json.RawMessage `json:"output_schema,omitempty"`
+	Annotations   json.RawMessage `json:"annotations"`
+	Access        string          `json:"access"`
+	Source        string          `json:"source"`
+	Provenance    json.RawMessage `json:"provenance"`
+	ToolsSyncedAt time.Time       `json:"tools_synced_at"`
+	StaleAfter    *time.Time      `json:"stale_after,omitempty"`
+	CreatedAt     time.Time       `json:"created_at"`
+	UpdatedAt     time.Time       `json:"updated_at"`
+}
+
+type WorkspaceIntegrationToolPolicy struct {
+	ID           string    `json:"id"`
+	WorkspaceID  string    `json:"workspace_id"`
+	ConnectionID string    `json:"connection_id"`
+	ToolName     string    `json:"tool_name"`
+	Policy       string    `json:"policy"`
+	Source       string    `json:"source"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}
+
+type WorkspaceIntegrationConnectorProjection struct {
+	Source     WorkspaceIntegrationSource         `json:"source"`
+	Connection WorkspaceIntegrationConnection     `json:"connection"`
+	Tools      []WorkspaceIntegrationToolSnapshot `json:"tools"`
+	Policies   []WorkspaceIntegrationToolPolicy   `json:"policies"`
+}
+
+type WorkspaceIntegrationCallEvent struct {
+	ID                string          `json:"id"`
+	AccountID         int             `json:"account_id"`
+	WorkspaceID       string          `json:"workspace_id"`
+	MachineID         *string         `json:"machine_id,omitempty"`
+	IntegrationID     *string         `json:"integration_id,omitempty"`
+	IntegrationSlug   string          `json:"integration_slug"`
+	ToolName          string          `json:"tool_name"`
+	ToolID            string          `json:"tool_id"`
+	ToolAddress       *string         `json:"tool_address,omitempty"`
+	CallMode          string          `json:"call_mode"`
+	Transport         string          `json:"transport"`
+	Access            string          `json:"access"`
+	Status            string          `json:"status"`
+	FailureClass      *string         `json:"failure_class,omitempty"`
+	UpstreamStatus    *int            `json:"upstream_status,omitempty"`
+	LatencyMS         int             `json:"latency_ms"`
+	OCMOverheadMS     *int            `json:"ocm_overhead_ms,omitempty"`
+	UpstreamLatencyMS *int            `json:"upstream_latency_ms,omitempty"`
+	RetryCount        int             `json:"retry_count"`
+	RetryAfterMS      *int            `json:"retry_after_ms,omitempty"`
+	Retryable         bool            `json:"retryable"`
+	Terminal          bool            `json:"terminal"`
+	ArgKeys           []string        `json:"arg_keys"`
+	ArgShape          json.RawMessage `json:"arg_shape"`
+	SampleRate        float64         `json:"sample_rate"`
+	DetailLevel       string          `json:"detail_level"`
+	CreatedAt         time.Time       `json:"created_at"`
+}
+
+type WorkspaceIntegrationHealthQuery struct {
+	Since time.Time
+	Limit int
+}
+
+type WorkspaceIntegrationFailureCount struct {
+	Class string `json:"class"`
+	Count int64  `json:"count"`
+}
+
+type WorkspaceIntegrationToolHealth struct {
+	ToolID            string                             `json:"tool_id"`
+	ToolAddress       *string                            `json:"tool_address,omitempty"`
+	IntegrationSlug   string                             `json:"integration_slug"`
+	ToolName          string                             `json:"tool_name"`
+	Transport         string                             `json:"transport"`
+	Access            string                             `json:"access"`
+	TotalCalls        int64                              `json:"total_calls"`
+	SuccessCalls      int64                              `json:"success_calls"`
+	ErrorCalls        int64                              `json:"error_calls"`
+	SuccessRate       float64                            `json:"success_rate"`
+	P50LatencyMS      float64                            `json:"p50_latency_ms"`
+	P95LatencyMS      float64                            `json:"p95_latency_ms"`
+	AvgRetryCount     float64                            `json:"avg_retry_count"`
+	TopFailureClasses []WorkspaceIntegrationFailureCount `json:"top_failure_classes"`
+}
+
+type WorkspaceIntegrationGuidanceOverlay struct {
+	ID                 string          `json:"id"`
+	AccountID          int             `json:"account_id"`
+	WorkspaceID        string          `json:"workspace_id"`
+	ToolID             string          `json:"tool_id"`
+	ToolAddress        *string         `json:"tool_address,omitempty"`
+	IntegrationSlug    string          `json:"integration_slug"`
+	ToolName           string          `json:"tool_name"`
+	Status             string          `json:"status"`
+	Version            int             `json:"version"`
+	Guidance           string          `json:"guidance"`
+	SourceFailureClass *string         `json:"source_failure_class,omitempty"`
+	SanitizedPattern   json.RawMessage `json:"sanitized_pattern"`
+	CreatedBy          *int            `json:"created_by,omitempty"`
+	ApprovedBy         *int            `json:"approved_by,omitempty"`
+	ApprovedAt         *time.Time      `json:"approved_at,omitempty"`
+	CreatedAt          time.Time       `json:"created_at"`
+	UpdatedAt          time.Time       `json:"updated_at"`
+}
+
 type CustomProvider struct {
 	ID           string    `json:"id"`
 	AccountID    int       `json:"account_id"`
@@ -579,6 +780,13 @@ type InvitationRepo interface {
 	DeclineInvitation(ctx context.Context, token string) error
 	RevokeInvitation(ctx context.Context, accountID, id int) error
 	ExpireOldInvitations(ctx context.Context) (int64, error)
+}
+
+// WorkspaceRepo handles account-owned workspace persistence.
+type WorkspaceRepo interface {
+	ListWorkspacesByAccount(ctx context.Context, accountID int) ([]Workspace, error)
+	GetWorkspace(ctx context.Context, accountID int, workspaceID string) (*Workspace, error)
+	CreateWorkspace(ctx context.Context, workspace *Workspace) error
 }
 
 // MachineRepo handles machine persistence.
@@ -932,6 +1140,24 @@ type MachinePluginRepo interface {
 	UpdateMachinePluginStatus(ctx context.Context, machineID, pluginID, status, version string) error
 }
 
+// WorkspaceIntegrationRepo handles workspace-scoped integration state.
+type WorkspaceIntegrationRepo interface {
+	GetOrCreateDefaultWorkspace(ctx context.Context, accountID int) (*Workspace, error)
+	GetWorkspaceForMachine(ctx context.Context, machineID string) (*Workspace, error)
+	ListWorkspaceIntegrations(ctx context.Context, workspaceID string) ([]WorkspaceIntegration, error)
+	ListEnabledWorkspaceIntegrationsForMachine(ctx context.Context, machineID string) ([]WorkspaceIntegration, error)
+	CreateWorkspaceIntegration(ctx context.Context, integration *WorkspaceIntegration) error
+	UpsertWorkspaceIntegration(ctx context.Context, integration *WorkspaceIntegration) error
+	GetWorkspaceIntegrationCredential(ctx context.Context, integrationID string) (*WorkspaceIntegrationCredential, error)
+	SetWorkspaceIntegrationCredential(ctx context.Context, credential *WorkspaceIntegrationCredential) error
+	RecordWorkspaceIntegrationCallEvent(ctx context.Context, event *WorkspaceIntegrationCallEvent) error
+	ListWorkspaceIntegrationToolHealth(ctx context.Context, accountID int, workspaceID string, query WorkspaceIntegrationHealthQuery) ([]WorkspaceIntegrationToolHealth, error)
+	ListWorkspaceIntegrationGuidanceOverlays(ctx context.Context, accountID int, workspaceID, status string) ([]WorkspaceIntegrationGuidanceOverlay, error)
+	CreateWorkspaceIntegrationGuidanceOverlay(ctx context.Context, overlay *WorkspaceIntegrationGuidanceOverlay) error
+	CreateWorkspaceIntegrationGuidanceDraftsFromTelemetry(ctx context.Context, accountID int, workspaceID string, since time.Time, limit int, createdBy *int) ([]WorkspaceIntegrationGuidanceOverlay, error)
+	ApproveWorkspaceIntegrationGuidanceOverlay(ctx context.Context, accountID int, workspaceID, overlayID string, approvedBy int) (*WorkspaceIntegrationGuidanceOverlay, error)
+}
+
 // TokenUsageRepo handles token usage recording.
 type TokenUsageRepo interface {
 	RecordTokenUsage(ctx context.Context, record *TokenUsageRecord) error
@@ -1215,6 +1441,7 @@ type Store interface {
 	UserRepo
 	AccountRepo
 	InvitationRepo
+	WorkspaceRepo
 	MachineRepo
 	HostRepo
 	PlacementRepo
@@ -1230,6 +1457,7 @@ type Store interface {
 	MachineAgentRepo
 	PluginCatalogRepo
 	MachinePluginRepo
+	WorkspaceIntegrationRepo
 	IntegrationCatalogRepo
 	IntegrationEventRepo
 	TokenUsageRepo

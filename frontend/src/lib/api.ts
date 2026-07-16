@@ -672,6 +672,346 @@ export const createConnectLink = (accountId: number, machineId: string, integrat
 export const deleteIntegration = (accountId: number, machineId: string, connId: string) =>
   request<void>(`/accounts/${accountId}/machines/${machineId}/integrations/${connId}`, { method: "DELETE" });
 
+// ---- Workspace Integrations (OCM) ----
+
+export interface WorkspaceIntegrationWorkspace {
+  id: string;
+  account_id: number;
+  slug: string;
+  name: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WorkspaceIntegration {
+  id: string;
+  workspace_id: string;
+  slug: string;
+  display_name: string;
+  kind: string;
+  transport: string;
+  target?: string;
+  enabled: boolean;
+  tool_count: number;
+  approved?: boolean;
+  scopes?: string[];
+  permission_levels?: Record<string, string>;
+  service_status?: Record<string, WorkspaceIntegrationServiceStatus>;
+  snapshot?: WorkspaceIntegrationSnapshot;
+  tools?: WorkspaceIntegrationCatalogTool[];
+  allowed_tools?: string[];
+  denied_tools?: string[];
+  approved_by_user_id?: number;
+  approved_at?: string;
+  connected_by_user_id?: number;
+  connected_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WorkspaceIntegrationServiceStatus {
+  service: string;
+  status: string;
+  detail?: string;
+  action?: string;
+  http_status?: number;
+  checked_at?: string;
+}
+
+export interface WorkspaceIntegrationSnapshot {
+  server_name?: string;
+  server_version?: string;
+  protocol_version?: string;
+  probed_at?: string;
+}
+
+export interface WorkspaceIntegrationMachineConsumer {
+  machine_id: string;
+  name: string;
+  status: string;
+  plugin_enabled: boolean;
+  install_status?: string;
+  installed_version?: string;
+}
+
+export interface WorkspaceIntegrationsResponse {
+  workspace: WorkspaceIntegrationWorkspace;
+  integrations: WorkspaceIntegration[];
+  machines: WorkspaceIntegrationMachineConsumer[];
+}
+
+export interface WorkspaceIntegrationFailureCount {
+  class: string;
+  count: number;
+}
+
+export interface WorkspaceIntegrationToolHealth {
+  tool_id: string;
+  tool_address?: string;
+  integration_slug: string;
+  tool_name: string;
+  transport: string;
+  access: "read" | "write";
+  total_calls: number;
+  success_calls: number;
+  error_calls: number;
+  success_rate: number;
+  p50_latency_ms: number;
+  p95_latency_ms: number;
+  avg_retry_count: number;
+  top_failure_classes: WorkspaceIntegrationFailureCount[];
+}
+
+export interface WorkspaceIntegrationHealthResponse {
+  workspace: WorkspaceIntegrationWorkspace;
+  since: string;
+  tools: WorkspaceIntegrationToolHealth[];
+}
+
+export interface WorkspaceIntegrationCatalogTool {
+  name: string;
+  description?: string;
+  access: "Read" | "Write";
+  mode: "Interactive" | "Background";
+  source?: string;
+}
+
+export interface WorkspaceIntegrationCatalogItem {
+  slug: string;
+  display_name: string;
+  description: string;
+  category: string;
+  auth_kind: "bearer" | "oauth";
+  transport: "http" | "mcp-remote";
+  connection_slug?: string;
+  google_service?: "gmail" | "drive" | "calendar";
+  remote_url?: string;
+  developer: string;
+  website: string;
+  privacy: string;
+  terms: string;
+  tools: WorkspaceIntegrationCatalogTool[];
+}
+
+export interface WorkspaceIntegrationCatalogResponse {
+  integrations: WorkspaceIntegrationCatalogItem[];
+}
+
+export interface WorkspaceIntegrationProbeTool {
+  name: string;
+  description?: string;
+  inputSchema?: Record<string, unknown>;
+}
+
+export interface WorkspaceIntegrationProbeResponse {
+  url: string;
+  protocol_version?: string;
+  server: {
+    name?: string;
+    version?: string;
+  };
+  capabilities?: Record<string, unknown>;
+  tools: WorkspaceIntegrationProbeTool[];
+  auth_required: boolean;
+  oauth?: {
+    available: boolean;
+    resource_metadata_url?: string;
+    resource?: string;
+    authorization_server?: string;
+    issuer?: string;
+    authorization_endpoint?: string;
+    token_endpoint?: string;
+    registration_endpoint?: string;
+    dynamic_client_registration: boolean;
+    scopes_supported?: string[];
+    code_challenge_methods_supported?: string[];
+  };
+  probed_at: string;
+}
+
+export interface WorkspaceSummary extends WorkspaceIntegrationWorkspace {
+  machine_count: number;
+  integration_count: number;
+}
+
+export const listWorkspaces = (accountId: number) =>
+  request<WorkspaceSummary[]>(`/accounts/${accountId}/workspaces`);
+
+export const getWorkspace = (accountId: number, workspaceId: string) =>
+  request<WorkspaceSummary>(`/accounts/${accountId}/workspaces/${workspaceId}`);
+
+export const createWorkspace = (accountId: number, data: { name: string; slug?: string }) =>
+  request<WorkspaceSummary>(`/accounts/${accountId}/workspaces`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+
+export const listWorkspaceMachines = (accountId: number, workspaceId: string) =>
+  request<Machine[]>(`/accounts/${accountId}/workspaces/${workspaceId}/machines`);
+
+const workspaceIntegrationsPath = (accountId: number, workspaceId?: string) =>
+  workspaceId
+    ? `/accounts/${accountId}/workspaces/${workspaceId}/integrations`
+    : `/accounts/${accountId}/workspace-integrations`;
+
+export const listWorkspaceIntegrations = (accountId: number, workspaceId?: string) =>
+  request<WorkspaceIntegrationsResponse>(workspaceIntegrationsPath(accountId, workspaceId));
+
+export const listWorkspaceIntegrationCatalog = (accountId: number, workspaceId?: string) =>
+  request<WorkspaceIntegrationCatalogResponse>(`${workspaceIntegrationsPath(accountId, workspaceId)}/catalog`);
+
+export const listWorkspaceIntegrationHealth = (accountId: number, workspaceId: string, since?: string) => {
+  const qs = new URLSearchParams();
+  if (since) qs.set("since", since);
+  const suffix = qs.toString() ? `?${qs}` : "";
+  return request<WorkspaceIntegrationHealthResponse>(`${workspaceIntegrationsPath(accountId, workspaceId)}/health${suffix}`);
+};
+
+export const createMockWorkspaceIntegration = (accountId: number, workspaceId?: string) =>
+  request<WorkspaceIntegration>(`${workspaceIntegrationsPath(accountId, workspaceId)}/mock`, { method: "POST" });
+
+export const createGitHubWorkspaceIntegration = (
+  accountId: number,
+  data: { owner: string; repo: string; token?: string; display_name?: string; connection_slug?: string; slug?: string },
+  workspaceId?: string,
+) =>
+  request<WorkspaceIntegration>(`${workspaceIntegrationsPath(accountId, workspaceId)}/github`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+
+export interface WorkspaceIntegrationCreateRequest {
+  display_name?: string;
+  kind?: string;
+  transport: "http" | "mcp-remote";
+  endpoint: string;
+  tool_manifest: Array<Record<string, unknown>>;
+  config?: Record<string, unknown>;
+  token?: string;
+  token_type?: string;
+}
+
+export type WorkspaceIntegrationImportType = "openapi" | "graphql";
+export type WorkspaceIntegrationImportAuthType = "none" | "bearer" | "api_key_header" | "oauth";
+
+export interface WorkspaceIntegrationImportRequest {
+  type: WorkspaceIntegrationImportType;
+  slug: string;
+  display_name?: string;
+  spec_url?: string;
+  spec_text?: string;
+  spec?: unknown;
+  base_url?: string;
+  endpoint?: string;
+  auth?: {
+    type?: WorkspaceIntegrationImportAuthType;
+    header?: string;
+    scheme?: string;
+    token_url?: string;
+    client_id?: string;
+    resource?: string;
+  };
+  token?: string;
+  token_type?: string;
+}
+
+export interface WorkspaceIntegrationImportPreview {
+  type: WorkspaceIntegrationImportType;
+  slug: string;
+  display_name: string;
+  kind: string;
+  transport: "http";
+  endpoint: string;
+  auth_kind: WorkspaceIntegrationImportAuthType;
+  tools: WorkspaceIntegrationCatalogTool[];
+  allowed_tools: string[];
+  denied_tools: string[];
+  tool_manifest: Array<Record<string, unknown>>;
+}
+
+export const createWorkspaceIntegration = (
+  accountId: number,
+  slug: string,
+  data: WorkspaceIntegrationCreateRequest,
+  workspaceId?: string,
+) =>
+  request<WorkspaceIntegration>(`${workspaceIntegrationsPath(accountId, workspaceId)}/${encodeURIComponent(slug)}`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+
+export const previewWorkspaceIntegrationImport = (
+  accountId: number,
+  data: WorkspaceIntegrationImportRequest,
+  workspaceId?: string,
+) =>
+  request<WorkspaceIntegrationImportPreview>(`${workspaceIntegrationsPath(accountId, workspaceId)}/import/preview`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+
+export const createWorkspaceIntegrationImport = (
+  accountId: number,
+  data: WorkspaceIntegrationImportRequest,
+  workspaceId?: string,
+) =>
+  request<WorkspaceIntegration>(`${workspaceIntegrationsPath(accountId, workspaceId)}/import`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+
+export const probeWorkspaceIntegration = (
+  accountId: number,
+  data: { url: string; token?: string },
+  workspaceId?: string,
+) =>
+  request<WorkspaceIntegrationProbeResponse>(`${workspaceIntegrationsPath(accountId, workspaceId)}/probe`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+
+export const testWorkspaceIntegration = (accountId: number, slug: string, workspaceId?: string) =>
+  request<{ status: string; result: Record<string, unknown> }>(
+    `${workspaceIntegrationsPath(accountId, workspaceId)}/${encodeURIComponent(slug)}/test`,
+    { method: "POST" },
+  );
+
+export interface WorkspaceIntegrationOAuthStartRequest {
+  permissions?: Record<string, string>;
+  url?: string;
+  display_name?: string;
+  scopes?: string[];
+  client_id?: string;
+}
+
+export const startWorkspaceIntegrationOAuth = (
+  accountId: number,
+  slug: string,
+  workspaceId?: string,
+  data?: WorkspaceIntegrationOAuthStartRequest,
+) =>
+  request<{ url: string }>(`${workspaceIntegrationsPath(accountId, workspaceId)}/${encodeURIComponent(slug)}/oauth/connect`, {
+    method: "POST",
+    ...(data ? { body: JSON.stringify(data) } : {}),
+  });
+
+export const revokeWorkspaceIntegration = (accountId: number, slug: string, workspaceId?: string) =>
+  request<{ status: string; integration: WorkspaceIntegration }>(
+    `${workspaceIntegrationsPath(accountId, workspaceId)}/${encodeURIComponent(slug)}`,
+    { method: "DELETE" },
+  );
+
+export const updateWorkspaceIntegrationPolicy = (
+  accountId: number,
+  slug: string,
+  data: { allowed_tools: string[]; denied_tools: string[] },
+  workspaceId?: string,
+) =>
+  request<WorkspaceIntegration>(
+    `${workspaceIntegrationsPath(accountId, workspaceId)}/${encodeURIComponent(slug)}/policy`,
+    { method: "PUT", body: JSON.stringify(data) },
+  );
+
 // Gateway WebSocket RPC — opens a one-shot WebSocket through the gateway proxy,
 // sends a JSON-RPC call, waits for the result, and closes.
 export function gatewayRPC(

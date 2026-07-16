@@ -84,4 +84,6 @@ flowchart TB
    proxy.
 
 **Cross-cutting:** request tracing via **Opik** and **OpenTelemetry**, encrypted
-per-machine secrets, and built-in backups/snapshots.
+per-machine secrets, workspace-scoped
+[native MCP integrations](workspace-integrations-mcp.md), and built-in
+backups/snapshots.

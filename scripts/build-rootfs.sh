@@ -20,6 +20,8 @@ command -v docker >/dev/null 2>&1 || { echo >&2 "Docker is not installed. Aborti
 MKFS_EXT4=$(command -v mkfs.ext4 2>/dev/null || echo "/usr/sbin/mkfs.ext4")
 [ -x "$MKFS_EXT4" ] || { echo >&2 "mkfs.ext4 is not installed (e.g., e2fsprogs). Aborting."; exit 1; }
 command -v bsdtar >/dev/null 2>&1 || { echo >&2 "bsdtar (libarchive-tools) is not installed. Aborting."; exit 1; }
+docker buildx version >/dev/null 2>&1 || { echo >&2 "docker buildx is not installed (build-rootfs forces DOCKER_BUILDKIT=1). Install the docker-buildx plugin. Aborting."; exit 1; }
+command -v strings >/dev/null 2>&1 || { echo >&2 "strings is not installed (part of binutils). Aborting."; exit 1; }
 
 # Use sudo for docker if user is not in docker group
 if docker info &>/dev/null; then
@@ -47,7 +49,10 @@ cleanup() {
 trap cleanup EXIT
 
 # --- Ensure images directory exists ---
-mkdir -p "${IMAGES_DIR}"
+# sudo: IMAGES_DIR lives under /var/lib/ocm, created root-owned by
+# provision-host.sh. The build otherwise runs as an unprivileged user with sudo
+# for privileged steps (matching the final mv below).
+sudo mkdir -p "${IMAGES_DIR}"
 
 # --- Build Docker Image ---
 echo ""
@@ -152,7 +157,11 @@ else
 fi
 
 # --- Inject version file ---
-AGENT_VERSION=$(strings "${TMP_DIR}/mnt/usr/local/bin/ocmptyd" | grep -oE '[a-f0-9]{7}-[0-9]{8}T[0-9]{6}Z' | head -1)
+# `|| true`: a locally built ocmptyd (plain `make build-ocmptyd`, no CI version
+# ldflags) carries no version string, so grep exits non-zero. Without the guard,
+# set -euo pipefail aborts the whole build here instead of falling through to the
+# ${AGENT_VERSION:-unknown} default below.
+AGENT_VERSION=$(strings "${TMP_DIR}/mnt/usr/local/bin/ocmptyd" | grep -oE '[a-f0-9]{7}-[0-9]{8}T[0-9]{6}Z' | head -1 || true)
 echo "${AGENT_VERSION:-unknown}" | sudo tee "${TMP_DIR}/mnt/etc/ocm-agent-version" > /dev/null
 echo "Injected version file: ${AGENT_VERSION:-unknown}"
 
@@ -228,7 +237,7 @@ echo "Migration runner and scripts injected"
 # --- Finalize ---
 sudo umount "${TMP_DIR}/mnt"
 echo "Unmounted ${ROOTFS_FILE}."
-mv "${TMP_DIR}/${ROOTFS_FILE}" "${IMAGES_DIR}/${ROOTFS_FILE}"
+sudo mv "${TMP_DIR}/${ROOTFS_FILE}" "${IMAGES_DIR}/${ROOTFS_FILE}"
 echo "Moved ${ROOTFS_FILE} to ${IMAGES_DIR}/"
 
 echo ""

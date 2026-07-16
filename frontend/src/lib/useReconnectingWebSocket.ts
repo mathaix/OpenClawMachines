@@ -61,8 +61,17 @@ export function useReconnectingWebSocket(
 
   const connect = useCallback(() => {
     if (!mountedRef.current) return;
-    if (wsRef.current) {
-      wsRef.current.close();
+    // Don't open a competing socket while one is already live. Under React
+    // StrictMode the mount effect runs twice (mount → cleanup → mount); without
+    // this guard the second run opens a second socket on the same server-side
+    // session, and when the backend evicts the older attachment both lineages
+    // reconnect and evict each other forever (perpetual "connecting").
+    const existing = wsRef.current;
+    if (existing && (existing.readyState === WebSocket.CONNECTING || existing.readyState === WebSocket.OPEN)) {
+      return;
+    }
+    if (existing) {
+      existing.close();
       wsRef.current = null;
     }
 
@@ -132,9 +141,17 @@ export function useReconnectingWebSocket(
 
   useEffect(() => {
     mountedRef.current = true;
-    connect();
+    // Defer the initial connect by a macrotask so React StrictMode's synchronous
+    // mount → cleanup → mount cycle cancels this first attempt before any socket
+    // is opened. Otherwise the throwaway first mount opens a socket that races
+    // the real one on the same server-side session, and the backend evicting one
+    // attachment sends both into an endless mutual-reconnect loop.
+    const openTimer = setTimeout(() => {
+      if (mountedRef.current) connect();
+    }, 0);
     return () => {
       mountedRef.current = false;
+      clearTimeout(openTimer);
       if (retryTimerRef.current) {
         clearTimeout(retryTimerRef.current);
         retryTimerRef.current = null;

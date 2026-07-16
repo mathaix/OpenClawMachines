@@ -125,24 +125,29 @@ func main() {
 		// Single signer instance shared by seed-config assembly (via RuntimeService)
 		// and live-config push (via Server.signComposioProxyToken).
 		composioSigner := resolveComposioProxyTokenSigner(cfg.JWTSecret)
+		workspaceIntegrationSigner := resolveWorkspaceIntegrationTokenSigner(cfg.JWTSecret)
 
 		machineRuntime := machines.NewRuntimeService(db, placementSvc, agentCli, tunnelMgr, nil, machines.RuntimeConfig{
-			RootfsDataVersion:            cfg.RootfsDataVersion,
-			CfSSHCAPubKey:                cfg.CfSSHCAPubKey,
-			SecretKey:                    encryptionKey,
-			ProxyBaseURL:                 cfg.ProxyBaseURL,
-			NebiusAPIKey:                 cfg.NebiusAPIKey,
-			OpikAPIURL:                   resolveOpikAPIURL(),
-			ComposioAPIURL:               resolveComposioAPIURL(),
-			ComposioProxyTokenSigner:     composioSigner,
-			EnableRuntimeVersionResolver: cfg.EnableRuntimeVersionResolver,
-			OpenClawManifestURI:          cfg.OpenClawManifestURI,
-			HermesManifestURI:            cfg.HermesManifestURI,
-			HermesRootfsManifestURI:      cfg.HermesRootfsManifestURI,
+			RootfsDataVersion:               cfg.RootfsDataVersion,
+			CfSSHCAPubKey:                   cfg.CfSSHCAPubKey,
+			SecretKey:                       encryptionKey,
+			ProxyBaseURL:                    cfg.ProxyBaseURL,
+			NebiusAPIKey:                    cfg.NebiusAPIKey,
+			OpikAPIURL:                      resolveOpikAPIURL(),
+			ComposioAPIURL:                  resolveComposioAPIURL(),
+			ComposioProxyTokenSigner:        composioSigner,
+			WorkspaceIntegrationAPIURL:      resolveWorkspaceIntegrationAPIURL(cfg.BackendURL),
+			WorkspaceIntegrationTokenSigner: workspaceIntegrationSigner,
+			EnableRuntimeVersionResolver:    cfg.EnableRuntimeVersionResolver,
+			OpenClawManifestURI:             cfg.OpenClawManifestURI,
+			HermesManifestURI:               cfg.HermesManifestURI,
+			HermesRootfsManifestURI:         cfg.HermesRootfsManifestURI,
 		}, routeSvc)
 
 		workerSrv = api.NewWorkerServer(db, placementSvc, agentCli, kv, tunnelMgr, machineRuntime, cfg.BackupMasterKey)
 		workerSrv.SetComposioProxyTokenSigner(composioSigner)
+		workerSrv.SetWorkspaceIntegrationAPIURL(resolveWorkspaceIntegrationAPIURL(cfg.BackendURL))
+		workerSrv.SetWorkspaceIntegrationTokenSigner(workspaceIntegrationSigner)
 	}
 
 	// --- Workflow service (both modes need this) ---
@@ -336,23 +341,30 @@ func main() {
 	// Single signer instance shared by seed-config assembly (via RuntimeService)
 	// and live-config push (via Server.signComposioProxyToken).
 	composioSigner := resolveComposioProxyTokenSigner(cfg.JWTSecret)
+	workspaceIntegrationSigner := resolveWorkspaceIntegrationTokenSigner(cfg.JWTSecret)
 
 	machineRuntime := machines.NewRuntimeService(db, placementSvc, agentCli, tunnelMgr, nil, machines.RuntimeConfig{
-		RootfsDataVersion:            cfg.RootfsDataVersion,
-		CfSSHCAPubKey:                cfg.CfSSHCAPubKey,
-		SecretKey:                    cfg.SecretEncryptionKey,
-		ProxyBaseURL:                 cfg.ProxyBaseURL,
-		NebiusAPIKey:                 cfg.NebiusAPIKey,
-		OpikAPIURL:                   resolveOpikAPIURL(),
-		ComposioAPIURL:               resolveComposioAPIURL(),
-		ComposioProxyTokenSigner:     composioSigner,
-		EnableRuntimeVersionResolver: cfg.EnableRuntimeVersionResolver,
-		OpenClawManifestURI:          cfg.OpenClawManifestURI,
-		HermesManifestURI:            cfg.HermesManifestURI,
-		HermesRootfsManifestURI:      cfg.HermesRootfsManifestURI,
+		RootfsDataVersion:               cfg.RootfsDataVersion,
+		CfSSHCAPubKey:                   cfg.CfSSHCAPubKey,
+		SecretKey:                       cfg.SecretEncryptionKey,
+		ProxyBaseURL:                    cfg.ProxyBaseURL,
+		NebiusAPIKey:                    cfg.NebiusAPIKey,
+		OpikAPIURL:                      resolveOpikAPIURL(),
+		ComposioAPIURL:                  resolveComposioAPIURL(),
+		ComposioProxyTokenSigner:        composioSigner,
+		WorkspaceIntegrationAPIURL:      resolveWorkspaceIntegrationAPIURL(cfg.BackendURL),
+		WorkspaceIntegrationTokenSigner: workspaceIntegrationSigner,
+		EnableRuntimeVersionResolver:    cfg.EnableRuntimeVersionResolver,
+		OpenClawManifestURI:             cfg.OpenClawManifestURI,
+		HermesManifestURI:               cfg.HermesManifestURI,
+		HermesRootfsManifestURI:         cfg.HermesRootfsManifestURI,
 	}, routeSvc)
 
 	srv := api.NewServer(ctx, db, a, cfg.AuthMode, cfAuth, firebaseAuth, placementSvc, agentCli, prov, tunnelMgr, cfg.CORSOrigins, cfg.SecretEncryptionKey, kv, cfg.CFServiceTokenID, cfg.CFServiceTokenSecret, cfg.AgentToken, cfg.RootfsDataVersion, cfg.DevUserEmail, cfg.CfSSHCAPubKey, cfg.ProxyBaseURL, cfg.OAuthClientID, cfg.OAuthClientSecret, machineRuntime, cfg.BackendURL, cfg.RootfsGCSManifest, cfg.AgentGCSManifest, cfg.BrowserRootfsGCSManifest, cfg.BrowserRootfsVersion, cfg.GCSServiceAccountKey, cfg.BackupMasterKey, cfg.BackupGCSBucket, cfg.BackupGCSPrefix)
+	if os.Getenv("OCM_ALLOW_INSECURE_WORKSPACE_INTEGRATIONS") == "1" {
+		srv.SetAllowInsecureWorkspaceIntegrationEndpoints(true)
+		slog.Warn("workspace_integrations.insecure_endpoints_enabled", "profile", cfg.ControlPlaneProfile)
+	}
 
 	srv.SetRouting(routeSvc)
 
@@ -362,6 +374,8 @@ func main() {
 	}
 	srv.SetComposioAPIURL(resolveComposioAPIURL())
 	srv.SetComposioProxyTokenSigner(composioSigner)
+	srv.SetWorkspaceIntegrationAPIURL(resolveWorkspaceIntegrationAPIURL(cfg.BackendURL))
+	srv.SetWorkspaceIntegrationTokenSigner(workspaceIntegrationSigner)
 
 	// Register workflows then launch executor (order matters: register before launch)
 	workflowSvc.RegisterWorkflows(srv.RegisterWorkflows)
@@ -492,6 +506,19 @@ func resolveComposioAPIURL() string {
 	return ""
 }
 
+func resolveWorkspaceIntegrationAPIURL(backendURL string) string {
+	if u := os.Getenv("WORKSPACE_INTEGRATIONS_API_URL"); u != "" {
+		return u
+	}
+	if backendURL != "" {
+		return strings.TrimRight(backendURL, "/") + "/api/ocm-integrations"
+	}
+	if u := os.Getenv("PUBLIC_URL"); u != "" {
+		return strings.TrimRight(u, "/") + "/api/ocm-integrations"
+	}
+	return ""
+}
+
 func cloudflareTunnelManagerOrExit(cfg *config.Config) *tunnel.Manager {
 	if !cfg.CloudflareTunnelConfigured() {
 		if cfg.RequiresHostedIntegrations() {
@@ -542,5 +569,15 @@ func resolveComposioProxyTokenSigner(jwtSecret string) func(string) (string, err
 	a := auth.New(jwtSecret)
 	return func(machineID string) (string, error) {
 		return a.IssueComposioProxyToken(machineID, api.ComposioProxyTokenTTL)
+	}
+}
+
+func resolveWorkspaceIntegrationTokenSigner(jwtSecret string) func(string) (string, error) {
+	if jwtSecret == "" || len(jwtSecret) < 16 {
+		return nil
+	}
+	a := auth.New(jwtSecret)
+	return func(machineID string) (string, error) {
+		return a.IssueWorkspaceIntegrationToken(machineID, api.WorkspaceIntegrationTokenTTL)
 	}
 }

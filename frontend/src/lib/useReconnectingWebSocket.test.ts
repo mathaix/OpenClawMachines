@@ -53,21 +53,48 @@ describe("useReconnectingWebSocket", () => {
     vi.restoreAllMocks();
   });
 
+  // The mount effect schedules the first connect via setTimeout(0) so that
+  // React StrictMode's throwaway first mount is cancelled before a socket
+  // opens. Flush that timer so tests see the socket created on mount.
+  function mountRWS(
+    options: Parameters<typeof useReconnectingWebSocket>[0],
+  ) {
+    const rendered = renderHook(() => useReconnectingWebSocket(options));
+    act(() => {
+      vi.advanceTimersByTime(0);
+    });
+    return rendered;
+  }
+
   it("connects on mount", () => {
     const onMessage = vi.fn();
-    renderHook(() =>
-      useReconnectingWebSocket({ url: "ws://localhost/test", onMessage }),
-    );
+    mountRWS({ url: "ws://localhost/test", onMessage });
 
     expect(MockWebSocket.instances).toHaveLength(1);
     expect(MockWebSocket.instances[0].url).toBe("ws://localhost/test");
   });
 
-  it("sets status to connected on open", () => {
+  it("cancels the initial connect if unmounted before it fires (StrictMode-safe)", () => {
     const onMessage = vi.fn();
-    const { result } = renderHook(() =>
+    // NOTE: use renderHook directly (not mountRWS) so the deferred connect
+    // timer has NOT fired yet when we unmount.
+    const { unmount } = renderHook(() =>
       useReconnectingWebSocket({ url: "ws://localhost/test", onMessage }),
     );
+    // Unmount before the deferred connect timer fires — the throwaway mount
+    // must not open a socket (this is what prevents the StrictMode dual-socket
+    // reconnect war).
+    unmount();
+    act(() => {
+      vi.advanceTimersByTime(0);
+    });
+
+    expect(MockWebSocket.instances).toHaveLength(0);
+  });
+
+  it("sets status to connected on open", () => {
+    const onMessage = vi.fn();
+    const { result } = mountRWS({ url: "ws://localhost/test", onMessage });
 
     act(() => MockWebSocket.instances[0].simulateOpen());
 
@@ -76,9 +103,7 @@ describe("useReconnectingWebSocket", () => {
 
   it("does not reconnect on normal close (1000)", () => {
     const onMessage = vi.fn();
-    const { result } = renderHook(() =>
-      useReconnectingWebSocket({ url: "ws://localhost/test", onMessage }),
-    );
+    const { result } = mountRWS({ url: "ws://localhost/test", onMessage });
 
     act(() => MockWebSocket.instances[0].simulateOpen());
     act(() => MockWebSocket.instances[0].simulateClose(1000));
@@ -90,9 +115,7 @@ describe("useReconnectingWebSocket", () => {
 
   it("does not reconnect on going away close (1001)", () => {
     const onMessage = vi.fn();
-    const { result } = renderHook(() =>
-      useReconnectingWebSocket({ url: "ws://localhost/test", onMessage }),
-    );
+    const { result } = mountRWS({ url: "ws://localhost/test", onMessage });
 
     act(() => MockWebSocket.instances[0].simulateOpen());
     act(() => MockWebSocket.instances[0].simulateClose(1001));
@@ -103,14 +126,12 @@ describe("useReconnectingWebSocket", () => {
 
   it("reconnects with exponential backoff on abnormal close", () => {
     const onMessage = vi.fn();
-    const { result } = renderHook(() =>
-      useReconnectingWebSocket({
+    const { result } = mountRWS({
         url: "ws://localhost/test",
         onMessage,
         initialDelay: 1000,
         maxRetries: 3,
-      }),
-    );
+      });
 
     act(() => MockWebSocket.instances[0].simulateOpen());
     // Abnormal close (code 1006)
@@ -132,14 +153,12 @@ describe("useReconnectingWebSocket", () => {
 
   it("stops reconnecting after maxRetries and sets error status", () => {
     const onMessage = vi.fn();
-    const { result } = renderHook(() =>
-      useReconnectingWebSocket({
+    const { result } = mountRWS({
         url: "ws://localhost/test",
         onMessage,
         maxRetries: 2,
         initialDelay: 100,
-      }),
-    );
+      });
 
     act(() => MockWebSocket.instances[0].simulateOpen());
 
@@ -163,14 +182,12 @@ describe("useReconnectingWebSocket", () => {
 
   it("manual reconnect resets retry counter", () => {
     const onMessage = vi.fn();
-    const { result } = renderHook(() =>
-      useReconnectingWebSocket({
+    const { result } = mountRWS({
         url: "ws://localhost/test",
         onMessage,
         maxRetries: 1,
         initialDelay: 100,
-      }),
-    );
+      });
 
     act(() => MockWebSocket.instances[0].simulateOpen());
 
@@ -191,9 +208,7 @@ describe("useReconnectingWebSocket", () => {
 
   it("forwards messages to onMessage callback", () => {
     const onMessage = vi.fn();
-    renderHook(() =>
-      useReconnectingWebSocket({ url: "ws://localhost/test", onMessage }),
-    );
+    mountRWS({ url: "ws://localhost/test", onMessage });
 
     act(() => MockWebSocket.instances[0].simulateOpen());
     act(() => MockWebSocket.instances[0].simulateMessage("hello"));
@@ -204,9 +219,7 @@ describe("useReconnectingWebSocket", () => {
 
   it("send works when connected", () => {
     const onMessage = vi.fn();
-    const { result } = renderHook(() =>
-      useReconnectingWebSocket({ url: "ws://localhost/test", onMessage }),
-    );
+    const { result } = mountRWS({ url: "ws://localhost/test", onMessage });
 
     act(() => MockWebSocket.instances[0].simulateOpen());
     act(() => result.current.send("test data"));

@@ -82,6 +82,10 @@ func (m *mockConfigStore) ListMachineCapabilities(_ context.Context, machineID s
 	return m.capabilities[machineID], nil
 }
 
+func (m *mockConfigStore) ListEnabledWorkspaceIntegrationsForMachine(_ context.Context, _ string) ([]store.WorkspaceIntegration, error) {
+	return nil, nil
+}
+
 func (m *mockConfigStore) GetRegistryEntry(_ context.Context, id string) (*store.RegistryEntry, error) {
 	if entry, ok := m.registry[id]; ok {
 		return entry, nil

@@ -686,7 +686,7 @@ Prefer these over POSIX equivalents — their output is easier to parse:
 - \`sqlite-utils\` — query / transform SQLite databases.
 
 ### Browser Automation
-The \`browser-harness\` and \`ocm-browser\` skills live under \`\${WORKSPACE_DIR}/skills/\` and are loaded by the gateway. Consult \`ocm-browser\` first: it covers the readiness check (\`bh --check\`) and bridge semantics. Everything else (helpers, CDP access) comes from \`browser-harness\`.
+The \`browser-harness\`, \`ocm-browser\`, and \`ocm-integrations\` skills live under \`\${WORKSPACE_DIR}/skills/\` and are loaded by the gateway. Consult \`ocm-browser\` first for browser work: it covers the readiness check (\`bh --check\`) and bridge semantics. Consult \`ocm-integrations\` first for workspace integrations and connected SaaS tools. Everything else for browser automation (helpers, CDP access) comes from \`browser-harness\`.
 
 ### Other Baked-In
 - \`gh\`, \`cloudflared\`, \`tmux\`, \`op\`, \`gws\`, \`himalaya\`, \`ffmpeg\`.
@@ -704,6 +704,31 @@ The \`browser-harness\` and \`ocm-browser\` skills live under \`\${WORKSPACE_DIR
 - To restart the gateway, use \`curl -sf -X POST http://127.0.0.1:7681/restart-gateway\`.
 - \`ls /var/service/\` — inspect the runit service directory.
 TOOLSBLK
+}
+
+# Emit the always-on Workspace Integrations pointer block for TOOLS.md. Static
+# content (no host vars), so use a quoted heredoc - literal backticks/markdown.
+# Detailed/provider-specific guidance lives in the ocm-integrations skill; this
+# is only the awareness + search/describe/call rule.
+emit_workspace_integrations_block() {
+    cat <<'WIBLK'
+### Workspace Integrations (connected SaaS tools)
+This workspace may have integrations - connected external tools (Google
+Workspace, GitHub, Jira, Linear, Slack, Notion, custom REST/OpenAPI APIs, remote
+MCP servers) - surfaced by the native `mcp.servers.ocm` MCP server. Credentials
+stay server-side; you only receive policy-filtered OCM facade tools.
+
+To use ANY connected/external tool, you MUST go through the OCM facade:
+1. `ocm.search_tools` first (describe intent + needed action/object)
+2. `ocm.describe_tool` on the one result you pick (use its `tool_address`)
+3. `ocm.call_tool` with that same `tool_address`
+
+Prefer `tool_address` - it distinguishes multiple accounts/repos for one app.
+Never invent provider tool names or call providers directly. If no `ocm.*` tools
+are visible, tell the user OCM integrations aren't loaded this session. The
+`ocm-integrations` skill has the full flow, semantic-search tips, and Google
+recovery.
+WIBLK
 }
 
 if mountpoint -q /data 2>/dev/null; then
@@ -915,7 +940,8 @@ fi
 
 seed_workspace_file "$OPENCLAW_DIR/workspace/TOOLS.md" TOOLS.md "# TOOLS.md"
 emit_tool_inventory_block | merge_fenced_block "$OPENCLAW_DIR/workspace/TOOLS.md" tool-inventory
-echo "  [OK] $OPENCLAW_DIR/workspace/TOOLS.md: template seeded + tool-inventory block refreshed"
+emit_workspace_integrations_block | merge_fenced_block "$OPENCLAW_DIR/workspace/TOOLS.md" workspace-integrations
+echo "  [OK] $OPENCLAW_DIR/workspace/TOOLS.md: template seeded + tool-inventory and workspace-integrations blocks refreshed"
 
 # Per-feature setup hooks live at /usr/local/libexec/ocm/. They're first-boot
 # + upgrade idempotent; init just invokes them. Keeps browser-harness (and

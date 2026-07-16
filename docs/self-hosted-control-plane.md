@@ -41,6 +41,13 @@ ssh-{machine-slug}.{DATA_PLANE_DOMAIN}
 ocm-host-*.{DATA_PLANE_DOMAIN}
 ```
 
+Attach the Worker route and create proxied DNS coverage for the account
+hostnames. A Workers route does not create DNS. Use a proxied wildcard record
+on a dedicated data-plane domain or provision one proxied record per account;
+otherwise `{account-slug}.{DATA_PLANE_DOMAIN}` returns `NXDOMAIN` before the
+Worker can authorize or route it. The control plane manages the `m-*`, `ssh-*`,
+and enrolled-host records separately.
+
 ### Cloudflare
 
 The self-hosted control plane uses the same Cloudflare primitives as the hosted
@@ -48,16 +55,33 @@ control plane:
 
 - Cloudflare account ID.
 - Cloudflare zone ID for the data-plane domain.
-- Cloudflare API token with enough permission to manage DNS records, Tunnels,
-  and Worker/KV resources used by OCM.
+- Cloudflare API token (`CLOUDFLARE_API_TOKEN`) with these exact permission
+  groups — the control plane uses it to mint per-VM tunnels, DNS records, and
+  route KV entries at runtime:
+  - **Account · Cloudflare Tunnel · Edit**
+  - **Account · Workers KV Storage · Edit**
+  - **Zone · DNS · Edit** (scoped to the data-plane zone)
+  - **Zone · Zone · Read** (scoped to the data-plane zone)
+
+  Deploying the Worker/KV with `wrangler` is a separate, one-time step that
+  authenticates via `wrangler login`; if scripted with a token instead, add
+  **Account · Workers Scripts · Edit**.
 - Cloudflare Tunnel for the control-plane origin.
 - Cloudflare Tunnel for registered KVM hosts.
 - Per-machine Cloudflare Tunnel and DNS records.
 - Cloudflare Worker deployed on the data-plane routes.
 - Cloudflare KV namespace for route and account cache entries.
 
-Cloudflare Tunnel is the ingress model. The control plane and workers should not
-require open inbound firewall ports.
+The `SEO_CACHE` KV and Browser Rendering bindings in `worker/wrangler.toml` are
+optional hosted-site prerendering features, not machine-routing dependencies.
+Remove those two blocks for an operator data-plane Worker, or provision both
+resources and replace the SEO cache placeholder before deploying.
+
+Cloudflare Tunnel is the ingress model for users and VM services. The current
+control plane nevertheless calls each registered agent's authenticated control
+API on port `9090`. Prefer private connectivity; if a public rule is necessary,
+restrict it to the control plane's egress CIDR. Do not expose the agent's
+workspace proxy on `9091` directly.
 
 ### Human Auth
 
@@ -90,16 +114,24 @@ whether the original identity provider was Firebase or Cloudflare Access.
 
 #### Cloudflare Access
 
-Use Cloudflare Access when the operator wants identity enforced at the edge.
+Use Cloudflare Access when the operator wants identity enforced at the edge. The
+control plane only **validates** the Access JWT — it does not create the Access
+application, so you set it up once in the Cloudflare Zero Trust dashboard:
 
-Required:
-
-- Cloudflare Access application covering the control-plane/API hostnames.
-- Access team domain.
-- Access application AUD tag.
-- `AUTH_MODE=cfaccess`.
-- `CF_ACCESS_TEAM_DOMAIN`.
-- `CF_ACCESS_AUD`.
+1. **Zero Trust → Settings → Custom Pages / team domain** — note your **team
+   domain** (`<your-team>.cloudflareaccess.com`); this is `CF_ACCESS_TEAM_DOMAIN`.
+2. **Zero Trust → Access → Applications → Add an application → Self-hosted.**
+   - **Application domain(s):** cover the control-plane/API hostname (your
+     `BACKEND_URL` host) and the frontend host. The per-VM `m-<slug>` and
+     `ssh-<slug>` hostnames are authenticated by the in-VM auth proxy + machine
+     tokens, so they do **not** need to be inside this Access app.
+   - **Identity/policy:** add an Allow policy (e.g. emails in `OCM_ADMIN_EMAILS`,
+     or your IdP group). Anyone the policy admits becomes an OCM user on first
+     request.
+3. After creating the app, open its **Overview → Application Audience (AUD) tag**
+   — that value is `CF_ACCESS_AUD`.
+4. Set `AUTH_MODE=cfaccess`, `CF_ACCESS_TEAM_DOMAIN`, and `CF_ACCESS_AUD` in the
+   control-plane env.
 
 Flow:
 
@@ -129,6 +161,19 @@ Generate and store these before deployment:
 - `FRONTEND_URL`: public frontend URL.
 - `CORS_ORIGINS`: expected browser origins.
 - `CONTROL_PLANE_PROFILE=operator`.
+- `OCM_ARTIFACT_BUCKET`: bucket used by `provision-host.sh` for the guest
+  kernel and browser assets.
+- `AGENT_GCS_MANIFEST`, `ROOTFS_GCS_MANIFEST`, and
+  `OPENCLAW_GCS_MANIFEST`: explicit operator artifact manifests. They are not
+  derived from `OCM_ARTIFACT_BUCKET`; use the standard paths shown in
+  `docs/self-hosted.env.example`.
+- `WORKSPACE_INTEGRATIONS_API_URL`: optional override for the per-machine
+  native MCP token audience. Leave unset to derive
+  `${BACKEND_URL}/api/ocm-integrations`.
+- `NEBIUS_API_KEY`: optional operator-level credential for the built-in Nebius
+  platform-model catalog. Catalog entries can still appear without it, but
+  selecting one will not make chat work. Leave it unset when users will connect
+  per-machine BYOK or subscription credentials. Provider usage charges apply.
 
 The self-hosted target also needs operator bootstrap values:
 
@@ -140,6 +185,20 @@ The self-hosted target also needs operator bootstrap values:
   `COOKIE_DOMAIN`; if unset, the frontend falls back to `VITE_DATA_PLANE_DOMAIN`.
 - `VITE_OCM_ADMIN_EMAILS`: frontend admin UI hint. Keep it aligned with
   `OCM_ADMIN_EMAILS`; backend authorization still comes from the server.
+- `GOOGLE_WORKSPACE_OAUTH_CLIENT_ID` and
+  `GOOGLE_WORKSPACE_OAUTH_CLIENT_SECRET`: required only when enabling Google
+  Workspace integrations. Other OAuth providers use the same slug-derived form,
+  for example `NOTION_OAUTH_CLIENT_ID`.
+
+Keep `OCM_ALLOW_INSECURE_WORKSPACE_INTEGRATIONS` unset in operator deployments.
+It exists only for trusted local tests that intentionally probe HTTP/private
+integration endpoints. `OCM_WORKSPACE_INTEGRATIONS_EXECUTE_ENABLED` and
+`OCM_WORKSPACE_INTEGRATIONS_WORKFLOWS_ENABLED` are optional experimental MCP
+facade flags and should stay disabled unless the operator has explicitly chosen
+to expose those tools.
+
+For the runtime tool flow and native MCP troubleshooting, see
+[Workspace Integrations And Native MCP](workspace-integrations-mcp.md).
 
 ### KVM Worker Host
 
@@ -152,14 +211,37 @@ Each worker host needs:
 - Kernel/rootfs/runtime assets or operator-managed artifact manifests.
 - Outbound network access to Cloudflare and the control plane.
 - Enough CPU, memory, and disk capacity for placed machines.
+- Network reachability from the control plane to the authenticated agent API
+  on `9090`, preferably over private networking or a narrowly scoped firewall
+  rule. Port `9091` is not a public control-plane endpoint.
 
 The worker registers with OCM using an enrollment token created by an admin. The
 worker is infrastructure, not a human user; do not authenticate workers through
 Firebase.
 
+After enrollment, set `DATA_PLANE_DOMAIN` in
+`/etc/ocm-agent/agent.env` and restart `ocm-agent`. The agent uses it to accept
+the operator domain as a WebSocket origin. A host can appear `ready` while
+routed gateway and terminal WebSockets still fail if this value is absent.
+
+The current generated installer does not use a GCE host's ambient ADC when it
+downloads the private `AGENT_GCS_MANIFEST`. If it reports that no GCS
+credentials are available, the host record and tunnel may already exist but
+`/usr/local/bin/ocm-agent` does not. Install a manifest-verified agent artifact
+manually (or a trusted local `make build-agent` build) and enable the systemd
+unit. Do not treat a successful registration message as proof that the binary
+was installed.
+
+Backups are optional and disabled by default. To enable them, set
+`BACKUP_MASTER_KEY` (the 64-character hex output of `openssl rand -hex 32`),
+`BACKUP_GCS_BUCKET`, and `BACKUP_GCS_PREFIX` on the control plane. Set the same
+bucket and prefix—but not the master key—on every agent. Both sides also need
+GCS credentials through workload identity/ADC or `GCS_SERVICE_ACCOUNT_KEY`.
+
 ## Setup Order
 
-1. Put the operator domain under Cloudflare DNS.
+1. Put the operator domain under Cloudflare DNS, including proxied account-host
+   coverage for the Worker route.
 2. Create Cloudflare API credentials.
 3. Create or select the Worker KV namespace.
 4. Deploy the data-plane Worker for the operator domain.
@@ -210,9 +292,13 @@ Before calling the deployment ready:
 - `/api/auth/me` returns the expected OCM user.
 - `ocm_token` is set for the operator domain.
 - Worker can read/write the route KV namespace.
+- Account hostname resolves to Cloudflare; the Worker route alone is not a DNS
+  record.
 - Worker rejects unauthenticated account-subdomain requests.
 - Admin can create a host enrollment token.
 - KVM host can register and appears online.
+- Enrolled agent has `DATA_PLANE_DOMAIN` and is reachable from the control plane
+  on authenticated port `9090`.
 - Machine create/start reaches `running`.
 - Terminal/gateway routes work through the data-plane domain.
 - SSH certificate issuance works if SSH is enabled.

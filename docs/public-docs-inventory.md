@@ -14,6 +14,8 @@ after the split from the private hosted overlay.
 | `SECURITY.md` | Vulnerability reporting for the public core. |
 | `CODE_OF_CONDUCT.md` | Community conduct and reporting expectations. |
 | `docs/getting-started.md` | Three-stage setup guide: local evaluation, Cloudflare + dedicated host, full workflow. |
+| `docs/user-guide.md` | End-user guide for using a machine: model setup, chat, terminal, browser VM, files, logs, traces, backups, troubleshooting. |
+| `docs/workspace-integrations-mcp.md` | Workspace-scoped integrations and native MCP behavior, agent tool flow, policy, operator requirements, and troubleshooting. |
 | `docs/tech-stack.md` | The five implementation layers, from browser to sandbox (moved out of `README.md`). |
 | `docs/local-setup.md` | Local and BYO-host setup expectations. |
 | `docs/getting-started.md` | Three-stage guide: local evaluation, Cloudflare + dedicated host, full workflow. |

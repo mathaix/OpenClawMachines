@@ -4026,3 +4026,73 @@ func TestAssembleSeedConfig_MirrorsPlatformDefaults(t *testing.T) {
 		t.Errorf("seed: agents.defaults.heartbeat.every = %v, want \"15m\"", hb["every"])
 	}
 }
+
+// restFallbackResult builds a config where the legacy ocm-integrations REST
+// plugin is present and enabled, used to check native-MCP injection behavior.
+func restFallbackResult() map[string]interface{} {
+	return map[string]interface{}{
+		"plugins": map[string]interface{}{
+			"allow": []interface{}{"ocm-integrations"},
+			"entries": map[string]interface{}{
+				"ocm-integrations": map[string]interface{}{
+					"enabled": true,
+					"config":  map[string]interface{}{"apiUrl": "https://x/api"},
+				},
+			},
+		},
+	}
+}
+
+// A configured-but-unavailable signer (nil, or one that errors) must not abort
+// config assembly, and must leave the REST fallback plugin in place. Regression
+// test for the fleet-wide config-push failure when JWT_SECRET was weak/unset.
+func TestInjectWorkspaceIntegrationNativeMCPConfig_UnavailableSignerDoesNotAbort(t *testing.T) {
+	cases := map[string]func(string) (string, error){
+		"nil signer":      nil,
+		"erroring signer": func(string) (string, error) { return "", fmt.Errorf("signer not configured") },
+	}
+	for name, signer := range cases {
+		t.Run(name, func(t *testing.T) {
+			result := restFallbackResult()
+			if err := injectWorkspaceIntegrationNativeMCPConfig(result, "machine-1", "https://backend/api/ocm-integrations", signer, nil, false); err != nil {
+				t.Fatalf("injector must not abort on an unavailable signer, got: %v", err)
+			}
+			if mcp, ok := result["mcp"].(map[string]interface{}); ok {
+				if servers, ok := mcp["servers"].(map[string]interface{}); ok {
+					if _, present := servers["ocm"]; present {
+						t.Fatal("native MCP server should not be injected without a working signer")
+					}
+				}
+			}
+			plugins := result["plugins"].(map[string]interface{})
+			allow := plugins["allow"].([]interface{})
+			if len(allow) != 1 || allow[0] != "ocm-integrations" {
+				t.Fatalf("REST fallback should remain in allow-list, got %v", allow)
+			}
+			entry := plugins["entries"].(map[string]interface{})["ocm-integrations"].(map[string]interface{})
+			if entry["enabled"] != true {
+				t.Fatal("REST fallback should stay enabled when native MCP is not injected")
+			}
+		})
+	}
+}
+
+func TestInjectWorkspaceIntegrationNativeMCPConfig_WorkingSignerInjectsAndDisablesREST(t *testing.T) {
+	result := restFallbackResult()
+	signer := func(string) (string, error) { return "tok-123", nil }
+	if err := injectWorkspaceIntegrationNativeMCPConfig(result, "machine-1", "https://backend/api/ocm-integrations", signer, nil, false); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	servers := result["mcp"].(map[string]interface{})["servers"].(map[string]interface{})
+	if _, ok := servers["ocm"]; !ok {
+		t.Fatal("native MCP server should be injected with a working signer")
+	}
+	plugins := result["plugins"].(map[string]interface{})
+	if allow := plugins["allow"].([]interface{}); len(allow) != 0 {
+		t.Fatalf("REST plugin should be removed from allow-list, got %v", allow)
+	}
+	entry := plugins["entries"].(map[string]interface{})["ocm-integrations"].(map[string]interface{})
+	if entry["enabled"] != false {
+		t.Fatal("REST plugin should be disabled once native MCP is injected")
+	}
+}
